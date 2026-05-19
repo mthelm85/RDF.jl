@@ -1,14 +1,21 @@
-using RDF
 using Test
-using Aqua
-using JET
 
 @testset "RDF.jl" begin
-    @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(RDF; ambiguities = false,)
-    end
-    @testset "Code linting (JET.jl)" begin
-        JET.test_package(RDF; target_defined_modules = true)
-    end
-    # Write your tests here.
+    include("test_iris.jl")
+    include("test_literals.jl")
+    include("test_blank_nodes.jl")
+    include("test_triples.jl")
+    include("test_graphs.jl")
+    include("test_datasets.jl")
+    include("test_namespaces.jl")
+    include("test_pattern_matching.jl")
+    include("test_serialization.jl")
+    include("test_inference.jl")
+    include("test_validation.jl")
+    include("test_errors.jl")
+    include("test_tables.jl")
+    include("test_type_stability.jl")
+    include("w3c/test_w3c_ntriples.jl")
+    include("w3c/test_w3c_nquads.jl")
+    include("w3c/test_w3c_isomorphism.jl")
 end
