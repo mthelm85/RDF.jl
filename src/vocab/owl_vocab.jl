@@ -1,0 +1,46 @@
+module owl
+
+using ..RDF: IRI
+
+const _BASE = "http://www.w3.org/2002/07/owl#"
+
+const Class                 = IRI(_BASE * "Class")
+const Thing                 = IRI(_BASE * "Thing")
+const Nothing               = IRI(_BASE * "Nothing")
+const ObjectProperty        = IRI(_BASE * "ObjectProperty")
+const DatatypeProperty      = IRI(_BASE * "DatatypeProperty")
+const AnnotationProperty    = IRI(_BASE * "AnnotationProperty")
+const FunctionalProperty    = IRI(_BASE * "FunctionalProperty")
+const InverseFunctionalProperty = IRI(_BASE * "InverseFunctionalProperty")
+const TransitiveProperty    = IRI(_BASE * "TransitiveProperty")
+const SymmetricProperty     = IRI(_BASE * "SymmetricProperty")
+const AsymmetricProperty    = IRI(_BASE * "AsymmetricProperty")
+const ReflexiveProperty     = IRI(_BASE * "ReflexiveProperty")
+const IrreflexiveProperty   = IRI(_BASE * "IrreflexiveProperty")
+const Ontology              = IRI(_BASE * "Ontology")
+const imports               = IRI(_BASE * "imports")
+const versionIRI            = IRI(_BASE * "versionIRI")
+const versionInfo           = IRI(_BASE * "versionInfo")
+const equivalentClass       = IRI(_BASE * "equivalentClass")
+const equivalentProperty    = IRI(_BASE * "equivalentProperty")
+const sameAs                = IRI(_BASE * "sameAs")
+const differentFrom         = IRI(_BASE * "differentFrom")
+const AllDifferent          = IRI(_BASE * "AllDifferent")
+const distinctMembers       = IRI(_BASE * "distinctMembers")
+const unionOf               = IRI(_BASE * "unionOf")
+const intersectionOf        = IRI(_BASE * "intersectionOf")
+const complementOf          = IRI(_BASE * "complementOf")
+const oneOf                 = IRI(_BASE * "oneOf")
+const Restriction           = IRI(_BASE * "Restriction")
+const onProperty            = IRI(_BASE * "onProperty")
+const allValuesFrom         = IRI(_BASE * "allValuesFrom")
+const someValuesFrom        = IRI(_BASE * "someValuesFrom")
+const hasValue              = IRI(_BASE * "hasValue")
+const minCardinality        = IRI(_BASE * "minCardinality")
+const maxCardinality        = IRI(_BASE * "maxCardinality")
+const cardinality           = IRI(_BASE * "cardinality")
+const inverseOf             = IRI(_BASE * "inverseOf")
+const disjointWith          = IRI(_BASE * "disjointWith")
+const deprecated            = IRI(_BASE * "deprecated")
+
+end # module owl
