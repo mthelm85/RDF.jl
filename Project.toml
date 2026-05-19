@@ -1,0 +1,7 @@
+name = "RDF"
+uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
+authors = ["Matthew Helm"]
+version = "0.1.0"
+
+[compat]
+julia = "1.9"
