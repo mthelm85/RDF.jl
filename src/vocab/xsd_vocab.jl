@@ -1,0 +1,50 @@
+module xsd
+
+using ..RDF: IRI
+
+const _BASE = "http://www.w3.org/2001/XMLSchema#"
+
+# Primitive types
+const string              = IRI(_BASE * "string")
+const boolean             = IRI(_BASE * "boolean")
+const decimal             = IRI(_BASE * "decimal")
+const integer             = IRI(_BASE * "integer")
+const double              = IRI(_BASE * "double")
+const float               = IRI(_BASE * "float")
+const date                = IRI(_BASE * "date")
+const time                = IRI(_BASE * "time")
+const dateTime            = IRI(_BASE * "dateTime")
+const dateTimeStamp       = IRI(_BASE * "dateTimeStamp")
+const gYear               = IRI(_BASE * "gYear")
+const gMonth              = IRI(_BASE * "gMonth")
+const gDay                = IRI(_BASE * "gDay")
+const gYearMonth          = IRI(_BASE * "gYearMonth")
+const gMonthDay           = IRI(_BASE * "gMonthDay")
+const duration            = IRI(_BASE * "duration")
+const yearMonthDuration   = IRI(_BASE * "yearMonthDuration")
+const dayTimeDuration     = IRI(_BASE * "dayTimeDuration")
+const anyURI              = IRI(_BASE * "anyURI")
+const QName               = IRI(_BASE * "QName")
+const NOTATION            = IRI(_BASE * "NOTATION")
+const hexBinary           = IRI(_BASE * "hexBinary")
+const base64Binary        = IRI(_BASE * "base64Binary")
+const normalizedString    = IRI(_BASE * "normalizedString")
+const token               = IRI(_BASE * "token")
+const language            = IRI(_BASE * "language")
+const Name                = IRI(_BASE * "Name")
+const NCName              = IRI(_BASE * "NCName")
+const NMTOKEN             = IRI(_BASE * "NMTOKEN")
+const nonNegativeInteger  = IRI(_BASE * "nonNegativeInteger")
+const positiveInteger     = IRI(_BASE * "positiveInteger")
+const nonPositiveInteger  = IRI(_BASE * "nonPositiveInteger")
+const negativeInteger     = IRI(_BASE * "negativeInteger")
+const long                = IRI(_BASE * "long")
+const int                 = IRI(_BASE * "int")
+const short               = IRI(_BASE * "short")
+const byte                = IRI(_BASE * "byte")
+const unsignedLong        = IRI(_BASE * "unsignedLong")
+const unsignedInt         = IRI(_BASE * "unsignedInt")
+const unsignedShort       = IRI(_BASE * "unsignedShort")
+const unsignedByte        = IRI(_BASE * "unsignedByte")
+
+end # module xsd

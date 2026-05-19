@@ -3,5 +3,18 @@ uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
 authors = ["Matthew Helm"]
 version = "0.1.0"
 
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[weakdeps]
+Tables = "bd369af6-aef1-5bc4-4a6c-f8904ac6e3e9"
+
+[extensions]
+RDFTablesExt = "Tables"
+
 [compat]
 julia = "1.9"
+Dates = "1"
+Printf = "1"
+Tables = "1"
