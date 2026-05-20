@@ -17,13 +17,24 @@ function _write_triple(io::IO, t::Triple)
     println(io, " .")
 end
 
-_write_subject(io, iri::IRI) = _write_iri(io, iri)
+_write_subject(io, iri::IRI)      = _write_iri(io, iri)
 _write_subject(io, bn::BlankNode) = _write_blank(io, bn)
-_write_object(io, iri::IRI) = _write_iri(io, iri)
-_write_object(io, bn::BlankNode) = _write_blank(io, bn)
-_write_object(io, lit::Literal) = _write_literal(io, lit)
+_write_object(io, iri::IRI)       = _write_iri(io, iri)
+_write_object(io, bn::BlankNode)  = _write_blank(io, bn)
+_write_object(io, lit::Literal)   = _write_literal(io, lit)
+_write_object(io, tt::TripleTerm) = _write_triple_term(io, tt)
 
-_write_iri(io, iri::IRI) = print(io, '<', iri.value, '>')
+function _write_triple_term(io, tt::TripleTerm)
+    print(io, "<<(")
+    _write_subject(io, tt.subject)
+    print(io, ' ')
+    _write_iri(io, tt.predicate)
+    print(io, ' ')
+    _write_object(io, tt.object)
+    print(io, ")>>")
+end
+
+_write_iri(io, iri::IRI)      = print(io, '<', iri.value, '>')
 _write_blank(io, bn::BlankNode) = print(io, "_:b", bn.id)
 
 function _write_literal(io, lit::Literal)
@@ -149,20 +160,19 @@ function _parse_nt_line(line::AbstractString, lineno::Int, blank_map::Dict{Strin
     pos = _skip_ws(line, pos)
     obj, pos  = _parse_nt_object(line, pos, lineno, blank_map)
     pos = _skip_ws(line, pos)
-    pos <= length(line) && throw(ParseError("Unexpected content after object", lineno, pos, _MIME_NT()))
+    pos <= lastindex(line) && throw(ParseError("Unexpected content after object", lineno, pos, _MIME_NT()))
     Triple(subj, pred, obj)
 end
 
 function _skip_ws(s, pos)
-    while pos <= length(s) && isspace(s[pos])
+    while pos <= lastindex(s) && isspace(s[pos])
         pos += 1
     end
     pos
 end
 
 function _parse_nt_iri(s, pos, lineno)
-    pos <= length(s) && s[pos] == '<' || throw(ParseError("Expected IRI", lineno, pos, _MIME_NT()))
-    close = findnext(==('<') ∘ identity, s, pos)  # wrong, find '>'
+    pos <= lastindex(s) && s[pos] == '<' || throw(ParseError("Expected IRI", lineno, pos, _MIME_NT()))
     close = _find_close(s, pos + 1, '>')
     close === nothing && throw(ParseError("Unterminated IRI", lineno, pos, _MIME_NT()))
     raw = s[pos+1:close-1]
@@ -177,44 +187,81 @@ end
 
 function _find_close(s, from, ch)
     i = from
-    while i <= length(s)
+    lim = lastindex(s)
+    while i <= lim
         if s[i] == '\\' && ch != '\\'
             i += 2
         elseif s[i] == ch
             return i
         else
-            i += 1
+            i = nextind(s, i)
         end
     end
     nothing
 end
 
 function _parse_nt_subject(s, pos, lineno, blank_map)
-    pos <= length(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
-    s[pos] == '<' && return _parse_nt_iri(s, pos, lineno)
+    pos <= lastindex(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
+    if s[pos] == '<'
+        # Reject triple terms (<<...) as outer subject
+        pos + 1 <= lastindex(s) && s[pos+1] == '<' &&
+            throw(ParseError("Triple term not allowed as subject", lineno, pos, _MIME_NT()))
+        return _parse_nt_iri(s, pos, lineno)
+    end
     s[pos] == '_' && return _parse_nt_blank(s, pos, lineno, blank_map)
     throw(ParseError("Expected subject (IRI or blank node)", lineno, pos, _MIME_NT()))
 end
 
 function _parse_nt_object(s, pos, lineno, blank_map)
-    pos <= length(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
-    s[pos] == '<' && return _parse_nt_iri(s, pos, lineno)
+    pos <= lastindex(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
+    if s[pos] == '<'
+        if pos + 1 <= lastindex(s) && s[pos+1] == '<'
+            # RDF 1.2 triple term: must use <<( ... )>> syntax
+            pos + 2 <= lastindex(s) && s[pos+2] == '(' ||
+                throw(ParseError("Invalid triple term syntax; RDF 1.2 requires <<( ... )>>", lineno, pos, _MIME_NT()))
+            return _parse_nt_triple_term(s, pos, lineno, blank_map)
+        end
+        return _parse_nt_iri(s, pos, lineno)
+    end
     s[pos] == '_' && return _parse_nt_blank(s, pos, lineno, blank_map)
     s[pos] == '"' && return _parse_nt_literal(s, pos, lineno, blank_map)
     throw(ParseError("Expected object (IRI, blank node, or literal)", lineno, pos, _MIME_NT()))
 end
 
-function _valid_bnode_first(c::Char)
-    isletter(c) || isdigit(c) || c == '_' || c == ':' && false || UInt32(c) > 0x7F
+function _parse_nt_triple_term(s, pos, lineno, blank_map)
+    # Expects <<( at current pos
+    (pos + 2 <= lastindex(s) && s[pos] == '<' && s[pos+1] == '<' && s[pos+2] == '(') ||
+        throw(ParseError("Expected '<<('", lineno, pos, _MIME_NT()))
+    pos += 3  # skip '<<('
+    pos = _skip_ws(s, pos)
+
+    # Subject: IRI or BlankNode only (triple term subject cannot be a triple term)
+    subj, pos = _parse_nt_subject(s, pos, lineno, blank_map)
+    pos = _skip_ws(s, pos)
+
+    # Predicate: IRI only
+    pred, pos = _parse_nt_iri(s, pos, lineno)
+    pos = _skip_ws(s, pos)
+
+    # Object: IRI, BlankNode, Literal, or nested TripleTerm
+    obj, pos = _parse_nt_object(s, pos, lineno, blank_map)
+    pos = _skip_ws(s, pos)
+
+    # Closing ')>>'
+    (pos + 2 <= lastindex(s) && s[pos] == ')' && s[pos+1] == '>' && s[pos+2] == '>') ||
+        throw(ParseError("Expected ')>>'", lineno, pos, _MIME_NT()))
+    pos += 3
+
+    TripleTerm(subj, pred, obj), pos
 end
 
 function _parse_nt_blank(s, pos, lineno, blank_map)
     startswith(s[pos:end], "_:") || throw(ParseError("Expected blank node", lineno, pos, _MIME_NT()))
     i = pos + 2
-    while i <= length(s)
+    while i <= lastindex(s)
         c = s[i]
         (isspace(c) || c == '.' || c == '<' || c == '>' || c == '"' ||
-         c == '^' || c == ',' || c == ';' || c == '#') && break
+         c == '^' || c == ',' || c == ';' || c == '#' || c == ')') && break
         i += 1
     end
     label = s[pos+2:i-1]
@@ -230,7 +277,6 @@ end
 
 function _parse_nt_literal(s, pos, lineno, blank_map)
     s[pos] == '"' || throw(ParseError("Expected literal", lineno, pos, _MIME_NT()))
-    # Find closing quote, respecting escapes
     i = pos + 1
     buf = IOBuffer()
     while i <= lastindex(s)
@@ -266,33 +312,55 @@ function _parse_nt_literal(s, pos, lineno, blank_map)
         i = nextind(s, i)
     end
     i > lastindex(s) && throw(ParseError("Unterminated literal", lineno, pos, _MIME_NT()))
-    # i now points at closing quote
     lexical = String(take!(buf))
     i = nextind(s, i)  # move past '"'
-    # Parse suffix: @lang or ^^<iri>
+    # Skip optional whitespace (RDF 1.2 allows whitespace before @lang or ^^)
+    i = _skip_ws(s, i)
+    # Parse suffix: @lang[--dir] or ^^<iri>
     if i <= lastindex(s) && s[i] == '@'
         j = i + 1
         while j <= lastindex(s) && !isspace(s[j]) && s[j] != '.'
-            j += 1
+            j = nextind(s, j)
         end
-        lang = s[i+1:j-1]
-        isempty(lang) && throw(ParseError("Empty language tag", lineno, i, _MIME_NT()))
-        isletter(lang[1]) || throw(ParseError("Invalid language tag: $lang", lineno, i, _MIME_NT()))
-        return Literal(lexical; lang=lang), j
+        tag = s[i+1:j-1]
+        isempty(tag) && throw(ParseError("Empty language tag", lineno, i, _MIME_NT()))
+        isletter(tag[1]) || throw(ParseError("Invalid language tag: $tag", lineno, i, _MIME_NT()))
+        # RDF 1.2: check for directional tag lang--dir
+        dash_range = findfirst("--", tag)
+        if dash_range !== nothing
+            lang_part = tag[1:first(dash_range)-1]
+            dir_part  = tag[last(dash_range)+1:end]
+            dir_part in ("ltr", "rtl") ||
+                throw(ParseError("Invalid direction '$dir_part'; must be 'ltr' or 'rtl'", lineno, i, _MIME_NT()))
+            _validate_lang_primary(lang_part, lineno, i)
+            return Literal(lexical, _RDF_DIR_LANGSTRING, lowercase(tag)), j
+        else
+            _validate_lang_primary(tag, lineno, i)
+            return Literal(lexical; lang=tag), j
+        end
     elseif i + 1 <= lastindex(s) && s[i] == '^' && s[i+1] == '^'
-        iri, next_pos = _parse_nt_iri(s, i + 2, lineno)
-        # Simple literal with xsd:string datatype is already the default,
-        # but parsers MUST normalize simple literals to xsd:string per spec.
-        dt = iri == _XSD_STRING ? _XSD_STRING : iri
-        return Literal(lexical, dt), next_pos
+        iri_start = _skip_ws(s, i + 2)
+        iri, next_pos = _parse_nt_iri(s, iri_start, lineno)
+        # rdf:langString and rdf:dirLangString cannot be used as explicit datatypes
+        iri == _RDF_LANGSTRING &&
+            throw(ParseError("rdf:langString requires @lang syntax, not ^^", lineno, i, _MIME_NT()))
+        iri == _RDF_DIR_LANGSTRING &&
+            throw(ParseError("rdf:dirLangString requires @lang--dir syntax, not ^^", lineno, i, _MIME_NT()))
+        return Literal(lexical, iri), next_pos
     else
-        # Plain literal → xsd:string per RDF 1.1
         return Literal(lexical, _XSD_STRING), i
     end
 end
 
+function _validate_lang_primary(tag::AbstractString, lineno::Int, pos::Int)
+    primary = let h = findfirst('-', tag)
+        h === nothing ? tag : tag[1:h-1]
+    end
+    1 <= length(primary) <= 8 ||
+        throw(ParseError("Invalid BCP47 language subtag '$primary' (must be 1–8 chars)", lineno, pos, _MIME_NT()))
+end
+
 function _unescape_iri(s::AbstractString)
-    # IRIs in N-Triples: only \uXXXX and \UXXXXXXXX escapes allowed
     occursin('\\', s) || return String(s)
     buf = IOBuffer()
     i = firstindex(s)
@@ -318,7 +386,9 @@ function _unescape_iri(s::AbstractString)
     String(take!(buf))
 end
 
-# File convenience — format detected from extension.
+
+# ── Convenience I/O ───────────────────────────────────────────────────────────
+
 function rdf_read(path::AbstractString)::Union{Graph, Dataset}
     if endswith(path, ".nt")
         return open(io -> Base.read(io, _MIME_NT(), Graph), path)
@@ -337,19 +407,15 @@ function rdf_write(path::AbstractString, ds::Dataset)
 end
 
 # IO-level dispatch: write(io, g) → N-Triples; write(io, ds) → N-Quads.
-# These use our types as the second arg, so they don't overwrite any Base method.
-Base.write(io::IO, g::Graph) = Base.write(io, _MIME_NT(), g)
+Base.write(io::IO, g::Graph)   = Base.write(io, _MIME_NT(), g)
 Base.write(io::IO, ds::Dataset) = Base.write(io, MIME"application/n-quads"(), ds)
 
-# Typed path-based reads (our types in third arg position, no overwriting).
+# Typed path-based reads.
 Base.read(path::AbstractString, ::Type{Graph}) =
     open(io -> Base.read(io, _MIME_NT(), Graph), path)
 Base.read(path::AbstractString, ::Type{Dataset}) =
     open(io -> Base.read(io, MIME"application/n-quads"(), Dataset), path)
 
-# Extension-detecting read(path) is added in RDF.__init__ to avoid the
-# "Method overwriting is not permitted during precompilation" error that
-# occurs when overriding Base.read(::AbstractString) at module load time.
 function _read_by_extension(path::AbstractString)
     endswith(path, ".nt") && return Base.read(path, Graph)
     endswith(path, ".nq") && return Base.read(path, Dataset)

@@ -5,10 +5,10 @@ using Tables
 
 # ── Tables.jl interface for match results ────────────────────────────────────
 #
-# We use wrapper types to avoid overriding Base.iterate on the match iterators,
-# which would cause infinite recursion via invoke.
+# Both _TripleMatchIterator and _DatasetMatchIterator expose a Tables.jl row
+# interface so results can flow directly into DataFrames, CSV, etc.
 
-# ── Triple row ────────────────────────────────────────────────────────────────
+# ── Triple match (Graph) ──────────────────────────────────────────────────────
 
 struct _TripleRow
     subject::RDF.SubjectTerm
@@ -20,39 +20,32 @@ Tables.columnnames(::_TripleRow) = (:subject, :predicate, :object)
 Tables.getcolumn(r::_TripleRow, nm::Symbol) = getfield(r, nm)
 Tables.getcolumn(r::_TripleRow, i::Int) = getfield(r, i)
 
-# ── Triple table wrapper ──────────────────────────────────────────────────────
-
-struct _TripleTableIter
-    inner::RDF._TripleMatchIterator
+struct _TripleRows
+    it::RDF._TripleMatchIterator
 end
 
-Tables.istable(::Type{_TripleTableIter}) = true
-Tables.rowaccess(::Type{_TripleTableIter}) = true
-Tables.rows(it::_TripleTableIter) = it
-Tables.schema(::_TripleTableIter) =
+Tables.istable(::Type{_TripleRows}) = true
+Tables.rowaccess(::Type{_TripleRows}) = true
+Tables.rows(r::_TripleRows) = r
+Tables.schema(::_TripleRows) =
     Tables.Schema((:subject, :predicate, :object),
                   (RDF.SubjectTerm, RDF.IRI, RDF.ObjectTerm))
 
-function Base.iterate(it::_TripleTableIter, state=nothing)
-    r = state === nothing ? iterate(it.inner) : iterate(it.inner, state)
-    r === nothing && return nothing
-    t, ns = r
+function Base.iterate(r::_TripleRows, state=nothing)
+    result = state === nothing ? iterate(r.it) : iterate(r.it, state)
+    result === nothing && return nothing
+    t, ns = result
     (_TripleRow(t.subject, t.predicate, t.object), ns)
 end
-
-Base.eltype(::Type{_TripleTableIter}) = _TripleRow
-Base.IteratorSize(::Type{_TripleTableIter}) = Base.SizeUnknown()
-
-# ── Register _TripleMatchIterator as a table ──────────────────────────────────
+Base.eltype(::Type{_TripleRows}) = _TripleRow
+Base.IteratorSize(::Type{_TripleRows}) = Base.SizeUnknown()
 
 Tables.istable(::Type{RDF._TripleMatchIterator}) = true
 Tables.rowaccess(::Type{RDF._TripleMatchIterator}) = true
-Tables.rows(it::RDF._TripleMatchIterator) = _TripleTableIter(it)
-Tables.schema(::RDF._TripleMatchIterator) =
-    Tables.Schema((:subject, :predicate, :object),
-                  (RDF.SubjectTerm, RDF.IRI, RDF.ObjectTerm))
+Tables.rows(it::RDF._TripleMatchIterator) = _TripleRows(it)
+Tables.schema(it::RDF._TripleMatchIterator) = Tables.schema(_TripleRows(it))
 
-# ── Quad row ──────────────────────────────────────────────────────────────────
+# ── Quad match (Dataset) ──────────────────────────────────────────────────────
 
 struct _QuadRow
     subject::RDF.SubjectTerm
@@ -65,36 +58,29 @@ Tables.columnnames(::_QuadRow) = (:subject, :predicate, :object, :graph)
 Tables.getcolumn(r::_QuadRow, nm::Symbol) = getfield(r, nm)
 Tables.getcolumn(r::_QuadRow, i::Int) = getfield(r, i)
 
-# ── Dataset table wrapper ─────────────────────────────────────────────────────
-
-struct _QuadTableIter
-    inner::RDF._DatasetMatchIterator
+struct _QuadRows
+    it::RDF._DatasetMatchIterator
 end
 
-Tables.istable(::Type{_QuadTableIter}) = true
-Tables.rowaccess(::Type{_QuadTableIter}) = true
-Tables.rows(it::_QuadTableIter) = it
-Tables.schema(::_QuadTableIter) =
+Tables.istable(::Type{_QuadRows}) = true
+Tables.rowaccess(::Type{_QuadRows}) = true
+Tables.rows(r::_QuadRows) = r
+Tables.schema(::_QuadRows) =
     Tables.Schema((:subject, :predicate, :object, :graph),
                   (RDF.SubjectTerm, RDF.IRI, RDF.ObjectTerm, Union{RDF.GraphName, Nothing}))
 
-function Base.iterate(it::_QuadTableIter, state=nothing)
-    r = state === nothing ? iterate(it.inner) : iterate(it.inner, state)
-    r === nothing && return nothing
-    q, ns = r
+function Base.iterate(r::_QuadRows, state=nothing)
+    result = state === nothing ? iterate(r.it) : iterate(r.it, state)
+    result === nothing && return nothing
+    q, ns = result
     (_QuadRow(q.subject, q.predicate, q.object, q.graph), ns)
 end
-
-Base.eltype(::Type{_QuadTableIter}) = _QuadRow
-Base.IteratorSize(::Type{_QuadTableIter}) = Base.SizeUnknown()
-
-# ── Register _DatasetMatchIterator as a table ─────────────────────────────────
+Base.eltype(::Type{_QuadRows}) = _QuadRow
+Base.IteratorSize(::Type{_QuadRows}) = Base.SizeUnknown()
 
 Tables.istable(::Type{RDF._DatasetMatchIterator}) = true
 Tables.rowaccess(::Type{RDF._DatasetMatchIterator}) = true
-Tables.rows(it::RDF._DatasetMatchIterator) = _QuadTableIter(it)
-Tables.schema(::RDF._DatasetMatchIterator) =
-    Tables.Schema((:subject, :predicate, :object, :graph),
-                  (RDF.SubjectTerm, RDF.IRI, RDF.ObjectTerm, Union{RDF.GraphName, Nothing}))
+Tables.rows(it::RDF._DatasetMatchIterator) = _QuadRows(it)
+Tables.schema(it::RDF._DatasetMatchIterator) = Tables.schema(_QuadRows(it))
 
 end # module RDFTablesExt

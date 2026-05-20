@@ -1,7 +1,25 @@
+# Julia
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
 /Manifest*.toml
-/benchmarks/results/
 /docs/Manifest*.toml
 /docs/build/
+LocalPreferences.toml
+
+# Benchmarks
+/benchmarks/results/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/settings.json
+.idea/
+
+# Claude Code
+.claude/

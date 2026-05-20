@@ -278,7 +278,7 @@ version = "1.11.0"
 
 [[deps.RDF]]
 deps = ["Dates", "Printf"]
-path = "C:\\Users\\mthel\\Julia\\MyPackages\\RDF"
+path = "C:\\Users\\mthel\\Julia\\MyPackages\\RDF\\.claude\\worktrees\\vibrant-tesla-d75fdb"
 uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
 version = "0.1.0"
 weakdeps = ["Tables"]

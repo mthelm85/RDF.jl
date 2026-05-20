@@ -65,12 +65,18 @@ struct Literal <: RDFTerm
     datatype::IRI
     language_tag::String   # "" unless rdf:langString; always lowercase
     function Literal(lex::String, dt::IRI, lang::String)
-        _LANGSTRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
-        if dt.value == _LANGSTRING && isempty(lang)
+        _LANGSTRING    = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
+        _DIR_LANGSTRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString"
+        is_lang = dt.value == _LANGSTRING
+        is_dir  = dt.value == _DIR_LANGSTRING
+        if is_lang && isempty(lang)
             throw(ArgumentError("rdf:langString requires a non-empty language tag"))
         end
-        if dt.value != _LANGSTRING && !isempty(lang)
-            throw(ArgumentError("language tag may only be set when datatype is rdf:langString"))
+        if is_dir && isempty(lang)
+            throw(ArgumentError("rdf:dirLangString requires a non-empty language tag"))
+        end
+        if !is_lang && !is_dir && !isempty(lang)
+            throw(ArgumentError("language tag may only be set when datatype is rdf:langString or rdf:dirLangString"))
         end
         new(lex, dt, lang)
     end
@@ -87,7 +93,8 @@ const _XSD_DATE      = IRI("http://www.w3.org/2001/XMLSchema#date")
 const _XSD_DATETIME  = IRI("http://www.w3.org/2001/XMLSchema#dateTime")
 const _XSD_DECIMAL   = IRI("http://www.w3.org/2001/XMLSchema#decimal")
 const _XSD_FLOAT     = IRI("http://www.w3.org/2001/XMLSchema#float")
-const _RDF_LANGSTRING = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
+const _RDF_LANGSTRING    = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
+const _RDF_DIR_LANGSTRING = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString")
 
 # Literal constructors dispatch on Julia type
 
@@ -96,13 +103,26 @@ function Literal(s::String, datatype::IRI)
     if datatype == _RDF_LANGSTRING
         throw(ArgumentError("rdf:langString requires a non-empty language tag; use Literal(s; lang=...)"))
     end
+    if datatype == _RDF_DIR_LANGSTRING
+        throw(ArgumentError("rdf:dirLangString requires language and direction; use Literal(s; lang=..., dir=...)"))
+    end
     Literal(s, datatype, "")
 end
 
-# Unified string constructor: no lang → xsd:string, lang= provided → rdf:langString.
-function Literal(x::AbstractString; lang::Union{AbstractString, Nothing}=nothing)
+# Unified string constructor: no lang → xsd:string, lang= → rdf:langString, lang+dir= → rdf:dirLangString.
+function Literal(x::AbstractString; lang::Union{AbstractString, Nothing}=nothing,
+                                    dir::Union{AbstractString, Nothing}=nothing)
+    if dir !== nothing && lang === nothing
+        throw(ArgumentError("dir= requires lang= to be set"))
+    end
     if lang === nothing
         Literal(String(x), _XSD_STRING, "")
+    elseif dir !== nothing
+        lt = lowercase(String(lang))
+        dt = lowercase(String(dir))
+        isempty(lt) && throw(ArgumentError("language tag must not be empty"))
+        dt in ("ltr", "rtl") || throw(ArgumentError("direction must be \"ltr\" or \"rtl\""))
+        Literal(String(x), _RDF_DIR_LANGSTRING, "$lt--$dt")
     else
         lt = lowercase(String(lang))
         isempty(lt) && throw(ArgumentError("language tag must not be empty"))
@@ -138,9 +158,29 @@ Base.:(==)(a::Literal, b::Literal) =
 Base.hash(a::Literal, h::UInt) =
     hash(a.language_tag, hash(a.datatype, hash(a.lexical_form, hash(:Literal, h))))
 
+# ── TripleTerm (RDF 1.2 reified triple reference) ─────────────────────────────
+
+# Julia does not support recursive immutable structs, so object is typed Any
+# and validated at construction time.
+struct TripleTerm <: RDFTerm
+    subject::Union{IRI, BlankNode}
+    predicate::IRI
+    object::Any   # Union{IRI, BlankNode, Literal, TripleTerm} enforced below
+    function TripleTerm(s::Union{IRI, BlankNode}, p::IRI, o)
+        o isa IRI || o isa BlankNode || o isa Literal || o isa TripleTerm ||
+            throw(ArgumentError("TripleTerm object must be IRI, BlankNode, Literal, or TripleTerm"))
+        new(s, p, o)
+    end
+end
+
+Base.:(==)(a::TripleTerm, b::TripleTerm) =
+    a.subject == b.subject && a.predicate == b.predicate && a.object == b.object
+Base.hash(a::TripleTerm, h::UInt) =
+    hash(a.object, hash(a.predicate, hash(a.subject, hash(:TripleTerm, h))))
+
 # ── Positional type aliases ───────────────────────────────────────────────────
 
 const SubjectTerm   = Union{IRI, BlankNode}
 const PredicateTerm = IRI
-const ObjectTerm    = Union{IRI, BlankNode, Literal}
+const ObjectTerm    = Union{IRI, BlankNode, Literal, TripleTerm}
 const GraphName     = Union{IRI, BlankNode}
