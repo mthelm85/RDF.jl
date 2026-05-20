@@ -3,7 +3,7 @@ using Test
 
 @testset "RDFS Inference" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "infer_rdfs — returns new graph, does not mutate" begin
         g = Graph()

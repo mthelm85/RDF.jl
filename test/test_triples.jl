@@ -3,7 +3,7 @@ using Test
 
 @testset "Triples and Quads" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "Triple construction" begin
         # IRI subject, IRI predicate, IRI object

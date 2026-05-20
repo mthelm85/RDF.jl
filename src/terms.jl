@@ -7,12 +7,13 @@ const _SCHEME_RE = r"^[A-Za-z][A-Za-z0-9+\-.]*:"
 
 function _validate_iri(s::String)
     isempty(s) && throw(IRIError(s, "IRI must not be empty"))
-    # Must have a scheme (absolute IRI)
     if !occursin(_SCHEME_RE, s)
         throw(IRIError(s, "IRI must be absolute (must start with a scheme)"))
     end
-    # Bare scheme-only like "http:" (no hier-part) is suspicious but technically
-    # valid for some schemes; we allow it and let callers enforce stricter rules.
+    # Spaces are never valid in IRIs without percent-encoding
+    if occursin(' ', s)
+        throw(IRIError(s, "IRI must not contain unencoded spaces"))
+    end
     nothing
 end
 
@@ -30,6 +31,9 @@ IRI(s::AbstractString) = IRI(String(s))
 
 Base.:(==)(a::IRI, b::IRI) = a.value == b.value
 Base.hash(a::IRI, h::UInt) = hash(a.value, hash(:IRI, h))
+
+# Treat all RDF terms as scalars in broadcasting (e.g., `df.object .== ex.Person`)
+Base.broadcastable(t::RDFTerm) = Ref(t)
 
 # String macro that validates at macro-expansion time for literal strings
 macro iri_str(s)
@@ -60,6 +64,16 @@ struct Literal <: RDFTerm
     lexical_form::String
     datatype::IRI
     language_tag::String   # "" unless rdf:langString; always lowercase
+    function Literal(lex::String, dt::IRI, lang::String)
+        _LANGSTRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
+        if dt.value == _LANGSTRING && isempty(lang)
+            throw(ArgumentError("rdf:langString requires a non-empty language tag"))
+        end
+        if dt.value != _LANGSTRING && !isempty(lang)
+            throw(ArgumentError("language tag may only be set when datatype is rdf:langString"))
+        end
+        new(lex, dt, lang)
+    end
 end
 
 # Forward-declare XSD and RDF IRI constants used by Literal constructors.
@@ -76,25 +90,40 @@ const _XSD_FLOAT     = IRI("http://www.w3.org/2001/XMLSchema#float")
 const _RDF_LANGSTRING = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
 
 # Literal constructors dispatch on Julia type
-Literal(s::String, datatype::IRI) = Literal(s, datatype, "")
+
+# 2-arg form with explicit datatype; enforces lang-tag invariant.
+function Literal(s::String, datatype::IRI)
+    if datatype == _RDF_LANGSTRING
+        throw(ArgumentError("rdf:langString requires a non-empty language tag; use Literal(s; lang=...)"))
+    end
+    Literal(s, datatype, "")
+end
 
 # Unified string constructor: no lang → xsd:string, lang= provided → rdf:langString.
-# Using lang=nothing default avoids the overwrite conflict that arises from having
-# two methods with the same positional signature (AbstractString,).
 function Literal(x::AbstractString; lang::Union{AbstractString, Nothing}=nothing)
     if lang === nothing
         Literal(String(x), _XSD_STRING, "")
     else
-        Literal(String(x), _RDF_LANGSTRING, lowercase(String(lang)))
+        lt = lowercase(String(lang))
+        isempty(lt) && throw(ArgumentError("language tag must not be empty"))
+        Literal(String(x), _RDF_LANGSTRING, lt)
     end
 end
 Literal(x::Bool)               = Literal(x ? "true" : "false", _XSD_BOOLEAN, "")
 Literal(x::Integer)            = Literal(string(x), _XSD_INTEGER, "")
+Literal(x::Float32)            = Literal(_float_lexical(x), _XSD_FLOAT, "")
 Literal(x::AbstractFloat)      = Literal(_double_lexical(x), _XSD_DOUBLE, "")
 Literal(x::Dates.Date)         = Literal(string(x), _XSD_DATE, "")
 Literal(x::Dates.DateTime)     = Literal(string(x), _XSD_DATETIME, "")
 
 function _double_lexical(x::AbstractFloat)
+    isnan(x)      && return "NaN"
+    isinf(x) && x > 0 && return "INF"
+    isinf(x)      && return "-INF"
+    string(x)
+end
+
+function _float_lexical(x::Float32)
     isnan(x)      && return "NaN"
     isinf(x) && x > 0 && return "INF"
     isinf(x)      && return "-INF"

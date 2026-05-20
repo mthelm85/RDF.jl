@@ -14,6 +14,7 @@ function Base.setindex!(ds::Dataset, g::Graph, name::GraphName)
 end
 Base.delete!(ds::Dataset, name::GraphName) = (delete!(ds.named_graphs, name); ds)
 Base.haskey(ds::Dataset, name::GraphName) = haskey(ds.named_graphs, name)
+Base.get(ds::Dataset, name::GraphName, default) = get(ds.named_graphs, name, default)
 
 # ── Iteration — yields (name, graph) pairs ────────────────────────────────────
 
@@ -101,3 +102,16 @@ function blank!(ds::Dataset)::BlankNode
     push!(ds.default_graph.blank_nodes, bn.id)
     bn
 end
+
+# ── Isomorphism ───────────────────────────────────────────────────────────────
+
+function isomorphic(ds1::Dataset, ds2::Dataset)
+    isomorphic(ds1.default_graph, ds2.default_graph) || return false
+    Set(keys(ds1.named_graphs)) == Set(keys(ds2.named_graphs)) || return false
+    for name in keys(ds1.named_graphs)
+        isomorphic(ds1.named_graphs[name], ds2.named_graphs[name]) || return false
+    end
+    true
+end
+
+≅(ds1::Dataset, ds2::Dataset) = isomorphic(ds1, ds2)

@@ -3,7 +3,7 @@ using Test
 
 @testset "Pattern Matching" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     # Build a reusable test graph
     function make_test_graph()

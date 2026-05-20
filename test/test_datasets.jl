@@ -3,7 +3,7 @@ using Test
 
 @testset "Datasets" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "Construction" begin
         ds = Dataset()

@@ -41,7 +41,12 @@ function value(lit::Literal)
 end
 
 function value(T::Type, lit::Literal)
-    v = value(lit)
+    v = try
+        value(lit)
+    catch e
+        e isa LiteralValueError || rethrow()
+        throw(LiteralValueError(lit, T))
+    end
     v isa T && return v::T
     throw(LiteralValueError(lit, T))
 end

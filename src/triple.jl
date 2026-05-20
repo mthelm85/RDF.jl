@@ -39,5 +39,7 @@ Base.hash(a::Quad, h::UInt) =
 
 # Convenience: convert Triple to Quad in default graph
 Triple(q::Quad) = Triple(q.subject, q.predicate, q.object)
-Quad(t::Triple, graph::Union{GraphName, Nothing}=nothing) =
+Quad(t::Triple, graph::Union{GraphName, Nothing}) =
+    Quad(t.subject, t.predicate, t.object, graph)
+Quad(t::Triple; graph::Union{GraphName, Nothing}=nothing) =
     Quad(t.subject, t.predicate, t.object, graph)

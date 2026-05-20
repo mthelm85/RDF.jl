@@ -33,6 +33,7 @@ function _write_literal(io, lit::Literal)
         elseif c == '\\'; print(io, "\\\\")
         elseif c == '\n'; print(io, "\\n")
         elseif c == '\r'; print(io, "\\r")
+        elseif c == '\t'; print(io, "\\t")
         else
             cp = UInt32(c)
             if cp <= 0x08 || cp == 0x0B || cp == 0x0C || (0x0E <= cp <= 0x1F) || cp == 0x7F
@@ -62,7 +63,7 @@ function Base.read(io::IO, ::_MIME_NT, ::Type{Graph})::Graph
     for line in eachline(io)
         lineno += 1
         line = strip(line)
-        isempty(line) || line[1] == '#' && continue
+        (isempty(line) || line[1] == '#') && continue
         t = _parse_nt_line(line, lineno, blank_map)
         t === nothing && continue
         push!(g, t)
@@ -83,7 +84,7 @@ function parse_triples(f::Function, io::IO, mime::_MIME_NT)
     for line in eachline(io)
         lineno += 1
         line = strip(line)
-        isempty(line) || startswith(line, "#") && continue
+        (isempty(line) || startswith(line, "#")) && continue
         t = _parse_nt_line(line, lineno, blank_map)
         t !== nothing && f(t)
     end
@@ -109,7 +110,7 @@ function Base.iterate(it::_NTriplesIterator, state=nothing)
         line, next_state = r
         it.lineno[] += 1
         s = strip(line)
-        isempty(s) || startswith(s, "#") && (state = next_state; continue)
+        (isempty(s) || startswith(s, "#")) && (state = next_state; continue)
         t = _parse_nt_line(s, it.lineno[], it.blank_map)
         t !== nothing && return (t, next_state)
         state = next_state
@@ -121,8 +122,23 @@ Base.IteratorSize(::Type{<:_NTriplesIterator}) = Base.SizeUnknown()
 
 # ── N-Triples line parser ─────────────────────────────────────────────────────
 
+function _strip_inline_comment(s::AbstractString)
+    in_iri = false; in_lit = false; escaped = false
+    for (i, c) in pairs(s)
+        if escaped;            escaped = false
+        elseif c == '\\' && in_lit; escaped = true
+        elseif c == '<'  && !in_lit; in_iri = true
+        elseif c == '>'  && in_iri;  in_iri = false
+        elseif c == '"'  && !in_iri; in_lit = !in_lit
+        elseif c == '#'  && !in_iri && !in_lit
+            return rstrip(s[1:prevind(s, i)])
+        end
+    end
+    s
+end
+
 function _parse_nt_line(line::AbstractString, lineno::Int, blank_map::Dict{String,BlankNode})
-    line = strip(line)
+    line = _strip_inline_comment(strip(line))
     endswith(line, '.') || throw(ParseError("Missing trailing '.'", lineno, length(line), _MIME_NT()))
     line = strip(line[1:end-1])
 
@@ -132,6 +148,8 @@ function _parse_nt_line(line::AbstractString, lineno::Int, blank_map::Dict{Strin
     pred, pos = _parse_nt_iri(line, pos, lineno)
     pos = _skip_ws(line, pos)
     obj, pos  = _parse_nt_object(line, pos, lineno, blank_map)
+    pos = _skip_ws(line, pos)
+    pos <= length(line) && throw(ParseError("Unexpected content after object", lineno, pos, _MIME_NT()))
     Triple(subj, pred, obj)
 end
 
@@ -148,7 +166,12 @@ function _parse_nt_iri(s, pos, lineno)
     close = _find_close(s, pos + 1, '>')
     close === nothing && throw(ParseError("Unterminated IRI", lineno, pos, _MIME_NT()))
     raw = s[pos+1:close-1]
-    iri = IRI(_unescape_iri(raw))
+    iri = try
+        IRI(_unescape_iri(raw))
+    catch e
+        e isa IRIError && throw(ParseError("Invalid IRI: $(e.value)", lineno, pos, _MIME_NT()))
+        rethrow()
+    end
     iri, close + 1
 end
 
@@ -181,14 +204,26 @@ function _parse_nt_object(s, pos, lineno, blank_map)
     throw(ParseError("Expected object (IRI, blank node, or literal)", lineno, pos, _MIME_NT()))
 end
 
+function _valid_bnode_first(c::Char)
+    isletter(c) || isdigit(c) || c == '_' || c == ':' && false || UInt32(c) > 0x7F
+end
+
 function _parse_nt_blank(s, pos, lineno, blank_map)
     startswith(s[pos:end], "_:") || throw(ParseError("Expected blank node", lineno, pos, _MIME_NT()))
     i = pos + 2
-    while i <= length(s) && !isspace(s[i]) && s[i] != '.'
+    while i <= length(s)
+        c = s[i]
+        (isspace(c) || c == '.' || c == '<' || c == '>' || c == '"' ||
+         c == '^' || c == ',' || c == ';' || c == '#') && break
         i += 1
     end
     label = s[pos+2:i-1]
     isempty(label) && throw(ParseError("Empty blank node label", lineno, pos, _MIME_NT()))
+    fc = label[1]
+    (isletter(fc) || isdigit(fc) || fc == '_' || UInt32(fc) > 0x7F) ||
+        throw(ParseError("Invalid blank node label: $label", lineno, pos, _MIME_NT()))
+    any(c -> c == ':' || c == ';' || c == ',', label) &&
+        throw(ParseError("Invalid blank node label: $label", lineno, pos, _MIME_NT()))
     bn = get!(blank_map, label) do; _mint_blank_node() end
     bn, i
 end
@@ -198,23 +233,26 @@ function _parse_nt_literal(s, pos, lineno, blank_map)
     # Find closing quote, respecting escapes
     i = pos + 1
     buf = IOBuffer()
-    while i <= length(s)
+    while i <= lastindex(s)
         c = s[i]
         if c == '\\'
             i += 1
-            i > length(s) && throw(ParseError("Unexpected end after escape", lineno, i, _MIME_NT()))
+            i > lastindex(s) && throw(ParseError("Unexpected end after escape", lineno, i, _MIME_NT()))
             e = s[i]
             if e == 'n';  write(buf, '\n')
             elseif e == 'r'; write(buf, '\r')
             elseif e == 't'; write(buf, '\t')
+            elseif e == 'b'; write(buf, '\b')
+            elseif e == 'f'; write(buf, '\f')
             elseif e == '"'; write(buf, '"')
+            elseif e == '\''; write(buf, '\'')
             elseif e == '\\'; write(buf, '\\')
             elseif e == 'u'
-                i + 4 > length(s) && throw(ParseError("Bad \\u escape", lineno, i, _MIME_NT()))
+                i + 4 > lastindex(s) && throw(ParseError("Bad \\u escape", lineno, i, _MIME_NT()))
                 hex = s[i+1:i+4]; i += 4
                 write(buf, Char(parse(UInt16, hex; base=16)))
             elseif e == 'U'
-                i + 8 > length(s) && throw(ParseError("Bad \\U escape", lineno, i, _MIME_NT()))
+                i + 8 > lastindex(s) && throw(ParseError("Bad \\U escape", lineno, i, _MIME_NT()))
                 hex = s[i+1:i+8]; i += 8
                 write(buf, Char(parse(UInt32, hex; base=16)))
             else
@@ -225,21 +263,23 @@ function _parse_nt_literal(s, pos, lineno, blank_map)
         else
             write(buf, c)
         end
-        i += 1
+        i = nextind(s, i)
     end
-    i > length(s) && throw(ParseError("Unterminated literal", lineno, pos, _MIME_NT()))
+    i > lastindex(s) && throw(ParseError("Unterminated literal", lineno, pos, _MIME_NT()))
     # i now points at closing quote
     lexical = String(take!(buf))
-    i += 1  # move past '"'
+    i = nextind(s, i)  # move past '"'
     # Parse suffix: @lang or ^^<iri>
-    if i <= length(s) && s[i] == '@'
+    if i <= lastindex(s) && s[i] == '@'
         j = i + 1
-        while j <= length(s) && !isspace(s[j]) && s[j] != '.'
+        while j <= lastindex(s) && !isspace(s[j]) && s[j] != '.'
             j += 1
         end
         lang = s[i+1:j-1]
+        isempty(lang) && throw(ParseError("Empty language tag", lineno, i, _MIME_NT()))
+        isletter(lang[1]) || throw(ParseError("Invalid language tag: $lang", lineno, i, _MIME_NT()))
         return Literal(lexical; lang=lang), j
-    elseif i + 1 <= length(s) && s[i] == '^' && s[i+1] == '^'
+    elseif i + 1 <= lastindex(s) && s[i] == '^' && s[i+1] == '^'
         iri, next_pos = _parse_nt_iri(s, i + 2, lineno)
         # Simple literal with xsd:string datatype is already the default,
         # but parsers MUST normalize simple literals to xsd:string per spec.
@@ -268,7 +308,7 @@ function _unescape_iri(s::AbstractString)
                 hex = s[ni+1:ni+8]; i = ni + 8
                 write(buf, Char(parse(UInt32, hex; base=16)))
             else
-                write(buf, c); i = ni - 1  # will be advanced below
+                throw(IRIError(String(s), "Invalid escape sequence \\$e in IRI"))
             end
         else
             write(buf, c)
@@ -279,7 +319,6 @@ function _unescape_iri(s::AbstractString)
 end
 
 # File convenience — format detected from extension.
-# Named rdf_read to avoid shadowing Base.read(path) which Julia uses internally.
 function rdf_read(path::AbstractString)::Union{Graph, Dataset}
     if endswith(path, ".nt")
         return open(io -> Base.read(io, _MIME_NT(), Graph), path)
@@ -295,4 +334,24 @@ end
 
 function rdf_write(path::AbstractString, ds::Dataset)
     open(path, "w") do io; Base.write(io, MIME"application/n-quads"(), ds); end
+end
+
+# IO-level dispatch: write(io, g) → N-Triples; write(io, ds) → N-Quads.
+# These use our types as the second arg, so they don't overwrite any Base method.
+Base.write(io::IO, g::Graph) = Base.write(io, _MIME_NT(), g)
+Base.write(io::IO, ds::Dataset) = Base.write(io, MIME"application/n-quads"(), ds)
+
+# Typed path-based reads (our types in third arg position, no overwriting).
+Base.read(path::AbstractString, ::Type{Graph}) =
+    open(io -> Base.read(io, _MIME_NT(), Graph), path)
+Base.read(path::AbstractString, ::Type{Dataset}) =
+    open(io -> Base.read(io, MIME"application/n-quads"(), Dataset), path)
+
+# Extension-detecting read(path) is added in RDF.__init__ to avoid the
+# "Method overwriting is not permitted during precompilation" error that
+# occurs when overriding Base.read(::AbstractString) at module load time.
+function _read_by_extension(path::AbstractString)
+    endswith(path, ".nt") && return Base.read(path, Graph)
+    endswith(path, ".nq") && return Base.read(path, Dataset)
+    open(io -> Base.read(io), path)
 end

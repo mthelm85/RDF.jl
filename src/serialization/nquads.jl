@@ -35,7 +35,7 @@ function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset
     for line in eachline(io)
         lineno += 1
         line = strip(line)
-        isempty(line) || startswith(line, "#") && continue
+        (isempty(line) || startswith(line, "#")) && continue
         q = _parse_nq_line(line, lineno, blank_map, graph_blank_map)
         q === nothing && continue
         if q.graph === nothing
@@ -64,7 +64,7 @@ function parse_triples(f::Function, io::IO, mime::_MIME_NQ)
     for line in eachline(io)
         lineno += 1
         line = strip(line)
-        isempty(line) || startswith(line, "#") && continue
+        (isempty(line) || startswith(line, "#")) && continue
         q = _parse_nq_line(line, lineno, blank_map, gbm)
         q !== nothing && f(q)
     end
@@ -106,7 +106,7 @@ Base.IteratorSize(::Type{<:_NQuadsIterator}) = Base.SizeUnknown()
 function _parse_nq_line(line::AbstractString, lineno::Int,
                         blank_map::Dict{String,BlankNode},
                         gbm::Dict{String,BlankNode})
-    line = strip(line)
+    line = _strip_inline_comment(strip(line))
     endswith(line, '.') || throw(ParseError("Missing trailing '.'", lineno, length(line), _MIME_NQ()))
     line = strip(line[1:end-1])
 
@@ -124,6 +124,8 @@ function _parse_nq_line(line::AbstractString, lineno::Int,
     end
 
     graph_name, pos = _parse_graph_name(line, pos, lineno, gbm)
+    pos = _skip_ws(line, pos)
+    pos <= length(line) && throw(ParseError("Unexpected content after graph name", lineno, pos, _MIME_NQ()))
     Quad(subj, pred, obj, graph_name)
 end
 

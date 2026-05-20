@@ -5,7 +5,7 @@ using DataFrames
 
 @testset "Tables.jl Integration" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     function make_test_graph()
         g = Graph()

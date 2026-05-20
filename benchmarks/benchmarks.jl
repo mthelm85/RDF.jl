@@ -1,4 +1,5 @@
 using BenchmarkTools
+using Printf
 using RDF
 
 const SUITE = BenchmarkGroup()
@@ -86,5 +87,13 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     results = run(SUITE; verbose=true)
-    display(results)
+    println()
+    for (path, trial) in sort(collect(BenchmarkTools.leaves(results)); by=first)
+        t = minimum(trial)
+        @printf("%-40s  %10s  %6d allocs  %s\n",
+            join(path, "/"),
+            BenchmarkTools.prettytime(t.time),
+            t.allocs,
+            BenchmarkTools.prettymemory(t.memory))
+    end
 end

@@ -1,3 +1,5 @@
+Base.string(iri::IRI) = iri.value
+
 function Base.show(io::IO, iri::IRI)
     print(io, '<', iri.value, '>')
 end

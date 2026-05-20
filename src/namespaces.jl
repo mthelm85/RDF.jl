@@ -3,8 +3,8 @@ struct Namespace
 end
 
 Base.getproperty(ns::Namespace, name::Symbol) =
-    name === :base ? getfield(ns, :base) : IRI(getfield(ns, :base) * String(name))
+    IRI(getfield(ns, :base) * String(name))
 
-Base.getindex(ns::Namespace, name::AbstractString) = IRI(ns.base * name)
-Base.string(ns::Namespace) = ns.base
-Base.show(io::IO, ns::Namespace) = print(io, "Namespace(", repr(ns.base), ")")
+Base.getindex(ns::Namespace, name::AbstractString) = IRI(getfield(ns, :base) * name)
+Base.string(ns::Namespace) = getfield(ns, :base)
+Base.show(io::IO, ns::Namespace) = print(io, "Namespace(", repr(getfield(ns, :base)), ")")

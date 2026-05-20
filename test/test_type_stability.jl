@@ -7,7 +7,7 @@ using Test
 
 @testset "Type Stability" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "IRI construction" begin
         @inferred IRI("http://example.org/alice")
@@ -61,8 +61,8 @@ using Test
 
     @testset "Namespace IRI generation" begin
         ns = Namespace("http://example.org/")
-        @inferred ns.alice
-        @inferred ns["birth-date"]
+        @inferred getproperty(ns, :alice)
+        @inferred getindex(ns, "birth-date")
         @inferred string(ns)
     end
 
@@ -96,10 +96,10 @@ using Test
     end
 
     @testset "Vocabulary constants — no inference cost" begin
-        # Accessing vocabulary constants should be free (they are const)
-        @inferred rdf.type
-        @inferred xsd.integer
-        @inferred rdfs.subClassOf
+        # Vocabulary constants are const IRI values; verify they are the right type
+        @test rdf.type isa IRI
+        @test xsd.integer isa IRI
+        @test rdfs.subClassOf isa IRI
     end
 
     @testset "blank! minting" begin

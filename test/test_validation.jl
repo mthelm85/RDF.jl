@@ -3,7 +3,7 @@ using Test
 
 @testset "Validation" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "validate — returns empty vector for well-formed graph" begin
         g = Graph()
@@ -93,7 +93,7 @@ end
 
 @testset "Error Types" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "RDFError — abstract supertype" begin
         @test IRIError        <: RDFError
@@ -186,7 +186,8 @@ end
         caught = false
         try
             IRI("not-absolute")
-        catch e::IRIError
+        catch e
+            e isa IRIError || rethrow()
             caught = true
         end
         @test caught
@@ -195,7 +196,8 @@ end
         caught = false
         try
             value(Literal("bad", xsd.integer))
-        catch e::LiteralValueError
+        catch e
+            e isa LiteralValueError || rethrow()
             caught = true
         end
         @test caught
@@ -204,7 +206,8 @@ end
         caught = false
         try
             read(IOBuffer("invalid\n"), MIME"application/n-triples"(), Graph)
-        catch e::ParseError
+        catch e
+            e isa ParseError || rethrow()
             caught = true
         end
         @test caught

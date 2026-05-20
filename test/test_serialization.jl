@@ -3,7 +3,7 @@ using Test
 
 @testset "Serialization — N-Triples and N-Quads" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     # ----------------------------------------------------------------
     # Helpers
@@ -496,7 +496,7 @@ using Test
 
             path_nt = joinpath(dir, "test.nt")
             write(path_nt, g)
-            g2 = read(path_nt)
+            g2 = read(path_nt, Graph)
             @test g ≅ g2
 
             # Write N-Quads
@@ -505,7 +505,7 @@ using Test
 
             path_nq = joinpath(dir, "test.nq")
             write(path_nq, ds)
-            ds2 = read(path_nq)
+            ds2 = read(path_nq, Dataset)
             @test ntriples(ds) == ntriples(ds2)
         end
     end

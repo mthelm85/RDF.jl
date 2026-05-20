@@ -14,6 +14,8 @@ end
 
 # ── Mutation ──────────────────────────────────────────────────────────────────
 
+Base.append!(g::Graph, ts) = (foreach(t -> push!(g, t), ts); g)
+
 function Base.push!(g::Graph, t::Triple)
     s_id = _intern!(t.subject)
     p_id = _intern!(t.predicate)
@@ -252,6 +254,11 @@ function blank!(g::Graph, n::Int)::Vector{BlankNode}
     [blank!(g) for _ in 1:n]
 end
 
+# Returns the set of blank nodes owned by this graph
+blank_nodes(g::Graph) = Set{BlankNode}(BlankNode(id) for id in g.blank_nodes)
+
 # Operator aliases
+Base.:(==)(g1::Graph, g2::Graph) = length(g1) == length(g2) && issubgraph(g1, g2)
 Base.:(⊆)(g1::Graph, g2::Graph) = issubgraph(g1, g2)
+Base.:\(g1::Graph, g2::Graph) = setdiff(g1, g2)
 ≅(g1::Graph, g2::Graph) = isomorphic(g1, g2)

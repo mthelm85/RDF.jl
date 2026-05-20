@@ -3,7 +3,7 @@ using Test
 
 @testset "Graphs" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     @testset "Construction" begin
         g = Graph()
@@ -324,9 +324,10 @@ using Test
         @test all(t.subject isa IRI for t in sg)
         @test all(t.object isa IRI || t.object isa Literal for t in sg)
 
-        # Skolem IRIs start with the base
+        # Skolem IRIs (formerly blank nodes) start with the base
+        orig_iri_subjects = Set(t.subject for t in g if t.subject isa IRI)
         subjects = [t.subject for t in sg]
-        skolem_iris = filter(s -> s isa IRI, subjects)
+        skolem_iris = filter(s -> s isa IRI && s ∉ orig_iri_subjects, subjects)
         @test all(startswith(string(iri), base) for iri in skolem_iris)
 
         # Original graph is not mutated

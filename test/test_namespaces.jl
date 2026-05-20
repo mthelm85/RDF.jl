@@ -16,7 +16,7 @@ using Test
         # Index access for non-identifier names
         @test ns["birth-date"] == IRI("http://example.org/birth-date")
         @test ns["123"] == IRI("http://example.org/123")
-        @test ns["has space"] == IRI("http://example.org/has space")
+        @test_throws IRIError ns["has space"]
     end
 
     @testset "Namespace with hash fragment base" begin

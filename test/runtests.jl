@@ -15,7 +15,5 @@ using Test
     include("test_errors.jl")
     include("test_tables.jl")
     include("test_type_stability.jl")
-    include("w3c/test_w3c_ntriples.jl")
-    include("w3c/test_w3c_nquads.jl")
-    include("w3c/test_w3c_isomorphism.jl")
+    include("w3c/w3c_tests.jl")
 end

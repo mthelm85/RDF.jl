@@ -54,7 +54,7 @@ export blank!
 
 # Graph operations
 export issubgraph, isomorphic, ≅, merge!, skolemize, deskolemize
-export subjects, predicates, objects
+export blank_nodes, subjects, predicates, objects
 
 # Dataset operations
 export ntriples, quads

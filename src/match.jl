@@ -15,10 +15,10 @@ function match(g::Graph, p::TriplePattern)
     o_id = p.object    === nothing ? nothing : get(_TERM_TO_ID, p.object,    UInt32(0))
 
     (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) &&
-        return _TripleMatchIterator(g, nothing, nothing, nothing, nothing)
+        return _TripleMatchIterator(g, nothing, nothing, nothing, nothing, nothing)
 
     index, a, b, c, order = _select_index(g.store, s_id, p_id, o_id)
-    _TripleMatchIterator(g, index, a, b, order)
+    _TripleMatchIterator(g, index, a, b, c, order)
 end
 
 struct _TripleMatchIterator
@@ -26,6 +26,7 @@ struct _TripleMatchIterator
     index::Union{Vector{NTuple{3,UInt32}}, Nothing}
     a::Union{UInt32, Nothing}
     b::Union{UInt32, Nothing}
+    c::Union{UInt32, Nothing}
     order::Union{Symbol, Nothing}  # :spo | :sop | :pso | :pos | :osp | :ops
 end
 
@@ -34,10 +35,12 @@ function Base.iterate(it::_TripleMatchIterator, state=nothing)
     idx = it.index
     lo_a = it.a !== nothing ? it.a : UInt32(0)
     lo_b = it.b !== nothing ? it.b : UInt32(0)
-    lo   = (lo_a, lo_b, UInt32(0))
+    lo_c = it.c !== nothing ? it.c : UInt32(0)
+    lo   = (lo_a, lo_b, lo_c)
     hi_a = it.a !== nothing ? it.a : typemax(UInt32)
     hi_b = it.b !== nothing ? it.b : typemax(UInt32)
-    hi   = (hi_a, hi_b, typemax(UInt32))
+    hi_c = it.c !== nothing ? it.c : typemax(UInt32)
+    hi   = (hi_a, hi_b, hi_c)
 
     i = state === nothing ? searchsortedfirst(idx, lo) : state
     while i <= length(idx)
@@ -103,7 +106,7 @@ function Base.iterate(it::_DatasetMatchIterator, state=nothing)
             haskey(ds, gf) || return nothing
             g = ds[gf]
             inner = iterate(match(g, pat))
-            inner !== nothing && return (Quad(inner[1], gf), (gf, inner[2]))
+            inner !== nothing && return (Quad(inner[1], gf), (gf, nothing, inner[2]))
             return nothing
         end
         # gf === nothing → all named graphs
@@ -128,6 +131,7 @@ function Base.iterate(it::_DatasetMatchIterator, state=nothing)
         if inner !== nothing
             return (Quad(inner[1], name), (name, ks_state, inner[2]))
         end
+        ks_state === nothing && return nothing  # fixed graph filter, done
         ks = iterate(keys(ds.named_graphs), ks_state)
         ks === nothing && return nothing
         return _advance_named(it, ks[1], ks[2])

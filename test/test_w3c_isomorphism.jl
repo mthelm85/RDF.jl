@@ -12,7 +12,7 @@ using Test
 
 @testset "W3C Graph Isomorphism" begin
 
-    const ex = Namespace("http://example.org/")
+    ex = Namespace("http://example.org/")
 
     function make_graph(triples)
         g = Graph()
