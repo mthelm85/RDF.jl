@@ -213,12 +213,12 @@ tt = TripleTerm(iri"http://example.org/bob", rdf.type, iri"http://example.org/Pe
 push!(g, Triple(iri"http://example.org/alice", iri"http://example.org/knows", tt))
 ```
 """
-# Julia does not support recursive immutable structs, so object is typed Any
-# and validated at construction time.
 struct TripleTerm <: RDFTerm
     subject::Union{IRI, BlankNode}
     predicate::IRI
-    object::Any   # Union{IRI, BlankNode, Literal, TripleTerm} enforced below
+    # object is Any because Julia doesn't support recursive immutable structs;
+    # the inner constructor enforces Union{IRI, BlankNode, Literal, TripleTerm}
+    object::Any
     function TripleTerm(s::Union{IRI, BlankNode}, p::IRI, o)
         o isa IRI || o isa BlankNode || o isa Literal || o isa TripleTerm ||
             throw(ArgumentError("TripleTerm object must be IRI, BlankNode, Literal, or TripleTerm"))
@@ -233,14 +233,30 @@ Base.hash(a::TripleTerm, h::UInt) =
 
 # ── Positional type aliases ───────────────────────────────────────────────────
 
-"""    SubjectTerm\nUnion type for valid RDF subject positions: `IRI` or `BlankNode`."""
+"""
+    SubjectTerm
+
+Union type for valid RDF subject positions: `IRI` or `BlankNode`.
+"""
 const SubjectTerm   = Union{IRI, BlankNode}
 
-"""    PredicateTerm\nAlias for `IRI`; only IRIs are valid in the predicate position."""
+"""
+    PredicateTerm
+
+Alias for `IRI`; only IRIs are valid in the predicate position.
+"""
 const PredicateTerm = IRI
 
-"""    ObjectTerm\nUnion type for valid RDF object positions: `IRI`, `BlankNode`, `Literal`, or `TripleTerm`."""
+"""
+    ObjectTerm
+
+Union type for valid RDF object positions: `IRI`, `BlankNode`, `Literal`, or `TripleTerm`.
+"""
 const ObjectTerm    = Union{IRI, BlankNode, Literal, TripleTerm}
 
-"""    GraphName\nUnion type for RDF graph names: `IRI` or `BlankNode`."""
+"""
+    GraphName
+
+Union type for RDF graph names: `IRI` or `BlankNode`.
+"""
 const GraphName     = Union{IRI, BlankNode}
