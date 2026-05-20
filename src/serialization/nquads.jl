@@ -119,18 +119,18 @@ function _parse_nq_line(line::AbstractString, lineno::Int,
     pos = _skip_ws(line, pos)
 
     # Optional graph name
-    if pos > length(line)
+    if pos > lastindex(line)
         return Quad(subj, pred, obj, nothing)
     end
 
     graph_name, pos = _parse_graph_name(line, pos, lineno, gbm)
     pos = _skip_ws(line, pos)
-    pos <= length(line) && throw(ParseError("Unexpected content after graph name", lineno, pos, _MIME_NQ()))
+    pos <= lastindex(line) && throw(ParseError("Unexpected content after graph name", lineno, pos, _MIME_NQ()))
     Quad(subj, pred, obj, graph_name)
 end
 
 function _parse_graph_name(s, pos, lineno, gbm)
-    pos <= length(s) || return nothing, pos
+    pos <= lastindex(s) || return nothing, pos
     s[pos] == '<' && return _parse_nt_iri(s, pos, lineno)
     startswith(s[pos:end], "_:") && return _parse_nt_blank(s, pos, lineno, gbm)
     return nothing, pos

@@ -35,7 +35,7 @@ include("vocab/schema_vocab.jl")
 
 # ── Exports ───────────────────────────────────────────────────────────────────
 
-export RDFTerm, IRI, BlankNode, Literal
+export RDFTerm, IRI, BlankNode, Literal, TripleTerm
 export SubjectTerm, PredicateTerm, ObjectTerm, GraphName
 export Triple, Quad, GeneralizedTriple, TriplePattern
 export Graph, Dataset

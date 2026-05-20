@@ -37,6 +37,16 @@ function _escape_string(io::IO, s::String)
     end
 end
 
+function Base.show(io::IO, tt::TripleTerm)
+    print(io, "<<(")
+    show(io, tt.subject)
+    print(io, ' ')
+    show(io, tt.predicate)
+    print(io, ' ')
+    show(io, tt.object)
+    print(io, ")>>")
+end
+
 function Base.show(io::IO, t::Triple)
     show(io, t.subject)
     print(io, ' ')
