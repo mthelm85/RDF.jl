@@ -1,3 +1,8 @@
+"""
+    RDFTerm
+
+Abstract supertype for all RDF terms: `IRI`, `BlankNode`, `Literal`, and `TripleTerm`.
+"""
 abstract type RDFTerm end
 
 # ── IRI ──────────────────────────────────────────────────────────────────────
@@ -17,6 +22,17 @@ function _validate_iri(s::String)
     nothing
 end
 
+"""
+    IRI(s::AbstractString) <: RDFTerm
+
+An absolute IRI (RFC 3987). Must begin with a scheme (e.g. `http:`) and contain no
+unencoded spaces. Use the `iri""` string macro for compile-time validation.
+
+```julia
+IRI("http://example.org/Alice")
+iri"http://schema.org/Person"
+```
+"""
 struct IRI <: RDFTerm
     value::String
     # Inner constructor validates: no default constructor bypasses this
@@ -35,7 +51,12 @@ Base.hash(a::IRI, h::UInt) = hash(a.value, hash(:IRI, h))
 # Treat all RDF terms as scalars in broadcasting (e.g., `df.object .== ex.Person`)
 Base.broadcastable(t::RDFTerm) = Ref(t)
 
-# String macro that validates at macro-expansion time for literal strings
+"""
+    iri"http://example.org/foo"
+
+String macro that constructs an `IRI` and validates the value at compile time.
+Equivalent to `IRI(s)` but catches invalid IRIs before the program runs.
+"""
 macro iri_str(s)
     _validate_iri(s)   # compile-time check for string literals
     :(IRI($s))
@@ -43,6 +64,13 @@ end
 
 # ── BlankNode ─────────────────────────────────────────────────────────────────
 
+"""
+    BlankNode <: RDFTerm
+
+An RDF blank node identified by an opaque `UInt64` id. Blank nodes should be
+created via [`blank!`](@ref) rather than constructed directly, to ensure ids are
+unique within the graph.
+"""
 struct BlankNode <: RDFTerm
     id::UInt64
 end
@@ -60,6 +88,19 @@ end
 
 # ── Literal ───────────────────────────────────────────────────────────────────
 
+"""
+    Literal <: RDFTerm
+
+An RDF literal with a lexical form, datatype IRI, and optional language tag.
+
+Common constructors:
+- `Literal("hello")` — plain string (`xsd:string`)
+- `Literal("hello"; lang="en")` — language-tagged string (`rdf:langString`)
+- `Literal("hello"; lang="ar", dir="rtl")` — directional string (`rdf:dirLangString`, RDF 1.2)
+- `Literal("hello", IRI("..."))` — explicit datatype
+- `Literal(42)` → `xsd:integer`, `Literal(3.14)` → `xsd:double`, `Literal(true)` → `xsd:boolean`
+- `Literal(Date(2024,1,1))` → `xsd:date`
+"""
 struct Literal <: RDFTerm
     lexical_form::String
     datatype::IRI
@@ -160,6 +201,18 @@ Base.hash(a::Literal, h::UInt) =
 
 # ── TripleTerm (RDF 1.2 reified triple reference) ─────────────────────────────
 
+"""
+    TripleTerm(subject, predicate, object) <: RDFTerm
+
+An RDF 1.2 triple term (RDF-star), representing a triple used as an RDF term.
+The subject must be an `IRI` or `BlankNode`; the predicate must be an `IRI`;
+the object may be any `ObjectTerm` (including a nested `TripleTerm`).
+
+```julia
+tt = TripleTerm(iri"http://example.org/bob", rdf.type, iri"http://example.org/Person")
+push!(g, Triple(iri"http://example.org/alice", iri"http://example.org/knows", tt))
+```
+"""
 # Julia does not support recursive immutable structs, so object is typed Any
 # and validated at construction time.
 struct TripleTerm <: RDFTerm
@@ -180,7 +233,14 @@ Base.hash(a::TripleTerm, h::UInt) =
 
 # ── Positional type aliases ───────────────────────────────────────────────────
 
+"""    SubjectTerm\nUnion type for valid RDF subject positions: `IRI` or `BlankNode`."""
 const SubjectTerm   = Union{IRI, BlankNode}
+
+"""    PredicateTerm\nAlias for `IRI`; only IRIs are valid in the predicate position."""
 const PredicateTerm = IRI
+
+"""    ObjectTerm\nUnion type for valid RDF object positions: `IRI`, `BlankNode`, `Literal`, or `TripleTerm`."""
 const ObjectTerm    = Union{IRI, BlankNode, Literal, TripleTerm}
+
+"""    GraphName\nUnion type for RDF graph names: `IRI` or `BlankNode`."""
 const GraphName     = Union{IRI, BlankNode}

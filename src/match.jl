@@ -1,5 +1,30 @@
 # ── Graph match ───────────────────────────────────────────────────────────────
 
+"""
+    match(g::Graph; subject=nothing, predicate=nothing, object=nothing)
+    match(g::Graph, pattern::TriplePattern)
+    match(ds::Dataset; subject=nothing, predicate=nothing, object=nothing, graph=nothing)
+
+Return a lazy iterator over all triples (or quads) matching the given pattern.
+Any omitted keyword argument acts as a wildcard. The hexastore backing the graph
+automatically selects the most efficient index for the given bound positions.
+
+```julia
+# All triples with a given predicate
+for t in match(g; predicate=rdf.type)
+    println(t.subject)
+end
+
+# Exact triple lookup
+match(g; subject=ex.alice, predicate=rdf.type, object=ex.Person)
+
+# Dataset: restrict to a named graph
+match(ds; predicate=rdf.type, graph=IRI("http://example.org/g1"))
+
+# Dataset: default graph only
+match(ds; graph=:default)
+```
+"""
 function match(g::Graph;
                subject::Union{SubjectTerm, Nothing}   = nothing,
                predicate::Union{PredicateTerm, Nothing} = nothing,
@@ -156,11 +181,27 @@ Base.IteratorSize(::Type{_DatasetMatchIterator}) = Base.SizeUnknown()
 
 # ── Convenience accessors ─────────────────────────────────────────────────────
 
+"""
+    subjects(g::Graph; kwargs...) -> iterator
+
+Lazy iterator over the subjects of all triples matching `kwargs`. Equivalent to
+`(t.subject for t in match(g; kwargs...))`.
+"""
 subjects(g::Graph; kwargs...) =
     (t.subject for t in match(g; kwargs...))
 
+"""
+    predicates(g::Graph; kwargs...) -> iterator
+
+Lazy iterator over the predicates of all triples matching `kwargs`.
+"""
 predicates(g::Graph; kwargs...) =
     (t.predicate for t in match(g; kwargs...))
 
+"""
+    objects(g::Graph; kwargs...) -> iterator
+
+Lazy iterator over the objects of all triples matching `kwargs`.
+"""
 objects(g::Graph; kwargs...) =
     (t.object for t in match(g; kwargs...))

@@ -1,3 +1,20 @@
+"""
+    Graph()
+    Graph(f::Function)
+
+An RDF graph backed by a hexastore index for O(log n) pattern matching on any
+combination of subject, predicate, and object.
+
+Supports `push!`, `delete!`, `in`, `length`, `iterate`, `union`, `intersect`,
+`setdiff`, and `merge!`. The do-block form yields the graph to `f` and returns it:
+
+```julia
+g = Graph() do g
+    push!(g, Triple(ex.alice, rdf.type, ex.Person))
+    push!(g, Triple(ex.alice, ex.name, Literal("Alice")))
+end
+```
+"""
 mutable struct Graph
     store::HexaStore
     blank_nodes::Set{UInt64}  # IDs of blank nodes owned by this graph
@@ -94,6 +111,12 @@ function Base.setdiff(g1::Graph, g2::Graph)
     result
 end
 
+"""
+    merge!(g1::Graph, g2::Graph) -> g1
+
+Merge all triples from `g2` into `g1` in-place. Blank nodes from `g2` that
+collide with blank nodes already in `g1` are renamed to fresh identifiers.
+"""
 function merge!(g1::Graph, g2::Graph)
     for t in _rename_blanks(g2, g1.blank_nodes)
         push!(g1, t)
@@ -125,6 +148,11 @@ end
 
 # ── Subgraph and isomorphism ──────────────────────────────────────────────────
 
+"""
+    issubgraph(g1::Graph, g2::Graph) -> Bool
+
+Return `true` if every triple in `g1` also appears in `g2`.
+"""
 function issubgraph(g1::Graph, g2::Graph)
     for t in g1
         t ∉ g2 && return false
@@ -132,6 +160,15 @@ function issubgraph(g1::Graph, g2::Graph)
     true
 end
 
+"""
+    isomorphic(g1::Graph, g2::Graph) -> Bool
+    isomorphic(ds1::Dataset, ds2::Dataset) -> Bool
+    g1 ≅ g2
+
+Return `true` if `g1` and `g2` are RDF-isomorphic: there exists a bijection on
+blank node identifiers such that mapping `g1`'s blank nodes produces exactly the
+same set of triples as `g2`.
+"""
 function isomorphic(g1::Graph, g2::Graph)
     length(g1) != length(g2) && return false
     # Collect ground triples (no blank nodes) and blank-containing triples
@@ -199,6 +236,16 @@ end
 
 # ── Skolemization ─────────────────────────────────────────────────────────────
 
+"""
+    skolemize(g::Graph; base::String) -> Graph
+
+Return a new graph with all blank nodes replaced by IRIs of the form
+`base * string(id)`. The `base` string should end with `/` or `#`.
+
+```julia
+skolemize(g; base="http://example.org/.well-known/genid/")
+```
+"""
 function skolemize(g::Graph; base::String)
     result = Graph()
     mapping = Dict{UInt64, IRI}()
@@ -221,6 +268,12 @@ function _skolem_term(term, base::String, m::Dict{UInt64,IRI})
     end
 end
 
+"""
+    deskolemize(g::Graph; base::String) -> Graph
+
+Reverse of [`skolemize`](@ref): replace IRIs whose value starts with `base`
+with fresh blank nodes.
+"""
 function deskolemize(g::Graph; base::String)
     result = Graph()
     for t in g
@@ -244,6 +297,12 @@ end
 
 # ── Blank node minting ────────────────────────────────────────────────────────
 
+"""
+    blank!(g::Graph) -> BlankNode
+    blank!(g::Graph, n::Int) -> Vector{BlankNode}
+
+Mint one or more fresh blank nodes registered to graph `g`.
+"""
 function blank!(g::Graph)::BlankNode
     bn = _mint_blank_node()
     push!(g.blank_nodes, bn.id)
@@ -254,7 +313,11 @@ function blank!(g::Graph, n::Int)::Vector{BlankNode}
     [blank!(g) for _ in 1:n]
 end
 
-# Returns the set of blank nodes owned by this graph
+"""
+    blank_nodes(g::Graph) -> Set{BlankNode}
+
+Return the set of blank nodes owned by `g`.
+"""
 blank_nodes(g::Graph) = Set{BlankNode}(BlankNode(id) for id in g.blank_nodes)
 
 # Operator aliases

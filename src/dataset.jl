@@ -1,3 +1,20 @@
+"""
+    Dataset(; default_graph::Graph = Graph())
+
+An RDF dataset consisting of a default graph and zero or more named graphs.
+Named graphs are accessed with dict-like syntax:
+
+```julia
+ds = Dataset()
+ds[IRI("http://example.org/g1")] = g
+g2 = ds[IRI("http://example.org/g1")]
+haskey(ds, IRI("http://example.org/g1"))  # true
+```
+
+Iterating a `Dataset` yields `(name::GraphName, graph::Graph)` pairs for the
+named graphs only. Use [`quads`](@ref) to iterate all triples including the
+default graph.
+"""
 mutable struct Dataset
     default_graph::Graph
     named_graphs::Dict{GraphName, Graph}
@@ -25,6 +42,11 @@ Base.length(ds::Dataset) = length(ds.named_graphs)
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
+"""
+    ntriples(ds::Dataset) -> Int
+
+Return the total number of triples across the default graph and all named graphs.
+"""
 function ntriples(ds::Dataset)
     total = length(ds.default_graph)
     for g in values(ds.named_graphs)
@@ -33,6 +55,12 @@ function ntriples(ds::Dataset)
     total
 end
 
+"""
+    quads(ds::Dataset)
+
+Return a lazy iterator over all `Quad`s in the dataset, including the default
+graph (`quad.graph === nothing`) and all named graphs.
+"""
 function quads(ds::Dataset)
     _DatasetQuadIterator(ds)
 end

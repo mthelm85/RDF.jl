@@ -1,6 +1,26 @@
 using Dates
 
-# value(lit) — parse lexical form to Julia value; throws on failure
+"""
+    value(lit::Literal)
+    value(T::Type, lit::Literal)
+
+Parse the lexical form of `lit` to a Julia value. The one-argument form infers
+the type from the datatype IRI; the two-argument form additionally checks that
+the result is of type `T`.
+
+Supported datatypes: `xsd:string`, `rdf:langString`, `xsd:boolean`,
+`xsd:integer` (and variants), `xsd:double`, `xsd:float`, `xsd:decimal`,
+`xsd:date`, `xsd:dateTime`.
+
+Throws `LiteralValueError` if parsing fails or the value is not of type `T`.
+See also [`tryvalue`](@ref).
+
+```julia
+value(Literal(42))           # => 42 (Int64)
+value(Int64, Literal(42))    # => 42
+value(Literal(true))         # => true
+```
+"""
 function value(lit::Literal)
     dt = lit.datatype.value
     _XSD = "http://www.w3.org/2001/XMLSchema#"
@@ -51,6 +71,11 @@ function value(T::Type, lit::Literal)
     throw(LiteralValueError(lit, T))
 end
 
+"""
+    tryvalue(lit::Literal)
+
+Like [`value`](@ref) but returns `nothing` instead of throwing on failure.
+"""
 function tryvalue(lit::Literal)
     try
         value(lit)

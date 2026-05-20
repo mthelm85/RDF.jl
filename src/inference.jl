@@ -2,6 +2,20 @@
 
 const _RDFS_ALL_RULES = [:subClassOf, :subPropertyOf, :domain, :range, :type_propagation]
 
+"""
+    infer_rdfs(g::Graph; rules=[:subClassOf, :subPropertyOf, :domain, :range]) -> Graph
+
+Return a new graph that is the RDFS closure of `g` — the original triples plus
+all triples derivable by the applicable RDFS entailment rules (forward-chaining
+to fixed point). `g` is not modified.
+
+Available rules: `:subClassOf`, `:subPropertyOf`, `:domain`, `:range`.
+
+```julia
+closed = infer_rdfs(g)
+entails(g, Triple(ex.alice, rdf.type, ex.Animal))  # checks via RDFS closure
+```
+"""
 function infer_rdfs(g::Graph; rules::Vector{Symbol}=_RDFS_ALL_RULES)::Graph
     result = Graph()
     for t in g; push!(result, t); end
@@ -9,6 +23,12 @@ function infer_rdfs(g::Graph; rules::Vector{Symbol}=_RDFS_ALL_RULES)::Graph
     result
 end
 
+"""
+    infer_rdfs!(g::Graph; rules=...) -> g
+
+In-place version of [`infer_rdfs`](@ref). Adds all RDFS-entailed triples
+directly to `g` and returns it.
+"""
 function infer_rdfs!(g::Graph; rules::Vector{Symbol}=_RDFS_ALL_RULES)
     changed = true
     while changed
@@ -153,7 +173,19 @@ function _collect_pairs(g::Graph, pred::IRI)::Dict{IRI, Set{ObjectTerm}}
     d
 end
 
-# Entailment checking
+"""
+    entails(g::Graph, t::Triple; regime::Symbol=:rdfs) -> Bool
+
+Return `true` if `g` entails `t` under the given entailment regime.
+
+- `:simple` — checks direct membership (`t ∈ g`)
+- `:rdfs` — checks membership in the RDFS closure of `g`
+
+```julia
+entails(g, Triple(ex.alice, rdf.type, ex.Animal))
+entails(g, Triple(ex.alice, rdf.type, ex.Animal); regime=:simple)
+```
+"""
 function entails(g::Graph, t::Triple; regime::Symbol=:rdfs)::Bool
     if regime === :simple
         return t ∈ g

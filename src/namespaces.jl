@@ -1,3 +1,14 @@
+"""
+    Namespace(base::String)
+
+A namespace prefix for constructing `IRI`s using dot notation or bracket indexing.
+
+```julia
+ex  = Namespace("http://example.org/")
+ex.Alice          # => IRI("http://example.org/Alice")
+ex["first-name"]  # => IRI("http://example.org/first-name")
+```
+"""
 struct Namespace
     base::String
 end

@@ -1,9 +1,33 @@
+"""
+    ValidationWarning
+
+A warning produced by [`validate`](@ref), containing:
+- `triple::Triple` — the offending triple
+- `message::String` — human-readable description
+- `code::Symbol` — machine-readable code (`:invalid_lang_tag`, `:ill_typed_literal`)
+"""
 struct ValidationWarning
     triple::Triple
     message::String
     code::Symbol
 end
 
+"""
+    validate(g::Graph) -> Vector{ValidationWarning}
+    validate(ds::Dataset) -> Vector{ValidationWarning}
+
+Check all literals in `g` (or `ds`) for conformance issues and return a list of
+`ValidationWarning`s. An empty list means no issues were found.
+
+Checks performed:
+- Language tags must conform to BCP47 syntax
+- Lexical forms must be valid for known XSD datatypes
+
+```julia
+warns = validate(g)
+isempty(warns) || foreach(w -> @warn(w.message), warns)
+```
+"""
 function validate(g::Graph)::Vector{ValidationWarning}
     warnings = ValidationWarning[]
     for t in g
