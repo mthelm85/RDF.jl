@@ -1,5 +1,4 @@
-# RDF [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://mthelm85.github.io/RDF.jl/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://mthelm85.github.io/RDF.jl/dev/) [![Build Status](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Coverage](https://codecov.io/gh/mthelm85/RDF.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mthelm85/RDF.jl) [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/main/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-
+# RDF [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://mthelm85.github.io/RDF.jl/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://mthelm85.github.io/RDF.jl/dev/) [![Build Status](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Coverage](https://codecov.io/gh/mthelm85/RDF.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mthelm85/RDF.jl)
 An RDF 1.1 library for Julia. Graphs are backed by a hexastore index for fast pattern matching on any combination of subject, predicate, and object.
 
 ## Installation
