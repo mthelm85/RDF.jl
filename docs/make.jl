@@ -9,7 +9,7 @@ makedocs(;
     sitename="RDF.jl",
     format=Documenter.HTML(;
         canonical="https://mthelm85.github.io/RDF.jl",
-        edit_link="master",
+        edit_link="main",
         assets=String[],
     ),
     pages=[
@@ -19,5 +19,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/mthelm85/RDF.jl",
-    devbranch="master",
+    devbranch="main",
 )
