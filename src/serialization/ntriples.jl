@@ -407,8 +407,14 @@ function rdf_write(path::AbstractString, ds::Dataset)
 end
 
 # IO-level dispatch: write(io, g) → N-Triples; write(io, ds) → N-Quads.
-Base.write(io::IO, g::Graph)   = Base.write(io, _MIME_NT(), g)
+Base.write(io::IO, g::Graph)    = Base.write(io, _MIME_NT(), g)
 Base.write(io::IO, ds::Dataset) = Base.write(io, MIME"application/n-quads"(), ds)
+
+# Path-based writes — explicit so Graph always → N-Triples, Dataset always → N-Quads.
+Base.write(path::AbstractString, g::Graph) =
+    open(io -> Base.write(io, _MIME_NT(), g), path, "w")
+Base.write(path::AbstractString, ds::Dataset) =
+    open(io -> Base.write(io, MIME"application/n-quads"(), ds), path, "w")
 
 # Typed path-based reads.
 Base.read(path::AbstractString, ::Type{Graph}) =

@@ -498,6 +498,9 @@ using Test
             write(path_nt, g)
             g2 = read(path_nt, Graph)
             @test g ≅ g2
+            # Regression: write(path, graph) must produce N-Triples, not N-Quads.
+            # If it emitted a fourth graph-name term, the N-Triples parser above
+            # would throw a ParseError and the roundtrip test would already fail.
 
             # Write N-Quads
             ds = Dataset()
