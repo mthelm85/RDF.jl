@@ -21,6 +21,7 @@ include("inference.jl")
 # ── Serialization ─────────────────────────────────────────────────────────────
 include("serialization/ntriples.jl")
 include("serialization/nquads.jl")
+include("serialization/turtle.jl")
 
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")

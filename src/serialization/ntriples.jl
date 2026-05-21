@@ -394,12 +394,18 @@ function rdf_read(path::AbstractString)::Union{Graph, Dataset}
         return open(io -> Base.read(io, _MIME_NT(), Graph), path)
     elseif endswith(path, ".nq")
         return open(io -> Base.read(io, MIME"application/n-quads"(), Dataset), path)
+    elseif endswith(path, ".ttl")
+        return open(io -> Base.read(io, MIME"text/turtle"(), Graph), path)
     end
     error("Cannot detect RDF format from extension: $path")
 end
 
 function rdf_write(path::AbstractString, g::Graph)
-    open(path, "w") do io; Base.write(io, _MIME_NT(), g); end
+    if endswith(path, ".ttl")
+        open(path, "w") do io; Base.write(io, MIME"text/turtle"(), g); end
+    else
+        open(path, "w") do io; Base.write(io, _MIME_NT(), g); end
+    end
 end
 
 function rdf_write(path::AbstractString, ds::Dataset)
