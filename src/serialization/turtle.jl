@@ -47,10 +47,12 @@ function _ttl_remove_dots(path::String)::String
 end
 
 # Parse a URI into (scheme, authority, path, query, fragment).
+# authority is Nothing when "//" is absent, or a String (possibly "") when present.
 # fragment is Nothing if '#' is absent, or a String (possibly "") if '#' is present.
 function _ttl_parse_uri_comps(uri::String)
     s = uri
-    scheme = ""; authority = ""
+    scheme    = ""
+    authority = nothing   # Nothing = no "//" present; "" = "//" with empty authority
 
     # Detect scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"
     i = firstindex(s); lim = lastindex(s)
@@ -63,7 +65,7 @@ function _ttl_parse_uri_comps(uri::String)
         scheme = s[i:j-1]; s = s[j+1:end]
     end
 
-    # Detect authority
+    # Detect authority: present when "//" follows the scheme (or at the start).
     if startswith(s, "//")
         s = s[3:end]
         ae = findfirst(c -> c == '/' || c == '?' || c == '#', s)
@@ -94,7 +96,7 @@ end
 function _ttl_build_uri(scheme, authority, path, query, frag)
     r = ""
     !isempty(scheme)    && (r *= scheme * ":")
-    !isempty(authority) && (r *= "//" * authority)
+    authority !== nothing && (r *= "//" * authority)   # preserve empty authority ("")
     r *= path
     !isempty(query)     && (r *= "?" * query)
     frag !== nothing    && (r *= "#" * frag)
@@ -110,7 +112,7 @@ function _ttl_resolve(base::String, ref::String)::String
     (bs, ba, bp, bq, _bf) = _ttl_parse_uri_comps(base)
     (_rs, ra, rp, rq, rf) = _ttl_parse_uri_comps(ref)
 
-    !isempty(ra) && return _ttl_build_uri(bs, ra, _ttl_remove_dots(rp), rq, rf)
+    ra !== nothing && return _ttl_build_uri(bs, ra, _ttl_remove_dots(rp), rq, rf)
 
     if isempty(rp)
         tq = !isempty(rq) || occursin('?', ref) ? rq : bq

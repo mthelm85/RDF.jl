@@ -17,4 +17,5 @@ using Test
     include("test_type_stability.jl")
     include("w3c/w3c_tests.jl")
     include("test_w3c_turtle.jl")
+    include("test_w3c_sparql.jl")
 end

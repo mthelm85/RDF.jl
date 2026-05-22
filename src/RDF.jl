@@ -23,6 +23,9 @@ include("serialization/ntriples.jl")
 include("serialization/nquads.jl")
 include("serialization/turtle.jl")
 
+# ── Query ─────────────────────────────────────────────────────────────────────
+include("sparql.jl")
+
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")
 include("vocab/rdfs_vocab.jl")
@@ -71,6 +74,9 @@ export infer_rdfs, infer_rdfs!, entails
 
 # Validation
 export validate
+
+# SPARQL
+export SolutionSet, sparql_parse, sparql, sparql_update!
 
 # Vocabulary modules
 export rdf, rdfs, xsd, owl, skos, dc, dcterms, foaf, schema
