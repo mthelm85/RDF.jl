@@ -27,6 +27,10 @@ const CompoundLiteral = IRI(_BASE * "CompoundLiteral")
 const language        = IRI(_BASE * "language")
 const direction       = IRI(_BASE * "direction")
 
+# RDF 1.2
+const dirLangString   = IRI(_BASE * "dirLangString")  # directional language-tagged string
+const reifies         = IRI(_BASE * "reifies")         # reification predicate
+
 # rdf:_1, rdf:_2, ... — generate on demand via getproperty
 function _member(n::Int)::IRI
     IRI(_BASE * "_" * string(n))

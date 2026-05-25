@@ -21,4 +21,5 @@ using Test
     include("test_w3c_ntriples.jl")
     include("test_w3c_nquads.jl")
     include("test_w3c_isomorphism.jl")
+    include("test_aqua.jl")
 end

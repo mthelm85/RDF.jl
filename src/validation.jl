@@ -71,36 +71,55 @@ function _check_literal!(warnings, t, obj)
     end
 end
 
-# BCP47: simplified — primary tag of 1-8 ASCII letters, optional subtags
-const _LANG_RE = r"^[a-z]{1,8}(-[a-z0-9]{1,8})*$"i
+# BCP47 + RDF 1.2 directional tags: primary tag, optional subtags, optional --dir suffix
+const _LANG_RE = r"^[a-z]{1,8}(-[a-z0-9]{1,8})*(--[a-z]{2,3})?$"i
 
 _valid_lang_tag(tag::String) = occursin(_LANG_RE, tag)
 
-# Known numeric XSD datatypes and their validators
-const _XSD = "http://www.w3.org/2001/XMLSchema#"
+# Pre-defined XSD datatype IRI strings — avoids string allocation on every validate() call
+const _VAL_XSD          = "http://www.w3.org/2001/XMLSchema#"
+const _VAL_XSD_INTEGER  = _VAL_XSD * "integer"
+const _VAL_XSD_NONNEG   = _VAL_XSD * "nonNegativeInteger"
+const _VAL_XSD_POS      = _VAL_XSD * "positiveInteger"
+const _VAL_XSD_NONPOS   = _VAL_XSD * "nonPositiveInteger"
+const _VAL_XSD_NEG      = _VAL_XSD * "negativeInteger"
+const _VAL_XSD_LONG     = _VAL_XSD * "long"
+const _VAL_XSD_INT      = _VAL_XSD * "int"
+const _VAL_XSD_SHORT    = _VAL_XSD * "short"
+const _VAL_XSD_BYTE     = _VAL_XSD * "byte"
+const _VAL_XSD_ULONG    = _VAL_XSD * "unsignedLong"
+const _VAL_XSD_UINT     = _VAL_XSD * "unsignedInt"
+const _VAL_XSD_USHORT   = _VAL_XSD * "unsignedShort"
+const _VAL_XSD_UBYTE    = _VAL_XSD * "unsignedByte"
+const _VAL_XSD_DECIMAL  = _VAL_XSD * "decimal"
+const _VAL_XSD_DOUBLE   = _VAL_XSD * "double"
+const _VAL_XSD_FLOAT    = _VAL_XSD * "float"
+const _VAL_XSD_BOOLEAN  = _VAL_XSD * "boolean"
+const _VAL_XSD_DATE     = _VAL_XSD * "date"
+const _VAL_XSD_DATETIME = _VAL_XSD * "dateTime"
+const _VAL_XSD_DT_STAMP = _VAL_XSD * "dateTimeStamp"
 
 function _is_known_datatype(dt::IRI)
-    startswith(dt.value, _XSD)
+    startswith(dt.value, _VAL_XSD)
 end
 
 function _check_lexical_form(lex::String, dt::IRI)::Bool
     s = dt.value
-    if s == _XSD * "integer" || s == _XSD * "nonNegativeInteger" ||
-       s == _XSD * "positiveInteger" || s == _XSD * "nonPositiveInteger" ||
-       s == _XSD * "negativeInteger" || s == _XSD * "long" ||
-       s == _XSD * "int" || s == _XSD * "short" || s == _XSD * "byte" ||
-       s == _XSD * "unsignedLong" || s == _XSD * "unsignedInt" ||
-       s == _XSD * "unsignedShort" || s == _XSD * "unsignedByte"
+    if s == _VAL_XSD_INTEGER || s == _VAL_XSD_NONNEG  || s == _VAL_XSD_POS   ||
+       s == _VAL_XSD_NONPOS  || s == _VAL_XSD_NEG     || s == _VAL_XSD_LONG  ||
+       s == _VAL_XSD_INT     || s == _VAL_XSD_SHORT   || s == _VAL_XSD_BYTE  ||
+       s == _VAL_XSD_ULONG   || s == _VAL_XSD_UINT    || s == _VAL_XSD_USHORT ||
+       s == _VAL_XSD_UBYTE
         return tryparse(Int64, lex) !== nothing || tryparse(BigInt, lex) !== nothing
-    elseif s == _XSD * "decimal"
+    elseif s == _VAL_XSD_DECIMAL
         return tryparse(BigFloat, lex) !== nothing
-    elseif s == _XSD * "double" || s == _XSD * "float"
+    elseif s == _VAL_XSD_DOUBLE || s == _VAL_XSD_FLOAT
         return lex in ("INF", "-INF", "NaN") || tryparse(Float64, lex) !== nothing
-    elseif s == _XSD * "boolean"
+    elseif s == _VAL_XSD_BOOLEAN
         return lex in ("true", "false", "1", "0")
-    elseif s == _XSD * "date"
+    elseif s == _VAL_XSD_DATE
         return _valid_xsd_date(lex)
-    elseif s == _XSD * "dateTime" || s == _XSD * "dateTimeStamp"
+    elseif s == _VAL_XSD_DATETIME || s == _VAL_XSD_DT_STAMP
         return _valid_xsd_datetime(lex)
     end
     true  # unknown XSD type: accept

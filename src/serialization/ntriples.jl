@@ -257,14 +257,16 @@ end
 
 function _parse_nt_blank(s, pos, lineno, blank_map)
     startswith(s[pos:end], "_:") || throw(ParseError("Expected blank node", lineno, pos, _MIME_NT()))
+    # '_' and ':' are ASCII so pos+2 is a valid character boundary
     i = pos + 2
     while i <= lastindex(s)
         c = s[i]
         (isspace(c) || c == '.' || c == '<' || c == '>' || c == '"' ||
          c == '^' || c == ',' || c == ';' || c == '#' || c == ')') && break
-        i += 1
+        i = nextind(s, i)   # character-safe advance (blank node labels may contain non-ASCII)
     end
-    label = s[pos+2:i-1]
+    label_end = i > lastindex(s) ? lastindex(s) : prevind(s, i)
+    label = s[pos+2:label_end]
     isempty(label) && throw(ParseError("Empty blank node label", lineno, pos, _MIME_NT()))
     fc = label[1]
     (isletter(fc) || isdigit(fc) || fc == '_' || UInt32(fc) > 0x7F) ||
@@ -322,7 +324,7 @@ function _parse_nt_literal(s, pos, lineno, blank_map)
         while j <= lastindex(s) && !isspace(s[j]) && s[j] != '.'
             j = nextind(s, j)
         end
-        tag = s[i+1:j-1]
+        tag = s[i+1:prevind(s, j)]
         isempty(tag) && throw(ParseError("Empty language tag", lineno, i, _MIME_NT()))
         isletter(tag[1]) || throw(ParseError("Invalid language tag: $tag", lineno, i, _MIME_NT()))
         # RDF 1.2: check for directional tag lang--dir

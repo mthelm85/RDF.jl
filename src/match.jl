@@ -39,40 +39,46 @@ function match(g::Graph, p::TriplePattern)
     p_id = p.predicate === nothing ? nothing : get(_type_map(p.predicate), p.predicate, UInt32(0))
     o_id = p.object    === nothing ? nothing : get(_type_map(p.object),    p.object,    UInt32(0))
 
-    (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) &&
-        return _TripleMatchIterator(g, nothing, nothing, nothing, nothing, nothing)
+    if s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)
+        return _TripleMatchIterator(g, _EMPTY_HEXAVEC,
+                                   (UInt32(0), UInt32(0), UInt32(0)),
+                                   (UInt32(0), UInt32(0), UInt32(0)), :spo)
+    end
 
     index, a, b, c, order = _select_index(g.store, s_id, p_id, o_id)
-    _TripleMatchIterator(g, index, a, b, c, order)
+    lo, hi = _range_bounds(a, b, c)
+    _TripleMatchIterator(g, index, lo, hi, order)
 end
+
+# Shared sentinel vector for empty iterators — avoids allocating a new Vector per miss
+const _EMPTY_HEXAVEC = NTuple{3,UInt32}[]
 
 struct _TripleMatchIterator
     g::Graph
-    index::Union{Vector{NTuple{3,UInt32}}, Nothing}
-    a::Union{UInt32, Nothing}
-    b::Union{UInt32, Nothing}
-    c::Union{UInt32, Nothing}
-    order::Union{Symbol, Nothing}  # :spo | :sop | :pso | :pos | :osp | :ops
+    index::Vector{NTuple{3,UInt32}}  # _EMPTY_HEXAVEC signals no results
+    lo::NTuple{3,UInt32}             # precomputed lower bound (never changes)
+    hi::NTuple{3,UInt32}             # precomputed upper bound (never changes)
+    order::Symbol                    # always concrete: :spo | :sop | :pso | :pos | :osp | :ops
 end
 
-function Base.iterate(it::_TripleMatchIterator, state=nothing)
-    it.index === nothing && return nothing
-    idx = it.index
-    lo_a = it.a !== nothing ? it.a : UInt32(0)
-    lo_b = it.b !== nothing ? it.b : UInt32(0)
-    lo_c = it.c !== nothing ? it.c : UInt32(0)
-    lo   = (lo_a, lo_b, lo_c)
-    hi_a = it.a !== nothing ? it.a : typemax(UInt32)
-    hi_b = it.b !== nothing ? it.b : typemax(UInt32)
-    hi_c = it.c !== nothing ? it.c : typemax(UInt32)
-    hi   = (hi_a, hi_b, hi_c)
+# No-state entry point: compute starting position once
+function Base.iterate(it::_TripleMatchIterator)
+    isempty(it.index) && return nothing
+    _tmi_step(it, searchsortedfirst(it.index, it.lo))
+end
 
-    i = state === nothing ? searchsortedfirst(idx, lo) : state
+# Continuation with concrete Int state — no Union{Nothing,Int} inference needed
+function Base.iterate(it::_TripleMatchIterator, i::Int)
+    _tmi_step(it, i)
+end
+
+@inline function _tmi_step(it::_TripleMatchIterator, i::Int)
+    idx = it.index
+    hi  = it.hi
     while i <= length(idx)
-        tup = idx[i]
-        tup > hi && break
-        triple = _permuted_triple(tup, it.order)
-        return (triple, i + 1)
+        tup = @inbounds idx[i]
+        tup > hi && return nothing
+        return (_permuted_triple(tup, it.order), i + 1)
     end
     nothing
 end
@@ -107,10 +113,9 @@ Base.IteratorSize(::Type{_TripleMatchIterator}) = Base.SizeUnknown()
 # and Triple struct construction during join loops.
 
 struct _IDTripleIterator
-    index::Union{Vector{NTuple{3,UInt32}}, Nothing}
-    a::Union{UInt32, Nothing}
-    b::Union{UInt32, Nothing}
-    c::Union{UInt32, Nothing}
+    index::Vector{NTuple{3,UInt32}}  # _EMPTY_HEXAVEC signals no results
+    lo::NTuple{3,UInt32}
+    hi::NTuple{3,UInt32}
     order::Symbol
 end
 
@@ -119,20 +124,31 @@ function _match_ids(g::Graph,
                     p_id::Union{UInt32, Nothing},
                     o_id::Union{UInt32, Nothing})
     # UInt32(0) signals "not in registry" → return empty iterator
-    (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) &&
-        return _IDTripleIterator(nothing, nothing, nothing, nothing, :spo)
+    if s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)
+        return _IDTripleIterator(_EMPTY_HEXAVEC,
+                                 (UInt32(0), UInt32(0), UInt32(0)),
+                                 (UInt32(0), UInt32(0), UInt32(0)), :spo)
+    end
     index, a, b, c, order = _select_index(g.store, s_id, p_id, o_id)
-    _IDTripleIterator(index, a, b, c, order)
+    lo, hi = _range_bounds(a, b, c)
+    _IDTripleIterator(index, lo, hi, order)
 end
 
-function Base.iterate(it::_IDTripleIterator, state=nothing)
-    it.index === nothing && return nothing
-    idx   = it.index
-    lo, hi = _range_bounds(it.a, it.b, it.c)
-    i = state === nothing ? searchsortedfirst(idx, lo) : state
+function Base.iterate(it::_IDTripleIterator)
+    isempty(it.index) && return nothing
+    _idi_step(it, searchsortedfirst(it.index, it.lo))
+end
+
+function Base.iterate(it::_IDTripleIterator, i::Int)
+    _idi_step(it, i)
+end
+
+@inline function _idi_step(it::_IDTripleIterator, i::Int)
+    idx = it.index
+    hi  = it.hi
     while i <= length(idx)
         tup = @inbounds idx[i]
-        tup > hi && break
+        tup > hi && return nothing
         return (_permute_to_spo(tup, it.order), i + 1)
     end
     nothing
