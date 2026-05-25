@@ -7,6 +7,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 ## Features
 
 - **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED
+- **Remote SPARQL endpoints** — `sparql(url, query)` queries any SPARQL 1.1 endpoint (Wikidata, UniProt, DBpedia, …) when HTTP.jl is loaded; same API as local queries
 - **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV for HTTP API integration
 - **Turtle 1.1** parser and serializer
 - **N-Triples / N-Quads** parser and serializer
@@ -123,6 +124,47 @@ result = sparql(ds, """
     ?person foaf:name ?name
   }
 """)
+```
+
+### Remote SPARQL endpoints
+
+Load HTTP.jl and the same `sparql` function queries any remote SPARQL 1.1 endpoint:
+
+```julia
+using RDF, HTTP
+
+# Pull chemical elements from Wikidata
+results = sparql("https://query.wikidata.org/sparql", """
+  PREFIX wd:   <http://www.wikidata.org/entity/>
+  PREFIX wdt:  <http://www.wikidata.org/prop/direct/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?element ?name WHERE {
+    ?element wdt:P31 wd:Q11344 ;
+             rdfs:label ?name .
+    FILTER(LANG(?name) = "en")
+  } ORDER BY ?name LIMIT 20
+""")
+
+# Directly into a DataFrame
+using DataFrames
+df = DataFrame(results)
+
+# UniProt proteins for a given taxon
+sparql("https://sparql.uniprot.org/sparql", """
+  PREFIX up:  <http://purl.uniprot.org/core/>
+  PREFIX taxon: <http://purl.uniprot.org/taxonomy/>
+  SELECT ?protein ?name WHERE {
+    ?protein a up:Protein ;
+             up:organism taxon:9606 ;
+             up:recommendedName/up:fullName ?name .
+  } LIMIT 50
+""")
+
+# Auth, timeouts, and retry are all keyword arguments
+sparql("https://private.endpoint.example/sparql", query;
+       auth    = ("user", "pass"),   # or auth="bearer-token"
+       timeout = 120,
+       retries = 3)
 ```
 
 ### SPARQL UPDATE

@@ -85,7 +85,7 @@ export infer_rdfs, infer_rdfs!, entails
 export validate
 
 # SPARQL
-export SolutionSet, sparql_parse, sparql, sparql_update!
+export SolutionSet, sparql_parse, sparql, sparql_update!, read_sparql_json
 
 # Vocabulary modules
 export rdf, rdfs, xsd, owl, skos, dc, dcterms, foaf, schema

@@ -171,6 +171,93 @@ sparql_update!(ds, "CLEAR GRAPH <http://example.org/g1>")
 
 ---
 
+## Remote SPARQL endpoints
+
+Load [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl) alongside RDF.jl and the
+same `sparql` function works against any remote SPARQL 1.1 endpoint — Wikidata,
+UniProt, DBpedia, your own triplestore, or anything else that speaks the W3C
+SPARQL Protocol.
+
+```julia
+using RDF, HTTP
+
+# Query Wikidata for chemical elements
+results = sparql("https://query.wikidata.org/sparql", """
+  PREFIX wd:   <http://www.wikidata.org/entity/>
+  PREFIX wdt:  <http://www.wikidata.org/prop/direct/>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?element ?name WHERE {
+    ?element wdt:P31 wd:Q11344 ;
+             rdfs:label ?name .
+    FILTER(LANG(?name) = "en")
+  } ORDER BY ?name LIMIT 20
+""")
+
+for row in results
+    println(value(String, row[:name]))
+end
+
+# Into a DataFrame
+using DataFrames
+df = DataFrame(results)
+```
+
+The return types are identical to local queries:
+
+| Query form  | Return type   |
+|-------------|---------------|
+| SELECT      | `SolutionSet` |
+| ASK         | `Bool`        |
+| CONSTRUCT   | `Graph`       |
+| DESCRIBE    | `Graph`       |
+
+### Keyword options
+
+| Keyword         | Default    | Description |
+|-----------------|------------|-------------|
+| `timeout`       | `60`       | Read timeout in seconds |
+| `auth`          | `nothing`  | `("user","pass")` for Basic auth; `"token"` for Bearer |
+| `prefixes`      | `Dict()`   | Extra `PREFIX k => v` declarations prepended to the query |
+| `default_graph` | `nothing`  | `default-graph-uri` SPARQL Protocol parameter |
+| `named_graph`   | `nothing`  | `named-graph-uri` SPARQL Protocol parameter |
+| `method`        | `:auto`    | `:get`, `:post`, or `:auto` (GET ≤ 2 kB, POST otherwise) |
+| `retries`       | `2`        | Retry attempts on transient 5xx errors |
+
+### Common endpoint URLs
+
+| Dataset | Endpoint |
+|---------|----------|
+| Wikidata | `https://query.wikidata.org/sparql` |
+| DBpedia | `https://dbpedia.org/sparql` |
+| UniProt | `https://sparql.uniprot.org/sparql` |
+| ChEMBL | `https://chembl.bio2rdf.org/sparql` |
+| Linked Data for Life Sciences | `https://lod.openlinksw.com/sparql` |
+
+### Extra prefix shortcuts
+
+```julia
+# Avoid repeating PREFIX declarations in every query
+results = sparql("https://query.wikidata.org/sparql",
+    "SELECT ?item WHERE { ?item wdt:P31 wd:Q11344 } LIMIT 10";
+    prefixes = Dict(
+        "wd"  => "http://www.wikidata.org/entity/",
+        "wdt" => "http://www.wikidata.org/prop/direct/"))
+```
+
+### Authentication
+
+```julia
+# Basic auth
+sparql("https://my-endpoint.example/sparql", query;
+       auth = ("username", "password"))
+
+# Bearer token
+sparql("https://my-endpoint.example/sparql", query;
+       auth = "eyJhbGci...")
+```
+
+---
+
 ## SPARQL result format serialization
 
 `SolutionSet` can be serialized to any of the four W3C standard result formats.
