@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Matthew Helm"]
 
 [deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -24,6 +25,7 @@ RDFHTTPExt   = "HTTP"
 RDFTablesExt = "Tables"
 
 [compat]
+Base64 = "1"
 Bumper = "0.7.2"
 DataStructures = "0.19.4"
 HTTP = "1"
