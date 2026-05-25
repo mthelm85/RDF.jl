@@ -175,7 +175,7 @@ function _parse_nt_iri(s, pos, lineno)
     pos <= lastindex(s) && s[pos] == '<' || throw(ParseError("Expected IRI", lineno, pos, _MIME_NT()))
     close = _find_close(s, pos + 1, '>')
     close === nothing && throw(ParseError("Unterminated IRI", lineno, pos, _MIME_NT()))
-    raw = s[pos+1:close-1]
+    raw = s[pos+1:prevind(s, close)]
     iri = try
         IRI(_unescape_iri(raw))
     catch e

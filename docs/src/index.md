@@ -4,7 +4,7 @@ CurrentModule = RDF
 
 # RDF.jl
 
-An RDF 1.2 library for Julia. Graphs are backed by a hexastore index for fast
+An RDF 1.1 library for Julia. Graphs are backed by a hexastore index for fast
 pattern matching on any combination of subject, predicate, and object.
 
 ## Installation

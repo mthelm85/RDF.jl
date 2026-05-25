@@ -177,18 +177,56 @@ Literal(x::AbstractFloat)      = Literal(_double_lexical(x), _XSD_DOUBLE, "")
 Literal(x::Dates.Date)         = Literal(string(x), _XSD_DATE, "")
 Literal(x::Dates.DateTime)     = Literal(string(x), _XSD_DATETIME, "")
 
+# Convert a decimal-notation or e-notation string to XSD double canonical form.
+# XSD doubles must use scientific notation: e.g. "3.21E4", "4.0E-1", "2.0E-1".
+function _dec_to_xsd_double_str(s::String)::String
+    neg = startswith(s, "-")
+    ns  = neg ? s[2:end] : s
+    pfx = neg ? "-" : ""
+
+    # Already has E notation (from repr on large/small values)
+    ei = findfirst(c -> c == 'e' || c == 'E', ns)
+    if ei !== nothing
+        mant = ns[1:ei-1]
+        exp  = parse(Int, ns[ei+1:end])
+        # Ensure at least one decimal digit in mantissa
+        '.' in mant || (mant = mant * ".0")
+        mant = rstrip(mant, '0')
+        endswith(mant, '.') && (mant *= "0")
+        return pfx * mant * "E" * string(exp)
+    end
+
+    # Decimal notation: e.g. "32100.0", "0.4", "0.0002"
+    dot_i = findfirst('.', ns)
+    int_s  = dot_i === nothing ? ns        : ns[1:dot_i-1]
+    frac_s = dot_i === nothing ? ""        : ns[dot_i+1:end]
+
+    all_digits = int_s * frac_s
+    first_nz   = findfirst(c -> c != '0', all_digits)
+    first_nz === nothing && return pfx * "0.0E0"
+
+    n_int      = length(int_s)
+    exp        = n_int - first_nz       # e.g. "32100" → 5-1=4, "0" → 1-2=-1
+    sig        = rstrip(all_digits[first_nz:end], '0')
+    isempty(sig) && (sig = "0")
+    mant       = length(sig) == 1 ? sig * ".0" : sig[1:1] * "." * sig[2:end]
+    return pfx * mant * "E" * string(exp)
+end
+
 function _double_lexical(x::AbstractFloat)
     isnan(x)      && return "NaN"
     isinf(x) && x > 0 && return "INF"
     isinf(x)      && return "-INF"
-    string(x)
+    x == 0.0      && return signbit(x) ? "-0.0E0" : "0.0E0"
+    _dec_to_xsd_double_str(repr(Float64(x)))
 end
 
 function _float_lexical(x::Float32)
     isnan(x)      && return "NaN"
     isinf(x) && x > 0 && return "INF"
     isinf(x)      && return "-INF"
-    string(x)
+    x == 0.0f0    && return signbit(x) ? "-0.0E0" : "0.0E0"
+    _dec_to_xsd_double_str(repr(Float64(x)))
 end
 
 Base.:(==)(a::Literal, b::Literal) =

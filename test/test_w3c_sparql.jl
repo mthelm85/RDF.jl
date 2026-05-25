@@ -51,6 +51,15 @@ const _SP_UT_DATA       = IRI(_SP_UT_NS   * "data")
 const _SP_UT_GRAPH_DATA = IRI(_SP_UT_NS   * "graphData")
 const _SP_UT_GRAPH      = IRI(_SP_UT_NS   * "graph")
 
+# rs: result-set vocabulary (used in some .ttl expected result files)
+const _SP_RS_NS         = "http://www.w3.org/2001/sw/DataAccess/tests/result-set#"
+const _SP_RS_RESULT_SET = IRI(_SP_RS_NS * "ResultSet")
+const _SP_RS_RESULT_VAR = IRI(_SP_RS_NS * "resultVariable")
+const _SP_RS_SOLUTION   = IRI(_SP_RS_NS * "solution")
+const _SP_RS_BINDING    = IRI(_SP_RS_NS * "binding")
+const _SP_RS_VARIABLE   = IRI(_SP_RS_NS * "variable")
+const _SP_RS_VALUE      = IRI(_SP_RS_NS * "value")
+
 # ─── Test structs ────────────────────────────────────────────────────────────
 
 struct _SpPosSyntaxTest
@@ -142,18 +151,83 @@ function _sp_walk_list(g::Graph, head)::Vector
     return result
 end
 
+# ─── Minimal RDF/XML parser (subset sufficient for W3C test fixtures) ────────
+
+function _sp_parse_rdfxml(path::String)::Graph
+    g    = Graph()
+    base = _sp_path_to_file_uri(path)
+    src  = read(path, String)
+
+    # Collect namespace bindings from xmlns:prefix="uri" attributes
+    ns = Dict{String,String}("rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+    for m in eachmatch(r"""xmlns:(\w+)=["']([^"']+)["']""", src)
+        ns[String(m.captures[1])] = String(m.captures[2])
+    end
+
+    # Expand a prefixed name using collected namespaces
+    function expand(qname::AbstractString)::String
+        i = findfirst(':', qname)
+        i === nothing && return String(qname)
+        prefix = String(qname[1:i-1])
+        local_  = String(qname[i+1:end])
+        return get(ns, prefix, "") * local_
+    end
+
+    # Resolve a possibly-relative IRI against the document base
+    function resolve(iri::AbstractString)::String
+        isempty(iri) && return base
+        occursin("://", iri) && return String(iri)  # already absolute
+        startswith(iri, "#") && return base * String(iri)
+        return String(iri)  # use as-is (already absolute in W3C test fixtures)
+    end
+
+    # Parse each rdf:Description block
+    for dm in eachmatch(r"""<rdf:Description\s+rdf:about=["']([^"']*)["']\s*>(.*?)</rdf:Description>"""s, src)
+        subj = IRI(resolve(dm.captures[1]))
+        body = dm.captures[2]
+
+        # Property with rdf:resource (IRI object): <p:q rdf:resource="..."/>
+        for pm in eachmatch(r"""<([\w:]+)\s+rdf:resource=["']([^"']*)["']\s*/?>""", body)
+            pred = IRI(expand(pm.captures[1]))
+            obj  = IRI(resolve(pm.captures[2]))
+            push!(g, Triple(subj, pred, obj))
+        end
+
+        # Property with rdf:datatype (typed literal): <p:q rdf:datatype='dt'>val</p:q>
+        for pm in eachmatch(r"""<([\w:]+)\s+rdf:datatype=["']([^"']+)["']>(.*?)</[\w:]+>"""s, body)
+            pred = IRI(expand(pm.captures[1]))
+            dt   = IRI(String(pm.captures[2]))
+            push!(g, Triple(subj, pred, Literal(String(strip(pm.captures[3])), dt, "")))
+        end
+
+        # Plain-text literal property: <p:q>value</p:q>  (no attributes)
+        for pm in eachmatch(r"""<([\w:]+)>([^<]*)</[\w:]+>""", body)
+            tag  = pm.captures[1]
+            startswith(tag, "rdf:") && continue   # skip rdf:* elements
+            pred = IRI(expand(tag))
+            push!(g, Triple(subj, pred, Literal(String(pm.captures[2]),
+                IRI("http://www.w3.org/2001/XMLSchema#string"), "")))
+        end
+    end
+    return g
+end
+
 # ─── Graph loading ───────────────────────────────────────────────────────────
 
 function _sp_load_graph(path::String)::Graph
     ext = lowercase(last(splitext(path)))
-    open(path) do io
-        if ext == ".ttl"
+    if ext == ".ttl"
+        open(path) do io
             read(io, MIME"text/turtle"(), Graph, _sp_path_to_file_uri(path))
-        elseif ext == ".nt"
-            read(io, MIME"application/n-triples"(), Graph)
-        else
-            error("Unknown RDF format: $ext (file: $path)")
         end
+    elseif ext == ".nt"
+        open(path) do io
+            read(io, MIME"application/n-triples"(), Graph)
+        end
+    elseif ext == ".rdf" || ext == ".xml"
+        _sp_parse_rdfxml(path)
+    else
+        error("Unknown RDF format: $ext (file: $path)")
     end
 end
 
@@ -457,7 +531,7 @@ function _sp_parse_tsv_term(cell::String, bm::_SpBNodeMap)::Union{RDFTerm, Nothi
         return Literal(cell, IRI(_SP_XSD_NS * "integer"))
     occursin(r"^-?[0-9]*\.[0-9]+$"s,  cell) &&
         return Literal(cell, IRI(_SP_XSD_NS * "decimal"))
-    occursin(r"^-?[0-9]+[eE][+-]?[0-9]+$"s, cell) &&
+    occursin(r"^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)[eE][+-]?[0-9]+$"s, cell) &&
         return Literal(cell, IRI(_SP_XSD_NS * "double"))
     return Literal(cell)
 end
@@ -556,6 +630,59 @@ function _sp_parse_csv(path::String)::SolutionSet
     return sol
 end
 
+# Parse a Turtle file that uses the rs: ResultSet vocabulary as a SolutionSet.
+# Used when the expected result is stored as rs:ResultSet rather than .srx/.srj.
+function _sp_parse_rs_ttl(path::String)::SolutionSet
+    base = _sp_path_to_file_uri(path)
+    g = open(path) do io
+        read(io, MIME"text/turtle"(), Graph, base)
+    end
+
+    # Find the rs:ResultSet node
+    rs_node = nothing
+    for t in g
+        if t.predicate == _SP_RDF_TYPE && t.object == _SP_RS_RESULT_SET
+            rs_node = t.subject
+            break
+        end
+    end
+    rs_node === nothing && error("No rs:ResultSet found in $path")
+
+    # Collect result variables (in declaration order if possible; fall back to set)
+    var_names = String[]
+    for t in g
+        if t.subject == rs_node && t.predicate == _SP_RS_RESULT_VAR
+            t.object isa Literal && push!(var_names, t.object.lexical_form)
+        end
+    end
+    vars = Symbol.(var_names)
+    sol  = SolutionSet(vars)
+
+    # Collect solutions
+    for t in g
+        t.subject == rs_node && t.predicate == _SP_RS_SOLUTION || continue
+        sol_node = t.object
+        row = Dict{Symbol, Union{RDFTerm, Nothing}}(v => nothing for v in vars)
+        for t2 in g
+            t2.subject == sol_node && t2.predicate == _SP_RS_BINDING || continue
+            bind_node = t2.object
+            varname = nothing
+            value   = nothing
+            for t3 in g
+                t3.subject == bind_node || continue
+                if t3.predicate == _SP_RS_VARIABLE && t3.object isa Literal
+                    varname = Symbol(t3.object.lexical_form)
+                elseif t3.predicate == _SP_RS_VALUE
+                    value = t3.object
+                end
+            end
+            varname !== nothing && (row[varname] = value)
+        end
+        push!(sol.rows, row)
+    end
+    return sol
+end
+
 # Dispatch on file extension → parsed reference result.
 function _sp_parse_result(path::String)::Union{SolutionSet, Bool, Graph}
     ext = lowercase(last(splitext(path)))
@@ -563,7 +690,16 @@ function _sp_parse_result(path::String)::Union{SolutionSet, Bool, Graph}
     ext == ".srj" && return _sp_parse_srj(path)
     ext == ".tsv" && return _sp_parse_tsv(path)
     ext == ".csv" && return _sp_parse_csv(path)
-    ext in (".ttl", ".nt") && return _sp_load_graph(path)
+    if ext in (".ttl", ".nt")
+        # Peek at the file: if it uses the rs: ResultSet vocabulary, parse as
+        # SolutionSet; otherwise treat as a CONSTRUCT graph result.
+        # The vocabulary is declared as @prefix rs: <...result-set#> or inline.
+        src = read(path, String)
+        if occursin("result-set#", src) || occursin("rs:ResultSet", src) || occursin("rs:solution", src)
+            return _sp_parse_rs_ttl(path)
+        end
+        return _sp_load_graph(path)
+    end
     error("Unknown result format: $ext")
 end
 
@@ -584,6 +720,8 @@ function _sp_rows_compat(ar::Dict, br::Dict, vars::Vector{Symbol},
                 tb in values(new_map) && return (false, new_map)
                 new_map[ta] = tb
             end
+        elseif ta isa Literal && tb isa Literal
+            RDF._sp_value_equal(ta, tb) || return (false, new_map)
         elseif ta != tb
             return (false, new_map)
         end
@@ -639,9 +777,44 @@ function _sp_csv_equal(a::SolutionSet, b::SolutionSet)::Bool
     length(a.rows)   == length(b.rows)   || return false
     isempty(a.rows) && return true
     vars = sort(a.variables)
-    row_strs(sol) = sort([[_sp_csv_term_str(get(r, v, nothing)) for v in vars]
-                          for r in sol.rows])
-    return row_strs(a) == row_strs(b)
+
+    # CSV value: blank nodes stay as BlankNode (for bijection), everything else → string
+    _csv_val(t::Union{RDFTerm,Nothing}) = t isa BlankNode ? t : _sp_csv_term_str(t)
+
+    function _csv_rows_compat(ar, br, mapping::Dict{BlankNode,BlankNode})
+        new_map = copy(mapping)
+        for v in vars
+            va = _csv_val(get(ar, v, nothing))
+            vb = _csv_val(get(br, v, nothing))
+            if va isa BlankNode && vb isa BlankNode
+                if haskey(new_map, va)
+                    new_map[va] != vb && return (false, new_map)
+                else
+                    vb in values(new_map) && return (false, new_map)
+                    new_map[va] = vb
+                end
+            elseif va != vb
+                return (false, new_map)
+            end
+        end
+        return (true, new_map)
+    end
+
+    function _csv_bag_match(a_rows, b_rows, mapping)
+        isempty(a_rows) && return isempty(b_rows)
+        ar = first(a_rows)
+        rest_a = a_rows[2:end]
+        for (i, br) in enumerate(b_rows)
+            ok, new_map = _csv_rows_compat(ar, br, mapping)
+            if ok
+                rest_b = [b_rows[j] for j in eachindex(b_rows) if j != i]
+                _csv_bag_match(rest_a, rest_b, new_map) && return true
+            end
+        end
+        return false
+    end
+
+    _csv_bag_match(a.rows, collect(b.rows), Dict{BlankNode,BlankNode}())
 end
 
 # ─── Test runners ─────────────────────────────────────────────────────────────

@@ -1,20 +1,24 @@
 name = "RDF"
 uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
-authors = ["Matthew Helm"]
 version = "0.1.0"
+authors = ["Matthew Helm"]
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+MD5 = "6ac74813-4b46-53a4-afec-0b5dc9d7885c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-
-[weakdeps]
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [extensions]
 RDFTablesExt = "Tables"
 
 [compat]
-julia = "1.9"
 Dates = "1"
+JSON3 = "1.14.3"
+MD5 = "0.2.3"
 Printf = "1"
+SHA = "0.7.0"
 Tables = "1"
+julia = "1.9"

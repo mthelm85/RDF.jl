@@ -98,6 +98,60 @@ end
 Base.eltype(::Type{_TripleMatchIterator}) = Triple
 Base.IteratorSize(::Type{_TripleMatchIterator}) = Base.SizeUnknown()
 
+# ── ID-based match iterator ───────────────────────────────────────────────────
+#
+# Returns raw (s_id, p_id, o_id) NTuples directly from the hexastore.
+# Arguments are UInt32 for bound positions, nothing for wildcards.
+# UInt32(0) for any argument means "term not in registry" → empty iterator.
+# Used internally by the columnar BGP evaluator to avoid _resolve() overhead
+# and Triple struct construction during join loops.
+
+struct _IDTripleIterator
+    index::Union{Vector{NTuple{3,UInt32}}, Nothing}
+    a::Union{UInt32, Nothing}
+    b::Union{UInt32, Nothing}
+    c::Union{UInt32, Nothing}
+    order::Symbol
+end
+
+function _match_ids(g::Graph,
+                    s_id::Union{UInt32, Nothing},
+                    p_id::Union{UInt32, Nothing},
+                    o_id::Union{UInt32, Nothing})
+    # UInt32(0) signals "not in registry" → return empty iterator
+    (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) &&
+        return _IDTripleIterator(nothing, nothing, nothing, nothing, :spo)
+    index, a, b, c, order = _select_index(g.store, s_id, p_id, o_id)
+    _IDTripleIterator(index, a, b, c, order)
+end
+
+function Base.iterate(it::_IDTripleIterator, state=nothing)
+    it.index === nothing && return nothing
+    idx   = it.index
+    lo, hi = _range_bounds(it.a, it.b, it.c)
+    i = state === nothing ? searchsortedfirst(idx, lo) : state
+    while i <= length(idx)
+        tup = @inbounds idx[i]
+        tup > hi && break
+        return (_permute_to_spo(tup, it.order), i + 1)
+    end
+    nothing
+end
+
+# Reorder a permuted hexastore tuple to canonical (s_id, p_id, o_id) order.
+@inline function _permute_to_spo(tup::NTuple{3,UInt32}, order::Symbol)::NTuple{3,UInt32}
+    a, b, c = tup
+    order === :spo && return (a, b, c)
+    order === :sop && return (a, c, b)
+    order === :pso && return (b, a, c)
+    order === :pos && return (c, a, b)
+    order === :osp && return (b, c, a)
+    return (c, b, a)  # :ops
+end
+
+Base.eltype(::Type{_IDTripleIterator}) = NTuple{3, UInt32}
+Base.IteratorSize(::Type{_IDTripleIterator}) = Base.SizeUnknown()
+
 # ── Dataset match ─────────────────────────────────────────────────────────────
 
 function match(ds::Dataset;

@@ -8,6 +8,16 @@ LocalPreferences.toml
 
 # Benchmarks
 /benchmarks/results/
+# Dev/scratch benchmark scripts (not part of the published suite)
+benchmarks/alloc_profile.jl
+benchmarks/check_ast.jl
+benchmarks/deep_profile.jl
+benchmarks/optional_bench.jl
+benchmarks/quick_test.jl
+benchmarks/test_breakdown.jl
+
+# Design / planning documents (historical — not part of the public package)
+requirements.md
 
 # OS
 .DS_Store
@@ -22,3 +32,4 @@ Thumbs.db
 
 # Claude Code
 .claude/
+CLAUDE.md

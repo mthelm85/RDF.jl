@@ -2,6 +2,8 @@ module RDF
 
 using Dates
 using Printf
+using SHA
+using MD5
 import Base: match, merge!
 
 # ── Core types ────────────────────────────────────────────────────────────────

@@ -1,8 +1,14 @@
 # ── SPARQL 1.1 Query Language ──────────────────────────────────────────────────
 #
 # This file defines the public API surface and result types for SPARQL 1.1 support.
-# The implementation (parser, algebra translator, evaluator) is forthcoming;
-# these stubs allow the test harness to compile and drive development.
+
+# ── SPARQL sub-components ─────────────────────────────────────────────────────
+include("sparql/ast.jl")
+include("sparql/lexer.jl")
+include("sparql/parser.jl")
+include("sparql/builtins.jl")
+include("sparql/eval.jl")
+include("sparql/update.jl")
 
 # ── Result type ───────────────────────────────────────────────────────────────
 
@@ -43,13 +49,13 @@ end
     sparql_parse(query::AbstractString)
 
 Parse a SPARQL 1.1 query or update string and return its internal AST.
+Returns a `SpQueryUnit` for SELECT/CONSTRUCT/ASK/DESCRIBE queries, or a
+`SpUpdateUnit` for SPARQL Update operations.
 Throws `ParseError` if the string is syntactically invalid.
 
 Useful for query validation without executing against a dataset.
 """
-function sparql_parse(query::AbstractString)
-    error("SPARQL query parsing is not yet implemented")
-end
+# sparql_parse is defined in sparql/parser.jl
 
 """
     sparql(g, query; base=nothing) → SolutionSet | Graph | Bool
@@ -72,7 +78,13 @@ evaluation errors (e.g. an undeclared prefix).
 """
 function sparql(g::Union{Graph, Dataset}, query::AbstractString;
                 base::Union{AbstractString, Nothing} = nothing)
-    error("SPARQL query execution is not yet implemented")
+    unit = sparql_parse(query)
+    unit isa SpQueryUnit || error("Expected a query, got an update")
+    base_str = base === nothing ? nothing : String(base)
+    # Prefer BASE declaration from query over external base
+    effective_base = unit.base !== nothing ? unit.base : base_str
+    ctx = _SpEvalCtx(g, effective_base)
+    _sp_execute_query(unit, ctx)
 end
 
 """
@@ -87,5 +99,12 @@ Throws `ParseError` on a syntactically invalid update.
 """
 function sparql_update!(ds::Dataset, update::AbstractString;
                         base::Union{AbstractString, Nothing} = nothing)
-    error("SPARQL update execution is not yet implemented")
+    unit = sparql_parse(update)
+    unit isa SpUpdateUnit || error("Expected an update, got a query")
+    base_str = base === nothing ? nothing : String(base)
+    # Prefer BASE declaration from update over external base
+    effective_base = unit.base !== nothing ? unit.base : base_str
+    ctx = _SpEvalCtx(ds, effective_base)
+    _sp_execute_update!(unit, ctx)
+    nothing
 end
