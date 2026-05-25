@@ -9,6 +9,7 @@ using Parsers
 using Bumper
 using Graphs
 using LRUCache
+using JSON3
 import Base: match, merge!
 
 # ── Core types ────────────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ include("inference.jl")
 include("serialization/ntriples.jl")
 include("serialization/nquads.jl")
 include("serialization/turtle.jl")
+include("serialization/jsonld.jl")
 
 # ── Query ─────────────────────────────────────────────────────────────────────
 include("sparql.jl")
