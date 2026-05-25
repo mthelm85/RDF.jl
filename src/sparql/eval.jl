@@ -1224,37 +1224,51 @@ end
 
 # LRU cache: maps (graph_objectid, predicate_iri_string) -> (SimpleDiGraph, id_to_vtx, vtx_to_id)
 # Built once per predicate per graph instance, reused across BFS calls.
-const _PATH_GRAPH_CACHE = LRU{Tuple{UInt,String}, Tuple{SimpleDiGraph, Dict{UInt32,Int}, Vector{UInt32}}}(maxsize=256)
+const _PATH_GRAPH_CACHE      = LRU{Tuple{UInt,String}, Tuple{SimpleDiGraph, Dict{UInt32,Int}, Vector{UInt32}}}(maxsize=256)
+const _PATH_CACHE_LOCK        = ReentrantLock()   # LRUCache is not thread-safe
 
 function _get_predicate_graph(ctx::_SpEvalCtx, iri::IRI)
     key = (objectid(ctx.active_graph), iri.value)
-    get!(_PATH_GRAPH_CACHE, key) do
-        id_to_vtx = Dict{UInt32, Int}()
-        vtx_to_id = UInt32[]
 
-        # Iterate over all triples with this predicate
-        for t in match(ctx.active_graph; predicate=iri)
-            s_id = _intern!(t.subject)
-            o_id = _intern!(t.object)
-            if !haskey(id_to_vtx, s_id)
-                push!(vtx_to_id, s_id)
-                id_to_vtx[s_id] = length(vtx_to_id)
-            end
-            if !haskey(id_to_vtx, o_id)
-                push!(vtx_to_id, o_id)
-                id_to_vtx[o_id] = length(vtx_to_id)
-            end
-        end
-
-        nv_g = length(vtx_to_id)
-        g = SimpleDiGraph(nv_g)
-        for t in match(ctx.active_graph; predicate=iri)
-            s_id = get(id_to_vtx, _intern!(t.subject), 0)
-            o_id = get(id_to_vtx, _intern!(t.object),  0)
-            s_id != 0 && o_id != 0 && add_edge!(g, s_id, o_id)
-        end
-        (g, id_to_vtx, vtx_to_id)
+    # Fast check under lock — common case: already cached.
+    cached = lock(_PATH_CACHE_LOCK) do
+        get(_PATH_GRAPH_CACHE, key, nothing)
     end
+    cached !== nothing && return cached
+
+    # Cache miss: build the Graphs.jl adjacency structure outside the lock so
+    # we don't stall other threads while iterating a potentially large graph.
+    id_to_vtx = Dict{UInt32, Int}()
+    vtx_to_id = UInt32[]
+
+    for t in match(ctx.active_graph; predicate=iri)
+        s_id = _intern!(t.subject)
+        o_id = _intern!(t.object)
+        if !haskey(id_to_vtx, s_id)
+            push!(vtx_to_id, s_id)
+            id_to_vtx[s_id] = length(vtx_to_id)
+        end
+        if !haskey(id_to_vtx, o_id)
+            push!(vtx_to_id, o_id)
+            id_to_vtx[o_id] = length(vtx_to_id)
+        end
+    end
+
+    nv_g = length(vtx_to_id)
+    g = SimpleDiGraph(nv_g)
+    for t in match(ctx.active_graph; predicate=iri)
+        s_id = get(id_to_vtx, _intern!(t.subject), 0)
+        o_id = get(id_to_vtx, _intern!(t.object),  0)
+        s_id != 0 && o_id != 0 && add_edge!(g, s_id, o_id)
+    end
+    entry = (g, id_to_vtx, vtx_to_id)
+
+    # Store under lock — if another thread built the same entry concurrently,
+    # the LRU simply overwrites it with the same value (idempotent).
+    lock(_PATH_CACHE_LOCK) do
+        _PATH_GRAPH_CACHE[key] = entry
+    end
+    entry
 end
 
 # BFS reachability on a SimpleDiGraph from src vertex; returns Set of reachable term IDs

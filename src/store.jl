@@ -47,14 +47,14 @@ function _compute_numeric(term::RDFTerm)::Float64
 end
 
 function _intern!(term::RDFTerm)::UInt32
-    tmap = _type_map(term)
-    # Fast path — no lock
-    id = get(tmap, term, UInt32(0))
-    id != 0 && return id
-    # Slow path — acquire lock and insert
+    # Always acquire the lock: RobinDict is not safe for concurrent reads
+    # during a write (Robin Hood hashing moves existing entries on insert,
+    # so a lockless read can return a false miss or corrupt probe sequence).
+    # ReentrantLock is uncontested in the single-threaded case (~5 ns overhead).
     lock(_REGISTRY_LOCK) do
-        id2 = get(tmap, term, UInt32(0))
-        id2 != 0 && return id2
+        tmap = _type_map(term)
+        id = get(tmap, term, UInt32(0))
+        id != 0 && return id
         new_id = UInt32(length(_ID_TO_TERM) + 1)
         push!(_ID_TO_TERM, term)
         push!(_NUMERIC_CACHE, _compute_numeric(term))
