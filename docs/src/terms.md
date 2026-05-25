@@ -6,6 +6,10 @@ CurrentModule = RDF
 
 RDF data is built from three kinds of terms. All three are subtypes of `RDFTerm`.
 
+```@docs
+RDFTerm
+```
+
 ## Type hierarchy
 
 ```
@@ -107,11 +111,8 @@ push!(g, Triple(ex.claim, rdf.reifies, tt))
 
 ## Triple and Quad
 
-```@docs
-Triple
-```
-
 A `Triple` has three fields: `subject::SubjectTerm`, `predicate::IRI`, `object::ObjectTerm`.
+See [`Triple`](@ref) in the Graphs & Datasets page for the full API.
 
 A `Quad` is a named-graph extension — `(subject, predicate, object, graph)` — used
 when iterating [`Dataset`](@ref) quads.

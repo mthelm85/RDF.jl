@@ -6,12 +6,8 @@ CurrentModule = RDF
 
 ## Pattern matching
 
-```@docs
-match
-subjects
-predicates
-objects
-```
+[`match`](@ref), [`subjects`](@ref), [`predicates`](@ref), and [`objects`](@ref)
+are documented in the [Graphs & Datasets](@ref) page.
 
 `match` returns a lazy iterator of `Triple` (for a `Graph`) or `Quad` (for a
 `Dataset`) values. Any combination of the `subject`, `predicate`, and `object`
@@ -57,8 +53,8 @@ SPARQL 1.1 query and update specification with 100% W3C test suite conformance
 ```@docs
 sparql
 sparql_parse
-sparql_update!
 SolutionSet
+read_sparql_json
 ```
 
 ### SELECT

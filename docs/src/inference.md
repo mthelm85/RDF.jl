@@ -65,11 +65,7 @@ infer_rdfs!(g)  # adds all RDFS-entailed triples to g
 
 ### Entailment check
 
-```@docs
-entails
-```
-
-`entails` checks whether a graph entails a specific triple, optionally under
+[`entails`](@ref) checks whether a graph entails a specific triple, optionally under
 a named entailment regime:
 
 ```julia

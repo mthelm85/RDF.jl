@@ -7,6 +7,7 @@ makedocs(;
     modules=[RDF],
     authors="Matthew Helm",
     sitename="RDF.jl",
+    checkdocs = :exports,   # only warn about public API, not internal AST types
     format=Documenter.HTML(;
         canonical="https://mthelm85.github.io/RDF.jl",
         edit_link="main",

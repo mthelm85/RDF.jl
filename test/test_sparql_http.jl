@@ -1,5 +1,6 @@
 using Test
 using RDF
+import Sockets
 
 # ── SPARQL/JSON reader (pure, no HTTP needed) ─────────────────────────────────
 @testset "read_sparql_json" begin
@@ -199,10 +200,13 @@ end
             end
         end
 
-        # Start the server on a free port; read back the assigned port via the socket
-        server = HTTP.serve!(mock_handler, "127.0.0.1", 0)
-        import Sockets
-        (_addr, port) = Sockets.getsockname(server.listener.server)
+        # Find a free port, then start the server on it
+        local port = let sock = Sockets.listen(Sockets.IPv4(0), 0)
+            _, p = Sockets.getsockname(sock)
+            close(sock)
+            Int(p)
+        end
+        server = HTTP.serve!(mock_handler, "127.0.0.1", port)
         base   = "http://127.0.0.1:$port/sparql"
 
         try

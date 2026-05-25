@@ -88,7 +88,27 @@ function Base.read(path::AbstractString, ::_MIME_NT, ::Type{Graph})::Graph
     end
 end
 
-# Streaming parser
+"""
+    parse_triples(f, io, mime)
+    parse_triples(io, mime) → iterator
+
+Streaming triple parser. Calls `f(triple)` for each parsed triple without
+materializing a `Graph`, minimising allocations for large files.
+
+```julia
+# Callback form — processes each triple immediately
+parse_triples(io, MIME"application/n-triples"()) do t
+    println(t.subject)
+end
+
+# Iterator form — lazy, pull-based
+for t in parse_triples(io, MIME"application/n-triples"())
+    process(t)
+end
+```
+
+Currently supported MIME types: `application/n-triples`.
+"""
 function parse_triples(f::Function, io::IO, mime::_MIME_NT)
     blank_map = Dict{String, BlankNode}()
     lineno = 0
@@ -391,6 +411,21 @@ end
 
 # ── Convenience I/O ───────────────────────────────────────────────────────────
 
+"""
+    rdf_read(path::AbstractString) → Graph | Dataset
+
+Read an RDF file from `path`, choosing the parser by file extension:
+
+| Extension | Format | Return type |
+|-----------|--------|-------------|
+| `.nt` | N-Triples | `Graph` |
+| `.ttl` | Turtle 1.1 | `Graph` |
+| `.nq` | N-Quads | `Dataset` |
+| `.jsonld`, `.json-ld` | JSON-LD 1.1 | `Dataset` |
+
+For fine-grained control (streaming, base IRI, etc.) use `Base.read(io, mime, T)`
+directly.
+"""
 function rdf_read(path::AbstractString)::Union{Graph, Dataset}
     if endswith(path, ".nt")
         return open(io -> Base.read(io, _MIME_NT(), Graph), path)
@@ -404,6 +439,18 @@ function rdf_read(path::AbstractString)::Union{Graph, Dataset}
     error("Cannot detect RDF format from extension: $path")
 end
 
+"""
+    rdf_write(path::AbstractString, g::Graph)
+    rdf_write(path::AbstractString, ds::Dataset)
+
+Write `g` or `ds` to `path`, choosing the serializer by file extension:
+
+| Extension | Format |
+|-----------|--------|
+| `.ttl` | Turtle 1.1 |
+| `.jsonld`, `.json-ld` | JSON-LD 1.1 |
+| anything else | N-Triples (Graph) or N-Quads (Dataset) |
+"""
 function rdf_write(path::AbstractString, g::Graph)
     if endswith(path, ".ttl")
         open(path, "w") do io; Base.write(io, MIME"text/turtle"(), g); end
