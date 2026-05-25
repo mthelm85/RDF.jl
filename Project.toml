@@ -27,7 +27,7 @@ RDFTablesExt = "Tables"
 [compat]
 Base64 = "1"
 Bumper = "0.7.2"
-DataStructures = "0.19.4"
+DataStructures = "0.18"
 HTTP = "1"
 Dates = "1"
 Graphs = "1"
