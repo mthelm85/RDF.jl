@@ -4,6 +4,11 @@ using Dates
 using Printf
 using SHA
 using MD5
+using DataStructures: RobinDict
+using Parsers
+using Bumper
+using Graphs
+using LRUCache
 import Base: match, merge!
 
 # ── Core types ────────────────────────────────────────────────────────────────

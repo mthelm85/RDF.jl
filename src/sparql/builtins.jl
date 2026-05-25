@@ -78,8 +78,12 @@ function _sp_to_float(lit::Literal)::Float64
     s in ("INF", "+INF")  && return Inf
     s == "-INF"           && return -Inf
     s == "NaN"            && return NaN
-    parse(Float64, s)
+    Parsers.parse(Float64, s)
 end
+
+# Fast path: use pre-cached numeric value when we have a term ID
+# Returns NaN for non-numeric terms (which correctly fails numeric comparisons)
+@inline _sp_to_float_id(id::UInt32)::Float64 = _numeric_float(id)
 
 # Parse a decimal lexical form (e.g. "3.14", "+33.33") to an exact Rational{BigInt}
 function _sp_parse_decimal_rational(s::String)::Rational{BigInt}

@@ -35,9 +35,9 @@ end
 function match(g::Graph, p::TriplePattern)
     # Resolve bound terms to their IDs; return empty iterator if any bound term
     # is unknown (not yet interned → definitely not in the graph).
-    s_id = p.subject   === nothing ? nothing : get(_TERM_TO_ID, p.subject,   UInt32(0))
-    p_id = p.predicate === nothing ? nothing : get(_TERM_TO_ID, p.predicate, UInt32(0))
-    o_id = p.object    === nothing ? nothing : get(_TERM_TO_ID, p.object,    UInt32(0))
+    s_id = p.subject   === nothing ? nothing : get(_type_map(p.subject),   p.subject,   UInt32(0))
+    p_id = p.predicate === nothing ? nothing : get(_type_map(p.predicate), p.predicate, UInt32(0))
+    o_id = p.object    === nothing ? nothing : get(_type_map(p.object),    p.object,    UInt32(0))
 
     (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) &&
         return _TripleMatchIterator(g, nothing, nothing, nothing, nothing, nothing)

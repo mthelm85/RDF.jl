@@ -163,7 +163,7 @@ end
         if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", iri_str)
             iri_str = _sp_resolve_iri(ctx.base, iri_str)
         end
-        return (true, get(_TERM_TO_ID, IRI(iri_str), UInt32(0)))
+        return (true, get(_IRI_TO_ID, IRI(iri_str), UInt32(0)))
     elseif expr isa SpLiteral
         term = try
             isempty(expr.lang) ? Literal(expr.lexical, IRI(expr.datatype), "") :
@@ -171,7 +171,7 @@ end
         catch
             return (true, UInt32(0))
         end
-        return (true, get(_TERM_TO_ID, term, UInt32(0)))
+        return (true, get(_LITERAL_TO_ID, term, UInt32(0)))
     end
     (false, UInt32(0))
 end
@@ -191,9 +191,9 @@ end
         if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", iri_str)
             iri_str = _sp_resolve_iri(ctx.base, iri_str)
         end
-        return (true, get(_TERM_TO_ID, IRI(iri_str), UInt32(0)))
+        return (true, get(_IRI_TO_ID, IRI(iri_str), UInt32(0)))
     elseif pred isa SpPathA
-        return (true, get(_TERM_TO_ID, IRI(_SP_RDF_TYPE), UInt32(0)))
+        return (true, get(_IRI_TO_ID, IRI(_SP_RDF_TYPE), UInt32(0)))
     elseif pred isa SpExpr
         return _bt_const_id(pred, ctx)
     end
@@ -721,6 +721,38 @@ function _sp_fold_constants(expr::SpExpr, ctx::_SpEvalCtx)::SpExpr
     expr
 end
 
+# ── Simple numeric comparison helpers (fast path for FILTER) ─────────────────
+
+# Returns true if expr is a simple numeric comparison: SpVar OP SpConst(numeric Literal)
+# or SpConst(numeric Literal) OP SpVar
+function _is_simple_numeric_cmp(expr::SpExpr)
+    expr isa SpBinary || return false
+    expr.op in (:lt, :le, :gt, :ge, :eq) || return false
+    lvar   = expr.left  isa SpVar
+    rvar   = expr.right isa SpVar
+    lconst = expr.left  isa SpConst && expr.left.term  isa Literal
+    rconst = expr.right isa SpConst && expr.right.term isa Literal
+    (lvar && rconst) || (rvar && lconst)
+end
+
+# Extract (var_name, op, const_float) from a simple numeric comparison
+# Flips the operator when the variable is on the right side.
+function _unpack_numeric_cmp(expr::SpBinary)
+    if expr.left isa SpVar
+        var = (expr.left::SpVar).name
+        cv  = _sp_to_float((expr.right::SpConst).term::Literal)
+        return (var, expr.op, cv)
+    else
+        var = (expr.right::SpVar).name
+        cv  = _sp_to_float((expr.left::SpConst).term::Literal)
+        flipped = expr.op === :lt ? :gt :
+                  expr.op === :le ? :ge :
+                  expr.op === :gt ? :lt :
+                  expr.op === :ge ? :le : expr.op
+        return (var, flipped, cv)
+    end
+end
+
 # Apply a FILTER to a BT, retaining only rows where the expression evaluates to
 # true.  Per SPARQL §17.2, errors and non-boolean values count as false (no row).
 # Like _bt_apply_bind, we materialise one lightweight _SpSolution per row to
@@ -732,13 +764,49 @@ function _bt_apply_filter(bt::_BT, filt::SpFilter, ctx::_SpEvalCtx)::_BT
     nv = _bt_ncols(bt)
 
     # Pre-fold all constant sub-expressions in the filter once, before the loop.
-    # This caches SpLiteral / SpIRI evaluations so they are not re-created per row.
     folded_expr = _sp_fold_constants(filt.expr, ctx)
 
+    # ── Fast path: simple numeric comparison ?var OP const ──────────────────
+    if _is_simple_numeric_cmp(folded_expr)
+        var_name, op, cv = _unpack_numeric_cmp(folded_expr::SpBinary)
+        col_idx = get(bt.var_idx, var_name, 0)
+        if col_idx != 0 && !isnan(cv)
+            id_col = bt.cols[col_idx]
+            out_result = @no_escape begin
+                # Allocate scratch row-index buffer in bump allocator
+                keep_idx = @alloc(Int, n)
+                out_count = 0
+                @inbounds for row in 1:n
+                    id = id_col[row]
+                    fv = id == 0 ? NaN : _numeric_float(id)
+                    passes = if op === :lt;  fv <  cv
+                             elseif op === :le; fv <= cv
+                             elseif op === :gt; fv >  cv
+                             elseif op === :ge; fv >= cv
+                             else              fv == cv
+                             end
+                    if passes
+                        out_count += 1
+                        keep_idx[out_count] = row
+                    end
+                end
+                # Copy surviving rows to heap
+                out_cs = [Vector{UInt32}(undef, out_count) for _ in 1:nv]
+                for j in 1:out_count
+                    r = keep_idx[j]
+                    for i in 1:nv
+                        @inbounds out_cs[i][j] = bt.cols[i][r]
+                    end
+                end
+                (out_cs, out_count)
+            end
+            out_cols, out_nrows = out_result
+            return _BT(bt.vars, bt.var_idx, out_cols, out_nrows)
+        end
+    end
+
+    # ── General path ─────────────────────────────────────────────────────────
     # Determine which columns are actually referenced by the filter.
-    # When EXISTS / NOT EXISTS is present, all outer variables are needed (EXISTS
-    # implicitly reads the entire current solution mapping). Otherwise restrict to
-    # only the variables named in the expression to save _resolve calls.
     needed_cols = if _sp_expr_no_exists(folded_expr)
         needed_vars = _sp_expr_vars(folded_expr)
         [(bt.var_idx[v], v) for v in needed_vars if haskey(bt.var_idx, v)]
@@ -746,27 +814,37 @@ function _bt_apply_filter(bt::_BT, filt::SpFilter, ctx::_SpEvalCtx)::_BT
         [(i, bt.vars[i]) for i in 1:nv]
     end
 
-    out_cols   = [sizehint!(Vector{UInt32}(), n) for _ in 1:nv]
-    out_nrows  = 0
     empty_sols = _SpSolution[]
-
-    # Reuse a single solution Dict across all rows (empty! resets the size counter
-    # without freeing the underlying storage — avoids n fresh Dict allocations).
     μ = sizehint!(_SpSolution(), length(needed_cols))
 
-    for row in 1:n
-        empty!(μ)
-        for (ci, v) in needed_cols
-            id = @inbounds bt.cols[ci][row]
-            id != 0 && (μ[v] = _resolve(id))
-        end
-        if _sp_filter_passes(folded_expr, ctx, μ, empty_sols)
-            for i in 1:nv
-                push!(out_cols[i], @inbounds bt.cols[i][row])
+    # Use Bumper for scratch row-index storage, copy survivors to heap at end
+    gen_result = @no_escape begin
+        keep_idx = @alloc(Int, n)
+        out_count = 0
+
+        for row in 1:n
+            empty!(μ)
+            for (ci, v) in needed_cols
+                id = @inbounds bt.cols[ci][row]
+                id != 0 && (μ[v] = _resolve(id))
             end
-            out_nrows += 1
+            if _sp_filter_passes(folded_expr, ctx, μ, empty_sols)
+                out_count += 1
+                @inbounds keep_idx[out_count] = row
+            end
         end
+
+        # Copy surviving rows to heap-allocated final columns
+        out_cs = [Vector{UInt32}(undef, out_count) for _ in 1:nv]
+        for j in 1:out_count
+            r = @inbounds keep_idx[j]
+            for i in 1:nv
+                @inbounds out_cs[i][j] = bt.cols[i][r]
+            end
+        end
+        (out_cs, out_count)
     end
+    out_cols, out_nrows = gen_result
     _BT(bt.vars, bt.var_idx, out_cols, out_nrows)
 end
 
@@ -1144,6 +1222,93 @@ end
 
 # ── Property path evaluation ──────────────────────────────────────────────────
 
+# LRU cache: maps (graph_objectid, predicate_iri_string) -> (SimpleDiGraph, id_to_vtx, vtx_to_id)
+# Built once per predicate per graph instance, reused across BFS calls.
+const _PATH_GRAPH_CACHE = LRU{Tuple{UInt,String}, Tuple{SimpleDiGraph, Dict{UInt32,Int}, Vector{UInt32}}}(maxsize=256)
+
+function _get_predicate_graph(ctx::_SpEvalCtx, iri::IRI)
+    key = (objectid(ctx.active_graph), iri.value)
+    get!(_PATH_GRAPH_CACHE, key) do
+        id_to_vtx = Dict{UInt32, Int}()
+        vtx_to_id = UInt32[]
+
+        # Iterate over all triples with this predicate
+        for t in match(ctx.active_graph; predicate=iri)
+            s_id = _intern!(t.subject)
+            o_id = _intern!(t.object)
+            if !haskey(id_to_vtx, s_id)
+                push!(vtx_to_id, s_id)
+                id_to_vtx[s_id] = length(vtx_to_id)
+            end
+            if !haskey(id_to_vtx, o_id)
+                push!(vtx_to_id, o_id)
+                id_to_vtx[o_id] = length(vtx_to_id)
+            end
+        end
+
+        nv_g = length(vtx_to_id)
+        g = SimpleDiGraph(nv_g)
+        for t in match(ctx.active_graph; predicate=iri)
+            s_id = get(id_to_vtx, _intern!(t.subject), 0)
+            o_id = get(id_to_vtx, _intern!(t.object),  0)
+            s_id != 0 && o_id != 0 && add_edge!(g, s_id, o_id)
+        end
+        (g, id_to_vtx, vtx_to_id)
+    end
+end
+
+# BFS reachability on a SimpleDiGraph from src vertex; returns Set of reachable term IDs
+function _graph_bfs_from(g::SimpleDiGraph, src::Int, vtx_to_id::Vector{UInt32},
+                          include_src::Bool)::Set{RDFTerm}
+    results = Set{RDFTerm}()
+    nv_g = nv(g)
+    nv_g == 0 && return results
+    visited = falses(nv_g)
+    visited[src] = true
+    queue = Int[src]
+    qi = 1
+    while qi <= length(queue)
+        u = queue[qi]; qi += 1
+        for w in outneighbors(g, u)
+            if !visited[w]
+                visited[w] = true
+                push!(queue, w)
+                push!(results, _resolve(vtx_to_id[w]))
+            end
+        end
+    end
+    if include_src
+        push!(results, _resolve(vtx_to_id[src]))
+    end
+    results
+end
+
+# BFS reachability in reverse (using inneighbors)
+function _graph_bfs_reverse(g::SimpleDiGraph, src::Int, vtx_to_id::Vector{UInt32},
+                             include_src::Bool)::Set{RDFTerm}
+    results = Set{RDFTerm}()
+    nv_g = nv(g)
+    nv_g == 0 && return results
+    visited = falses(nv_g)
+    visited[src] = true
+    queue = Int[src]
+    qi = 1
+    while qi <= length(queue)
+        u = queue[qi]; qi += 1
+        for w in inneighbors(g, u)
+            if !visited[w]
+                visited[w] = true
+                push!(queue, w)
+                push!(results, _resolve(vtx_to_id[w]))
+            end
+        end
+    end
+    if include_src
+        push!(results, _resolve(vtx_to_id[src]))
+    end
+    results
+end
+
 function _sp_eval_path_pattern(s_expr::SpExpr, path::SpPath, o_expr::SpExpr,
                                  ctx::_SpEvalCtx, μ::_SpSolution)::Vector{_SpSolution}
     # Sequence paths use multiset join semantics: evaluate each side separately
@@ -1452,6 +1617,22 @@ end
 # For ZeroOrMore (include_self=true), the subject is only included if it is
 # a term in the graph (SPARQL spec: ZeroOrX paths don't match VALUES-only terms).
 function _sp_path_closure(subj::RDFTerm, path::SpPath, ctx::_SpEvalCtx, include_self::Bool)::Set{RDFTerm}
+    # Fast path: use cached Graphs.jl adjacency list for plain IRI paths
+    if path isa SpPathIRI
+        iri = IRI(path.value)
+        g, id_to_vtx, vtx_to_id = _get_predicate_graph(ctx, iri)
+        subj_id = get(_type_map(subj), subj, UInt32(0))
+        if subj_id != 0
+            src = get(id_to_vtx, subj_id, 0)
+            if src != 0
+                include_real = include_self && _sp_is_graph_term(subj, ctx)
+                return _graph_bfs_from(g, src, vtx_to_id, include_real)
+            end
+        end
+        return (include_self && _sp_is_graph_term(subj, ctx)) ? Set{RDFTerm}([subj]) : Set{RDFTerm}()
+    end
+
+    # General path: iterative BFS using recursive reachability
     visited = (include_self && _sp_is_graph_term(subj, ctx)) ? Set{RDFTerm}([subj]) : Set{RDFTerm}()
     frontier = Set{RDFTerm}([subj])
     while !isempty(frontier)

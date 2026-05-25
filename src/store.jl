@@ -1,25 +1,72 @@
 # Global term registry — shared across all graphs/datasets.
-# Maps every distinct RDFTerm to a UInt32 ID and back.
-const _TERM_TO_ID = Dict{RDFTerm, UInt32}()
-const _ID_TO_TERM = RDFTerm[]
+# Split into three concrete-type tables to eliminate abstract dispatch in hash/isequal.
+
+const _IRI_TO_ID     = RobinDict{IRI,       UInt32}()
+const _BNODE_TO_ID   = RobinDict{BlankNode,  UInt32}()
+const _LITERAL_TO_ID = RobinDict{Literal,    UInt32}()
+const _ID_TO_TERM    = RDFTerm[]
+const _NUMERIC_CACHE = Float64[]   # NaN for non-numeric/un-cacheable terms; indexed by term ID
 const _REGISTRY_LOCK = ReentrantLock()
 
+# Return the per-type map for dispatch without abstract keys
+@inline _type_map(::IRI)       = _IRI_TO_ID
+@inline _type_map(::BlankNode) = _BNODE_TO_ID
+@inline _type_map(::Literal)   = _LITERAL_TO_ID
+
+# Numeric XSD datatypes for the cache
+const _NUMERIC_DTS = Set{String}((
+    "http://www.w3.org/2001/XMLSchema#integer",
+    "http://www.w3.org/2001/XMLSchema#decimal",
+    "http://www.w3.org/2001/XMLSchema#double",
+    "http://www.w3.org/2001/XMLSchema#float",
+    "http://www.w3.org/2001/XMLSchema#int",
+    "http://www.w3.org/2001/XMLSchema#long",
+    "http://www.w3.org/2001/XMLSchema#short",
+    "http://www.w3.org/2001/XMLSchema#byte",
+    "http://www.w3.org/2001/XMLSchema#unsignedInt",
+    "http://www.w3.org/2001/XMLSchema#unsignedLong",
+    "http://www.w3.org/2001/XMLSchema#unsignedShort",
+    "http://www.w3.org/2001/XMLSchema#unsignedByte",
+    "http://www.w3.org/2001/XMLSchema#positiveInteger",
+    "http://www.w3.org/2001/XMLSchema#negativeInteger",
+    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger",
+    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
+))
+
+# Compute the Float64 value for a just-interned term (NaN if not numeric)
+function _compute_numeric(term::RDFTerm)::Float64
+    term isa Literal || return NaN
+    dt = term.datatype.value
+    dt in _NUMERIC_DTS || return NaN
+    s = term.lexical_form
+    s in ("INF", "+INF") && return Inf
+    s == "-INF"           && return -Inf
+    s == "NaN"            && return NaN
+    r = Parsers.tryparse(Float64, s)
+    r === nothing ? NaN : r
+end
+
 function _intern!(term::RDFTerm)::UInt32
+    tmap = _type_map(term)
     # Fast path — no lock
-    id = get(_TERM_TO_ID, term, UInt32(0))
+    id = get(tmap, term, UInt32(0))
     id != 0 && return id
     # Slow path — acquire lock and insert
     lock(_REGISTRY_LOCK) do
-        id2 = get(_TERM_TO_ID, term, UInt32(0))
+        id2 = get(tmap, term, UInt32(0))
         id2 != 0 && return id2
         new_id = UInt32(length(_ID_TO_TERM) + 1)
         push!(_ID_TO_TERM, term)
-        _TERM_TO_ID[term] = new_id
+        push!(_NUMERIC_CACHE, _compute_numeric(term))
+        tmap[term] = new_id
         new_id
     end
 end
 
 @inline _resolve(id::UInt32)::RDFTerm = @inbounds _ID_TO_TERM[id]
+
+# Fast numeric value lookup by term ID — NaN if term is not a numeric literal
+@inline _numeric_float(id::UInt32)::Float64 = @inbounds _NUMERIC_CACHE[id]
 
 # ── Hexastore ─────────────────────────────────────────────────────────────────
 

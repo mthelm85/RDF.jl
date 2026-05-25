@@ -50,9 +50,9 @@ function Base.push!(g::Graph, t::Triple)
 end
 
 function Base.delete!(g::Graph, t::Triple)
-    s_id = get(_TERM_TO_ID, t.subject, UInt32(0))
-    p_id = get(_TERM_TO_ID, t.predicate, UInt32(0))
-    o_id = get(_TERM_TO_ID, t.object, UInt32(0))
+    s_id = get(_type_map(t.subject),    t.subject,    UInt32(0))
+    p_id = get(_type_map(t.predicate),  t.predicate,  UInt32(0))
+    o_id = get(_type_map(t.object),     t.object,     UInt32(0))
     (s_id == 0 || p_id == 0 || o_id == 0) && return g
     if _hexa_delete!(g.store, s_id, p_id, o_id)
         g._size -= 1
@@ -66,9 +66,9 @@ Base.length(g::Graph) = g._size
 Base.isempty(g::Graph) = g._size == 0
 
 function Base.in(t::Triple, g::Graph)
-    s_id = get(_TERM_TO_ID, t.subject, UInt32(0))
-    p_id = get(_TERM_TO_ID, t.predicate, UInt32(0))
-    o_id = get(_TERM_TO_ID, t.object, UInt32(0))
+    s_id = get(_type_map(t.subject),   t.subject,   UInt32(0))
+    p_id = get(_type_map(t.predicate), t.predicate, UInt32(0))
+    o_id = get(_type_map(t.object),    t.object,    UInt32(0))
     (s_id == 0 || p_id == 0 || o_id == 0) && return false
     lo, hi = _range_bounds(s_id, p_id, o_id)
     idx = searchsortedfirst(g.store.spo, lo)
