@@ -108,3 +108,7 @@ function sparql_update!(ds::Dataset, update::AbstractString;
     _sp_execute_update!(unit, ctx)
     nothing
 end
+
+# ── Result format serialization ───────────────────────────────────────────────
+# Included after SolutionSet is defined so the methods can reference it.
+include("sparql/results.jl")

@@ -16,6 +16,7 @@ makedocs(;
         "Home"                    => "index.md",
         "Terms"                   => "terms.md",
         "Graphs & Datasets"       => "graphs.md",
+        "Serialization"           => "serialization.md",
         "Querying"                => "querying.md",
         "Inference & Validation"  => "inference.md",
     ],

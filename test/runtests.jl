@@ -18,8 +18,10 @@ using Test
     include("w3c/w3c_tests.jl")
     include("test_w3c_turtle.jl")
     include("test_w3c_sparql.jl")
+    include("test_sparql_results.jl")
     include("test_w3c_ntriples.jl")
     include("test_w3c_nquads.jl")
     include("test_w3c_isomorphism.jl")
+    include("test_jsonld.jl")
     include("test_aqua.jl")
 end

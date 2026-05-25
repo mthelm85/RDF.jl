@@ -7,12 +7,14 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 ## Features
 
 - **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED
-- **Turtle 1.1** parser and serializer  
-- **N-Triples / N-Quads** parser and serializer  
-- **Named graphs / Datasets** with full SPARQL dataset semantics  
-- **RDFS inference** (forward-chaining closure, entailment check)  
-- **Graph isomorphism** (blank-node bijection)  
-- **Tables.jl integration** — match results work directly with DataFrames and any Tables consumer  
+- **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV for HTTP API integration
+- **Turtle 1.1** parser and serializer
+- **N-Triples / N-Quads** parser and serializer
+- **JSON-LD 1.1** parser and serializer — inline contexts, prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
+- **Named graphs / Datasets** with full SPARQL dataset semantics
+- **RDFS inference** (forward-chaining closure, entailment check)
+- **Graph isomorphism** (blank-node bijection)
+- **Tables.jl integration** — match results and `SolutionSet` work directly with DataFrames and any Tables consumer
 - Built-in vocabulary modules: `rdf`, `rdfs`, `xsd`, `owl`, `skos`, `dc`, `dcterms`, `foaf`, `schema`
 
 ## Installation
@@ -160,21 +162,42 @@ end
 ### Serialization
 
 ```julia
-# Turtle (parse)
-g = read("data.ttl",  MIME"text/turtle"(), Graph)
-g = read("data.ttl",  MIME"text/turtle"(), Graph, "http://base-uri.example/")
+# Turtle (parse + write)
+g = read("data.ttl", MIME"text/turtle"(), Graph)
+g = read("data.ttl", MIME"text/turtle"(), Graph, "http://base-uri.example/")
+write(io, MIME"text/turtle"(), g)
 
-# N-Triples
+# N-Triples / N-Quads
 write(io, MIME"application/n-triples"(), g)
 g = read(io, MIME"application/n-triples"(), Graph)
-
-# N-Quads (dataset round-trip)
 write(io, MIME"application/n-quads"(), ds)
 ds = read(io, MIME"application/n-quads"(), Dataset)
 
-# Convenience: dispatch on file extension (.ttl / .nt / .nq)
-write("data.nt", g)
-g = read("data.nt", Graph)
+# JSON-LD (parse + write)
+g = read(io, MIME"application/ld+json"(), Graph)
+ds = read(io, MIME"application/ld+json"(), Dataset)
+write(io, MIME"application/ld+json"(), g)
+write(io, MIME"application/ld+json"(), g; context=Dict("@vocab" => "http://schema.org/"))
+
+# Convenience: dispatch on file extension (.ttl / .nt / .nq / .jsonld)
+rdf_write("data.nt", g)
+g = rdf_read("data.ttl")
+g = rdf_read("data.jsonld")
+```
+
+### SPARQL result serialization
+
+```julia
+result = sparql(ds, "SELECT * WHERE { ?s ?p ?o }")
+
+# W3C standard wire formats — ready for HTTP API responses
+write(io, MIME"application/sparql-results+json"(), result)  # SPARQL/JSON
+write(io, MIME"application/sparql-results+xml"(),  result)  # SPARQL/XML
+write(io, MIME"text/csv"(),                        result)  # CSV
+write(io, MIME"text/tab-separated-values"(),       result)  # TSV
+
+# ASK results
+write(io, MIME"application/sparql-results+json"(), sparql(ds, "ASK { ?s ?p ?o }"))
 ```
 
 ### RDFS inference
@@ -225,6 +248,7 @@ See `benchmarks/benchmarks.jl` for the full suite, which covers triple insertion
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |
 | W3C RDF graph isomorphism | ✓ |
+| W3C JSON-LD 1.1 | ✓ |
 
 ## Citing
 
