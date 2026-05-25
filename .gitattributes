@@ -1,0 +1,4 @@
+# Tell GitHub Linguist to ignore vendored W3C test fixtures.
+# These are third-party test data files (not RDF.jl source code) and should
+# not influence the repository's detected language breakdown.
+test/w3c/fixtures/** linguist-vendored
