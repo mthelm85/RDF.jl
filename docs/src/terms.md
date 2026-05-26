@@ -17,7 +17,7 @@ RDFTerm
 ├── IRI
 ├── BlankNode
 ├── Literal
-└── TripleTerm   (RDF 1.2 — embedded triples)
+└── TripleTerm   (RDF-star — embedded triple terms)
 ```
 
 ## IRI
@@ -120,8 +120,10 @@ Abstract supertypes like `Number` or `AbstractFloat` work too.
 
 ## TripleTerm
 
-RDF 1.2 allows an embedded triple to appear as an object via `TripleTerm`, which
-enables statement-level annotations without blank-node reification.
+`TripleTerm` (RDF-star) allows an embedded triple to appear as an **object**,
+enabling statement-level annotations without blank-node reification.
+This covers the primary `rdf:reifies` use case.
+Note: TripleTerm in subject position is not currently supported.
 
 ```@docs
 TripleTerm

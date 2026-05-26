@@ -237,14 +237,20 @@ Base.:(==)(a::Literal, b::Literal) =
 Base.hash(a::Literal, h::UInt) =
     hash(a.language_tag, hash(a.datatype, hash(a.lexical_form, hash(:Literal, h))))
 
-# ── TripleTerm (RDF 1.2 reified triple reference) ─────────────────────────────
+# ── TripleTerm (RDF-star embedded triple reference) ───────────────────────────
 
 """
     TripleTerm(subject, predicate, object) <: RDFTerm
 
-An RDF 1.2 triple term (RDF-star), representing a triple used as an RDF term.
+An RDF-star triple term representing a triple embedded as an RDF term (object position).
+Enables statement-level annotations via `rdf:reifies` without blank-node reification.
+
 The subject must be an `IRI` or `BlankNode`; the predicate must be an `IRI`;
 the object may be any `ObjectTerm` (including a nested `TripleTerm`).
+
+!!! note
+    `TripleTerm` is supported in **object position** only. Use as a `Triple` subject
+    is not currently supported.
 
 ```julia
 tt = TripleTerm(iri"http://example.org/bob", rdf.type, iri"http://example.org/Person")
