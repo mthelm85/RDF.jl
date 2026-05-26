@@ -338,6 +338,23 @@ using Test
         @test dg ≅ g
     end
 
+    @testset "blank_nodes accessor" begin
+        g = Graph()
+        @test isempty(collect(blank_nodes(g)))
+
+        b1 = blank!(g)
+        b2 = blank!(g)
+        push!(g, Triple(b1, rdf.type, ex.Person))
+        push!(g, Triple(b1, ex.knows, b2))
+        push!(g, Triple(b2, rdf.type, ex.Person))
+        push!(g, Triple(ex.alice, ex.knows, b1))  # IRI subject
+
+        bns = Set(blank_nodes(g))
+        @test b1 in bns
+        @test b2 in bns
+        @test !(ex.alice in bns)
+    end
+
     @testset "Graph display" begin
         g = Graph()
         push!(g, Triple(ex.alice, rdf.type, ex.Person))
