@@ -202,23 +202,55 @@ using Dates
         @test_throws LiteralValueError value(Literal("notabool", xsd.boolean))
     end
 
-    @testset "value(T, lit) — type-asserting, type-stable form" begin
-        @test value(Int64, Literal("42", xsd.integer)) === Int64(42)
+    @testset "value(T, lit) — type-converting form" begin
+        # Same type: identity
+        @test value(Int64,  Literal("42", xsd.integer)) === Int64(42)
         @test value(Float64, Literal("3.14", xsd.double)) isa Float64
-        @test value(Bool, Literal("true", xsd.boolean)) === true
+        @test value(Float32, Literal("3.14", xsd.float))  isa Float32
+        @test value(Bool,   Literal("true", xsd.boolean)) === true
         @test value(String, Literal("hello")) == "hello"
-        @test value(Date, Literal("2024-01-15", xsd.date)) == Date(2024, 1, 15)
+        @test value(Date,   Literal("2024-01-15", xsd.date)) == Date(2024, 1, 15)
 
-        # Type mismatch throws
-        @test_throws LiteralValueError value(Int64, Literal("hello"))
-        @test_throws LiteralValueError value(Int64, Literal("notanumber", xsd.integer))
+        # Numeric widening via convert
+        @test value(Float64, Literal(42))    === 42.0         # Int64 → Float64
+        @test value(Float32, Literal(42))    === Float32(42)  # Int64 → Float32
+        @test value(Float64, Literal(Float32(1.0))) === 1.0   # Float32 → Float64
+
+        # Abstract supertypes work
+        @test value(Number,       Literal(42))   == 42
+        @test value(AbstractFloat, Literal(3.14)) isa AbstractFloat
+        @test value(Integer,      Literal(42))   isa Integer
+
+        # Inexact conversion throws
+        @test_throws LiteralValueError value(Int64, Literal(3.14))
+        @test_throws LiteralValueError value(Int8,  Literal(1000))  # overflow
+
+        # Incompatible types throw
+        @test_throws LiteralValueError value(Int64,  Literal("hello"))
+        @test_throws LiteralValueError value(Float64, Literal("hello"))
+        @test_throws LiteralValueError value(Int64,  Literal("notanumber", xsd.integer))
     end
 
-    @testset "tryvalue() — returns nothing on failure" begin
+    @testset "tryvalue(lit) — returns nothing on failure" begin
         @test tryvalue(Literal(42)) == 42
         @test tryvalue(Literal("notanumber", xsd.integer)) === nothing
         @test tryvalue(Literal("notadate", xsd.date)) === nothing
         @test tryvalue(Literal("hello")) == "hello"
+    end
+
+    @testset "tryvalue(T, lit) — type-converting, returns nothing on failure" begin
+        # Successful conversions
+        @test tryvalue(Int64,   Literal(42))      === Int64(42)
+        @test tryvalue(Float64, Literal(42))      === 42.0     # Int64 → Float64
+        @test tryvalue(Float64, Literal(3.14))    isa Float64
+        @test tryvalue(Float32, Literal(42))      === Float32(42)
+        @test tryvalue(String,  Literal("hello")) == "hello"
+
+        # Failures return nothing
+        @test tryvalue(Int64,   Literal(3.14))    === nothing  # inexact
+        @test tryvalue(Int64,   Literal("hello")) === nothing
+        @test tryvalue(Float64, Literal("oops", xsd.double)) === nothing
+        @test tryvalue(Int64,   Literal("notanumber", xsd.integer)) === nothing
     end
 
     @testset "Display" begin

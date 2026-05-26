@@ -48,7 +48,10 @@ end
 
 # Coerce a literal to a Julia value
 age_lit = first(match(g; subject=ex.alice, predicate=ex.age)).object
-value(Int64, age_lit)  # => 30
+value(age_lit)           # => 30  (Int64 — inferred from xsd:integer)
+value(Int64,   age_lit)  # => 30
+value(Float64, age_lit)  # => 30.0  (numeric widening via convert)
+tryvalue(Float64, age_lit)  # => 30.0  (returns nothing instead of throwing)
 
 # Set operations
 g2 = Graph()

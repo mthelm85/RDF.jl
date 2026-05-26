@@ -30,22 +30,34 @@ const _LV_RDF_DIRLANGSTRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLan
     value(lit::Literal)
     value(T::Type, lit::Literal)
 
-Parse the lexical form of `lit` to a Julia value. The one-argument form infers
-the type from the datatype IRI; the two-argument form additionally checks that
-the result is of type `T`.
+Parse the lexical form of `lit` to a Julia value.
 
-Supported datatypes: `xsd:string`, `rdf:langString`, `xsd:boolean`,
-`xsd:integer` (and variants), `xsd:double`, `xsd:float`, `xsd:decimal`,
-`xsd:date`, `xsd:dateTime`.
+The **one-argument form** infers the target type from the datatype IRI:
 
-Throws `LiteralValueError` if parsing fails or the value is not of type `T`.
-See also [`tryvalue`](@ref).
+| XSD / RDF datatype | Julia type |
+|--------------------|-----------|
+| `xsd:string`, `rdf:langString`, `rdf:dirLangString` | `String` |
+| `xsd:boolean` | `Bool` |
+| `xsd:integer` and all integer subtypes | `Int64` (or `BigInt` if too large) |
+| `xsd:double` | `Float64` |
+| `xsd:float` | `Float32` |
+| `xsd:decimal` | `BigFloat` (finite-precision approximation) |
+| `xsd:date` | `Dates.Date` |
+| `xsd:dateTime`, `xsd:dateTimeStamp` | `Dates.DateTime` (timezone stripped) |
+
+The **two-argument form** additionally converts the result to `T` using Julia's
+`convert`. This means numeric widening works naturally:
 
 ```julia
-value(Literal(42))           # => 42 (Int64)
-value(Int64, Literal(42))    # => 42
-value(Literal(true))         # => true
+value(Literal(42))              # => 42  (Int64)
+value(Int64,   Literal(42))     # => 42
+value(Float64, Literal(42))     # => 42.0   (Int64 → Float64 via convert)
+value(Int64,   Literal(3.14))   # throws LiteralValueError (inexact)
 ```
+
+Throws `LiteralValueError` if the lexical form cannot be parsed or if the
+resulting value cannot be `convert`ed to `T`.  See [`tryvalue`](@ref) for a
+non-throwing variant.
 """
 function value(lit::Literal)
     dt = lit.datatype.value
@@ -64,11 +76,17 @@ function value(lit::Literal)
         v !== nothing && return v
         v2 = tryparse(BigInt, lit.lexical_form)
         v2 !== nothing && return v2
-    elseif dt == _LV_XSD_DOUBLE || dt == _LV_XSD_FLOAT
+    elseif dt == _LV_XSD_DOUBLE
         lit.lexical_form == "INF"  && return Inf64
         lit.lexical_form == "-INF" && return -Inf64
         lit.lexical_form == "NaN"  && return NaN64
         v = tryparse(Float64, lit.lexical_form)
+        v !== nothing && return v
+    elseif dt == _LV_XSD_FLOAT
+        lit.lexical_form == "INF"  && return Inf32
+        lit.lexical_form == "-INF" && return -Inf32
+        lit.lexical_form == "NaN"  && return NaN32
+        v = tryparse(Float32, lit.lexical_form)
         v !== nothing && return v
     elseif dt == _LV_XSD_DECIMAL
         v = tryparse(BigFloat, lit.lexical_form)
@@ -92,18 +110,41 @@ function value(T::Type, lit::Literal)
         e isa LiteralValueError || rethrow()
         throw(LiteralValueError(lit, T))
     end
+    # Fast path: already the right type (covers abstract supertypes too)
     v isa T && return v::T
-    throw(LiteralValueError(lit, T))
+    # Try convert — handles numeric widening (Int64 → Float64, etc.)
+    try
+        return convert(T, v)::T
+    catch e
+        (e isa InexactError || e isa MethodError) || rethrow()
+        throw(LiteralValueError(lit, T))
+    end
 end
 
 """
     tryvalue(lit::Literal)
+    tryvalue(T::Type, lit::Literal)
 
 Like [`value`](@ref) but returns `nothing` instead of throwing on failure.
+
+```julia
+tryvalue(Literal(42))               # => 42
+tryvalue(Float64, Literal(42))      # => 42.0
+tryvalue(Int64,   Literal(3.14))    # => nothing  (inexact)
+tryvalue(Int64,   Literal("oops", xsd.integer))  # => nothing
+```
 """
 function tryvalue(lit::Literal)
     try
         value(lit)
+    catch _
+        nothing
+    end
+end
+
+function tryvalue(T::Type, lit::Literal)
+    try
+        value(T, lit)
     catch _
         nothing
     end

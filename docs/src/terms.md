@@ -85,15 +85,38 @@ tryvalue
 
 ```julia
 lit = Literal(42)
-value(Int64, lit)           # => 42
-value(Float64, lit)         # => 42.0
 
-tryvalue(Int64, lit)        # => Some(42)
-tryvalue(Int64, Literal("hello"))  # => nothing  (safe, no exception)
+# One-argument: infer Julia type from the RDF datatype
+value(lit)              # => 42  (Int64, because xsd:integer)
+
+# Two-argument: convert to a requested type
+value(Int64,   lit)     # => 42
+value(Float64, lit)     # => 42.0   (Int64 → Float64 via convert)
+value(Int64,   Literal(3.14))   # throws LiteralValueError (inexact)
+
+# Safe variant — returns nothing instead of throwing
+tryvalue(lit)                          # => 42
+tryvalue(Float64, lit)                 # => 42.0
+tryvalue(Int64,   Literal(3.14))       # => nothing
+tryvalue(Int64,   Literal("oops", xsd.integer))  # => nothing
 ```
 
-Supported target types: `String`, `Bool`, `Int64`, `Int32`, `Int16`, `Int8`,
-`UInt64`, `UInt32`, `UInt16`, `UInt8`, `Float64`, `Float32`, `Date`, `DateTime`.
+The natural Julia type for each RDF datatype:
+
+| RDF datatype | Julia type |
+|---|---|
+| `xsd:string`, `rdf:langString` | `String` |
+| `xsd:boolean` | `Bool` |
+| `xsd:integer` and all integer subtypes | `Int64` (or `BigInt` if too large) |
+| `xsd:double` | `Float64` |
+| `xsd:float` | `Float32` |
+| `xsd:decimal` | `BigFloat` (finite-precision approximation) |
+| `xsd:date` | `Dates.Date` |
+| `xsd:dateTime`, `xsd:dateTimeStamp` | `Dates.DateTime` (timezone stripped) |
+
+The two-argument `value(T, lit)` uses Julia's `convert`, so any numeric widening
+that `convert` supports works (e.g. `Int64` → `Float64`, `Float32` → `Float64`).
+Abstract supertypes like `Number` or `AbstractFloat` work too.
 
 ## TripleTerm
 
