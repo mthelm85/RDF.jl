@@ -256,12 +256,55 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))
 
 ### Tables.jl integration
 
-Match results and `SolutionSet`s both implement the Tables.jl interface.
+Match results and SPARQL `SolutionSet`s both implement the Tables.jl interface.
+RDF terms are automatically coerced to native Julia types — no manual unwrapping needed:
+
+| RDF type | Julia column type |
+|---|---|
+| `IRI` | `String` (full URI) |
+| `BlankNode` | `String` (`"_:b{id}"`) |
+| `xsd:integer` (and sub-types) | `Int64` |
+| `xsd:double` / `xsd:float` / `xsd:decimal` | `Float64` |
+| `xsd:boolean` | `Bool` |
+| `xsd:date` | `Dates.Date` |
+| `xsd:dateTime` | `Dates.DateTime` |
+| `xsd:string`, `rdf:langString`, other literals | `String` (lexical form) |
+| Unbound OPTIONAL variable | `missing` |
+| Heterogeneous column | `String` (lowest common denominator) |
 
 ```julia
 using DataFrames
+
+ex   = Namespace("http://example.org/")
+foaf = Namespace("http://xmlns.com/foaf/0.1/")
+
+g = Graph() do g
+    push!(g, Triple(ex.susan, rdf.type,  ex.Person))
+    push!(g, Triple(ex.susan, foaf.name, Literal("Susan")))
+    push!(g, Triple(ex.susan, foaf.age,  Literal(30)))
+    push!(g, Triple(ex.bill,  rdf.type,  ex.Person))
+end
+
+# match → DataFrame: all columns are plain Julia types
 df = DataFrame(match(g; predicate=rdf.type))
-df = DataFrame(sparql(ds, "SELECT * WHERE { ?s ?p ?o }"))
+# 2×3 DataFrame
+#  subject                          predicate                                            object
+#  String                           String                                               String
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#  "http://example.org/susan"       "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"   "http://example.org/Person"
+#  "http://example.org/bill"        "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"   "http://example.org/Person"
+
+# SPARQL SELECT → DataFrame: columns typed by their XSD datatype
+ds  = Dataset(; default_graph=g)
+df2 = DataFrame(sparql(ds, """
+  PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+  SELECT ?name ?age WHERE { ?s foaf:name ?name ; foaf:age ?age }
+"""))
+# 1×2 DataFrame
+#  name      age
+#  String    Int64
+# ──────────────
+#  "Susan"   30
 ```
 
 ### Vocabulary API

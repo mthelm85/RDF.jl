@@ -138,10 +138,35 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))
 
 ### Tables.jl integration
 
+Match results and SPARQL `SolutionSet`s implement the Tables.jl interface with automatic
+coercion to native Julia types:
+
+| RDF type | Julia column type |
+|---|---|
+| `IRI` | `String` (full URI) |
+| `BlankNode` | `String` (`"_:b{id}"`) |
+| `xsd:integer` and sub-types | `Int64` |
+| `xsd:double` / `xsd:float` / `xsd:decimal` | `Float64` |
+| `xsd:boolean` | `Bool` |
+| `xsd:date` | `Dates.Date` |
+| `xsd:dateTime` | `Dates.DateTime` |
+| `xsd:string`, `rdf:langString`, other literals | `String` (lexical form) |
+| Unbound OPTIONAL variable | `missing` |
+| Heterogeneous column | `String` |
+
 ```julia
 using DataFrames
+
+# match → DataFrame
 df = DataFrame(match(g; predicate=rdf.type))
-df = DataFrame(sparql(ds, "SELECT * WHERE { ?s ?p ?o }"))
+# subject, predicate, object columns are all String
+
+# SPARQL SELECT → DataFrame with typed columns
+df = DataFrame(sparql(ds, """
+  PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+  SELECT ?name ?age WHERE { ?s foaf:name ?name ; foaf:age ?age }
+"""))
+# name::String, age::Int64 — ready for analysis
 ```
 
 ### Vocabulary API
