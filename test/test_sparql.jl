@@ -241,6 +241,41 @@ end
         @test avg ≈ (30.0 + 25.0 + 35.0) / 3
     end
 
+    @testset "SELECT — GROUP_CONCAT" begin
+        ds = _sparql_ds()
+        result = sparql(ds, """
+          PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+          SELECT (GROUP_CONCAT(?name; SEPARATOR=", ") AS ?names) WHERE {
+            ?s foaf:name ?name
+          }
+        """)
+        @test length(result) == 1
+        names_str = value(String, result[1][:names])
+        @test names_str isa String
+        # All three names appear in the concatenation
+        @test occursin("Alice", names_str)
+        @test occursin("Bob", names_str)
+        @test occursin("Carol", names_str)
+    end
+
+    @testset "ASK — GROUP_CONCAT on lang-tagged literal (W3C agg-groupconcat-6)" begin
+        # Regression: FILTER(?g = "1") where ?g comes from GROUP_CONCAT on a
+        # lang-tagged literal used to throw "Not a numeric literal: \"1\""
+        # because the fast-path numeric comparison in _bt_apply_filter
+        # incorrectly matched xsd:string constants.
+        ds = Dataset()
+        result = sparql(ds, """
+          PREFIX : <http://www.example.org/>
+          ASK {
+            {SELECT (GROUP_CONCAT(?o) AS ?g) WHERE {
+              VALUES ?o { "1"@en }
+            }}
+            FILTER(?g = "1")
+          }
+        """)
+        @test result === true
+    end
+
     @testset "SELECT — BIND" begin
         ds = _sparql_ds()
         result = sparql(ds, """

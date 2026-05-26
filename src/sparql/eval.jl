@@ -730,8 +730,8 @@ function _is_simple_numeric_cmp(expr::SpExpr)
     expr.op in (:lt, :le, :gt, :ge, :eq) || return false
     lvar   = expr.left  isa SpVar
     rvar   = expr.right isa SpVar
-    lconst = expr.left  isa SpConst && expr.left.term  isa Literal
-    rconst = expr.right isa SpConst && expr.right.term isa Literal
+    lconst = expr.left  isa SpConst && _sp_is_numeric_literal(expr.left.term)
+    rconst = expr.right isa SpConst && _sp_is_numeric_literal(expr.right.term)
     (lvar && rconst) || (rvar && lconst)
 end
 
