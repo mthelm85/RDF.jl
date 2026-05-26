@@ -82,7 +82,7 @@ result = sparql(ds, """
   } ORDER BY ?name
 """)
 
-for row in result.rows
+for row in result
     println(row[:name], " is ", row[:age])
 end
 # "Alice" is 30

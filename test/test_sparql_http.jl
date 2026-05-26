@@ -31,13 +31,13 @@ import Sockets
         @test length(ss) == 2
         @test ss.variables == [:s, :p, :o]
 
-        r1 = ss.rows[1]
+        r1 = ss[1]
         @test r1[:s] == IRI("http://example.org/Alice")
         @test r1[:o] isa Literal
         @test (r1[:o]::Literal).language_tag == "en"
         @test (r1[:o]::Literal).lexical_form  == "Alice"
 
-        r2 = ss.rows[2]
+        r2 = ss[2]
         @test r2[:o] isa Literal
         @test (r2[:o]::Literal).lexical_form == "42"
         @test (r2[:o]::Literal).datatype == IRI("http://www.w3.org/2001/XMLSchema#integer")
@@ -56,7 +56,7 @@ import Sockets
         """
         ss = read_sparql_json(body)
         @test length(ss) == 1
-        @test ss.rows[1][:x] isa BlankNode
+        @test ss[1][:x] isa BlankNode
     end
 
     @testset "SELECT — unbound variable (OPTIONAL)" begin
@@ -72,8 +72,8 @@ import Sockets
         """
         ss = read_sparql_json(body)
         @test length(ss) == 1
-        @test ss.rows[1][:s] == IRI("http://example.org/Alice")
-        @test ss.rows[1][:age] === nothing
+        @test ss[1][:s] == IRI("http://example.org/Alice")
+        @test ss[1][:age] === nothing
     end
 
     @testset "SELECT — empty result set" begin
@@ -108,7 +108,7 @@ import Sockets
         }
         """
         ss = read_sparql_json(body)
-        t = ss.rows[1][:v]
+        t = ss[1][:v]
         @test t isa Literal
         @test (t::Literal).lexical_form == "hello"
     end

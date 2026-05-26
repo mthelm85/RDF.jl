@@ -95,7 +95,7 @@ function Base.write(io::IO, ::_MIME_SPARQL_JSON, sol::SolutionSet)
         print(io, "\"", String(v), "\"")
     end
     print(io, "]},\"results\":{\"bindings\":[")
-    for (ri, row) in enumerate(sol.rows)
+    for (ri, row) in enumerate(sol)
         ri > 1 && print(io, ",")
         print(io, "{")
         first_binding = true
@@ -140,7 +140,7 @@ function Base.write(io::IO, ::_MIME_SPARQL_XML, sol::SolutionSet)
     end
     println(io, "  </head>")
     println(io, "  <results>")
-    for row in sol.rows
+    for row in sol
         println(io, "    <result>")
         for v in sol.variables
             val = get(row, v, nothing)
@@ -222,7 +222,7 @@ Blank nodes are serialized as `_:bN`. Unbound variables produce an empty field.
 """
 function Base.write(io::IO, ::_MIME_SPARQL_CSV, sol::SolutionSet)
     println(io, join(String.(sol.variables), ","))
-    for row in sol.rows
+    for row in sol
         first_col = true
         for v in sol.variables
             first_col || print(io, ",")
@@ -272,7 +272,7 @@ Unbound variables produce an empty field.
 """
 function Base.write(io::IO, ::_MIME_SPARQL_TSV, sol::SolutionSet)
     println(io, join(["?" * String(v) for v in sol.variables], "\t"))
-    for row in sol.rows
+    for row in sol
         first_col = true
         for v in sol.variables
             first_col || print(io, "\t")
@@ -326,7 +326,7 @@ function read_sparql_json(body::AbstractString)::Union{SolutionSet, Bool}
             entry = get(binding, var, nothing)
             row[var] = entry === nothing ? nothing : _srj_read_term(entry)
         end
-        push!(ss.rows, row)
+        push!(ss, row)
     end
     return ss
 end

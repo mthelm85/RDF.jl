@@ -1877,10 +1877,11 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
             sub_results = _sp_execute_select(sq, ctx, [_SpSolution()])
             # Project to solution mappings
             sub_sols = _SpSolution[]
-            for r in sub_results.rows
+            for r in sub_results
                 μ2 = _SpSolution()
                 for v in keys(r)
-                    r[Symbol(v)] !== nothing && (μ2[Symbol(v)] = r[Symbol(v)])
+                    val = r[v]
+                    val !== nothing && (μ2[v] = val)
                 end
                 push!(sub_sols, μ2)
             end
@@ -2121,32 +2122,34 @@ function _sp_eval_where_bt(pat::SpPat, ctx::_SpEvalCtx)::Union{_BT, Nothing}
     bt
 end
 
-# Project BT rows [from..to] directly into the output row format required by
-# SolutionSet, resolving IDs to RDFTerms only once (no intermediate _SpSolution).
-function _bt_project_rows(bt::_BT, vars::Vector{Symbol}, from::Int, to::Int)
+# Project BT rows [from..to] directly into the columnar SolutionSet, resolving
+# term IDs only once — no intermediate Dict or _SpSolution allocations.
+function _bt_to_solution_set(bt::_BT, vars::Vector{Symbol}, from::Int, to::Int)::SolutionSet
+    ss   = SolutionSet(vars)
     nout = to - from + 1
-    nout <= 0 && return Dict{Symbol, Union{RDFTerm, Nothing}}[]
+    nout <= 0 && return ss
 
-    # Column index for each projected variable (0 = variable not in BT → always nothing).
+    # Pre-size every output column to avoid repeated reallocation.
+    for col in ss._cols; sizehint!(col, nout); end
+
+    # Column index for each projected variable (0 = not in BT → always nothing).
     col_idx = [get(bt.var_idx, v, 0) for v in vars]
     nv      = length(vars)
 
-    rows = Vector{Dict{Symbol, Union{RDFTerm, Nothing}}}(undef, nout)
     for k in 1:nout
-        j   = from + k - 1
-        row = Dict{Symbol, Union{RDFTerm, Nothing}}()
+        j = from + k - 1
         for i in 1:nv
             ci = @inbounds col_idx[i]
-            if ci != 0
+            val = if ci != 0
                 id = @inbounds bt.cols[ci][j]
-                @inbounds row[vars[i]] = id != 0 ? _resolve(id) : nothing
+                id != 0 ? _resolve(id) : nothing
             else
-                @inbounds row[vars[i]] = nothing
+                nothing
             end
+            push!(ss._cols[i], val)
         end
-        rows[k] = row
     end
-    rows
+    ss
 end
 
 # ── SELECT execution ──────────────────────────────────────────────────────────
@@ -2169,8 +2172,7 @@ function _sp_execute_select(q::SpSelectQuery, ctx::_SpEvalCtx,
             n      = _bt_nrows(bt)
             offset = q.offset !== nothing ? min(q.offset, n) : 0
             lim    = q.limit  !== nothing ? min(q.limit, n - offset) : (n - offset)
-            rows   = _bt_project_rows(bt, vars, offset + 1, offset + lim)
-            return SolutionSet(vars, rows)
+            return _bt_to_solution_set(bt, vars, offset + 1, offset + lim)
         end
     end
 

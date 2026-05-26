@@ -88,7 +88,7 @@ export infer_rdfs, infer_rdfs!, entails
 export validate
 
 # SPARQL
-export SolutionSet, sparql_parse, sparql, sparql_update!, read_sparql_json
+export SolutionSet, SolutionRow, sparql_parse, sparql, sparql_update!, read_sparql_json
 
 # Vocabulary API
 export Vocabulary, load_vocabulary, terms, label, comment

@@ -445,7 +445,7 @@ function _sp_parse_srx(path::String)::Union{SolutionSet, Bool}
                 rm[1])
             row[Symbol(bm2[1])] = _sp_parse_srx_term(String(bm2[2]), bm)
         end
-        push!(sol.rows, row)
+        push!(sol, row)
     end
     return sol
 end
@@ -482,7 +482,7 @@ function _sp_parse_srj(path::String)::Union{SolutionSet, Bool}
             end
             row[Symbol(k)] = term
         end
-        push!(sol.rows, row)
+        push!(sol, row)
     end
     return sol
 end
@@ -553,7 +553,7 @@ function _sp_parse_tsv(path::String)::SolutionSet
             i > length(vars) && break
             row[vars[i]] = _sp_parse_tsv_term(String(strip(cell)), bm)
         end
-        push!(sol.rows, row)
+        push!(sol, row)
     end
     return sol
 end
@@ -625,7 +625,7 @@ function _sp_parse_csv(path::String)::SolutionSet
             i > length(vars) && break
             row[vars[i]] = _sp_csv_term(cell, bm)
         end
-        push!(sol.rows, row)
+        push!(sol, row)
     end
     return sol
 end
@@ -678,7 +678,7 @@ function _sp_parse_rs_ttl(path::String)::SolutionSet
             end
             varname !== nothing && (row[varname] = value)
         end
-        push!(sol.rows, row)
+        push!(sol, row)
     end
     return sol
 end
@@ -707,7 +707,7 @@ end
 
 # Compare two rows under a blank-node bijection (a→b mapping).
 # Returns (compatible::Bool, updated_mapping).
-function _sp_rows_compat(ar::Dict, br::Dict, vars::Vector{Symbol},
+function _sp_rows_compat(ar, br, vars::Vector{Symbol},
                          mapping::Dict{BlankNode,BlankNode})
     new_map = copy(mapping)
     for v in vars
@@ -748,9 +748,9 @@ end
 # Compare two SolutionSets as order-independent bags with blank-node bijection.
 function _sp_sol_equal(a::SolutionSet, b::SolutionSet)::Bool
     Set(a.variables) == Set(b.variables) || return false
-    length(a.rows)   == length(b.rows)   || return false
+    length(a)        == length(b)        || return false
     vars = sort(collect(Set(a.variables) ∪ Set(b.variables)))
-    _sp_bag_match(a.rows, collect(b.rows), vars, Dict{BlankNode,BlankNode}())
+    _sp_bag_match(collect(a), collect(b), vars, Dict{BlankNode,BlankNode}())
 end
 
 # Dispatch result comparison.
@@ -774,8 +774,8 @@ end
 
 function _sp_csv_equal(a::SolutionSet, b::SolutionSet)::Bool
     Set(a.variables) == Set(b.variables) || return false
-    length(a.rows)   == length(b.rows)   || return false
-    isempty(a.rows) && return true
+    length(a)        == length(b)        || return false
+    isempty(a) && return true
     vars = sort(a.variables)
 
     # CSV value: blank nodes stay as BlankNode (for bijection), everything else → string
@@ -814,7 +814,7 @@ function _sp_csv_equal(a::SolutionSet, b::SolutionSet)::Bool
         return false
     end
 
-    _csv_bag_match(a.rows, collect(b.rows), Dict{BlankNode,BlankNode}())
+    _csv_bag_match(collect(a), collect(b), Dict{BlankNode,BlankNode}())
 end
 
 # ─── Test runners ─────────────────────────────────────────────────────────────

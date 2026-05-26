@@ -83,4 +83,35 @@ Tables.rowaccess(::Type{RDF._DatasetMatchIterator}) = true
 Tables.rows(it::RDF._DatasetMatchIterator) = _QuadRows(it)
 Tables.schema(it::RDF._DatasetMatchIterator) = Tables.schema(_QuadRows(it))
 
+
+# ── SolutionSet (SPARQL SELECT results) ──────────────────────────────────────
+#
+# Column-access interface: each projected SPARQL variable becomes a Tables
+# column of type `Union{RDF.RDFTerm, Missing}`, where `missing` represents an
+# unbound variable (OPTIONAL bindings).  This lets `DataFrame(sol)` work without
+# any extra conversion.
+
+Tables.istable(::Type{RDF.SolutionSet})     = true
+Tables.columnaccess(::Type{RDF.SolutionSet}) = true
+Tables.columns(ss::RDF.SolutionSet) = ss
+
+Tables.columnnames(ss::RDF.SolutionSet) = ss.variables
+
+function Tables.getcolumn(ss::RDF.SolutionSet, nm::Symbol)
+    idx = get(ss._var_idx, nm, 0)
+    idx == 0 && throw(ArgumentError("SolutionSet has no variable $(nm)"))
+    # Map nothing (unbound) → missing for Tables.jl consumers
+    Union{RDF.RDFTerm, Missing}[
+        x === nothing ? missing : x for x in ss._cols[idx]
+    ]
+end
+
+function Tables.getcolumn(ss::RDF.SolutionSet, i::Int)
+    Tables.getcolumn(ss, ss.variables[i])
+end
+
+Tables.schema(ss::RDF.SolutionSet) =
+    Tables.Schema(ss.variables,
+                  fill(Union{RDF.RDFTerm, Missing}, length(ss.variables)))
+
 end # module RDFTablesExt

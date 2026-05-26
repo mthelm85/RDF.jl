@@ -206,7 +206,7 @@ end
 # Merges all named graphs and the default graph into a single Graph.
 function _dataset_to_graph(ds::Dataset)::Graph
     g = Graph()
-    for q in ds
+    for q in quads(ds)
         push!(g, Triple(q.subject, q.predicate, q.object))
     end
     g
@@ -270,6 +270,11 @@ function load_vocabulary(source::AbstractString;
                          base::Union{AbstractString, Nothing}=nothing,
                          format::Union{MIME, Nothing}=nothing)
     if startswith(source, "http://") || startswith(source, "https://")
+        if !hasmethod(_vocab_load_http, (AbstractString,))
+            error(
+                "load_vocabulary with an HTTP/HTTPS URL requires HTTP.jl. " *
+                "Add `using HTTP` before calling load_vocabulary.")
+        end
         return _vocab_load_http(source; base=base, format=format)
     end
     mime = format !== nothing ? format : _vocab_mime_from_path(source)
@@ -308,10 +313,10 @@ function _vocab_graph_from_file(path::AbstractString,
     _dataset_to_graph(ds)
 end
 
-# ── HTTP stub (overridden in RDFHTTPExt) ──────────────────────────────────────
+# ── HTTP dispatch (implemented by RDFHTTPExt when HTTP.jl is loaded) ──────────
+#
+# Declaring with no methods here lets RDFHTTPExt add its method without
+# triggering the "method overwriting" error that precompilation would raise if
+# we defined a stub with the same signature.
 
-function _vocab_load_http(source::AbstractString; kwargs...)
-    error(
-        "load_vocabulary with an HTTP/HTTPS URL requires HTTP.jl. " *
-        "Add `using HTTP` before calling load_vocabulary.")
-end
+function _vocab_load_http end
