@@ -54,13 +54,17 @@ SPARQL 1.1 query and update specification with 100% W3C test suite conformance
 sparql
 sparql_parse
 SolutionSet
+SolutionRow
 read_sparql_json
 ```
 
 ### SELECT
 
-Returns a `SolutionSet` — an ordered sequence of solution mappings from variable
-names (`Symbol`) to `RDFTerm` values (or `nothing` for unbound variables).
+Returns a `SolutionSet` — a columnar store of solution mappings from variable
+names (`Symbol`) to `RDFTerm` values (`nothing` for unbound / OPTIONAL variables).
+
+Iterating a `SolutionSet` yields [`SolutionRow`](@ref) views; individual rows
+are accessible by integer index (`result[i]`).
 
 ```julia
 result = sparql(ds, """
@@ -72,11 +76,22 @@ result = sparql(ds, """
   } ORDER BY ?name
 """)
 
+# Iterate rows
 for row in result
     println(row[:name], " is ", row[:age])
 end
 
-# With DataFrames
+# Integer indexing
+first_row = result[1]
+first_row[:name]              # => Literal("Alice")
+
+# get() with a default (safe for OPTIONAL variables)
+age = get(row, :age, nothing)
+
+# Coerce literal values with value()
+value(Int64, row[:age])       # => 30
+
+# With DataFrames (unbound variables become `missing`)
 using DataFrames
 df = DataFrame(result)
 ```

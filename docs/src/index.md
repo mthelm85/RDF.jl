@@ -25,6 +25,9 @@ subject, predicate, and object. The SPARQL 1.1 engine is 100% W3C conformant
 - **Graph isomorphism** — blank-node bijection
 - **Tables.jl integration** — match results and `SolutionSet` work directly
   with DataFrames and any Tables.jl consumer
+- **Vocabulary API** — load any external ontology or namespace as a
+  `Vocabulary` with dot-notation term access (`vocab.BachelorDegree`),
+  `rdfs:label` / `rdfs:comment` metadata, and HTTP loading via HTTP.jl
 - Built-in vocabulary modules: `rdf`, `rdfs`, `xsd`, `owl`, `skos`, `dc`,
   `dcterms`, `foaf`, `schema`
 
@@ -140,6 +143,32 @@ using DataFrames
 df = DataFrame(match(g; predicate=rdf.type))
 df = DataFrame(sparql(ds, "SELECT * WHERE { ?s ?p ?o }"))
 ```
+
+### Vocabulary API
+
+Load any external ontology or namespace and access its terms by name:
+
+```julia
+using RDF, HTTP
+
+# Load CTDL from Credential Engine (any Turtle / N-Triples / JSON-LD URL works)
+ctdl = load_vocabulary("https://credreg.net/ctdl/schema/encoding/turtle";
+                        base="http://purl.org/ctdl/terms/")
+
+ctdl.BachelorDegree              # => IRI("http://purl.org/ctdl/terms/BachelorDegree")
+label(ctdl, ctdl.Course)         # => "Course"
+comment(ctdl, ctdl.estimatedCost)
+
+# Use directly in a SPARQL query
+sparql(ds, """
+  SELECT ?cred WHERE { ?cred a <$(ctdl.BachelorDegree)> . }
+""")
+
+# From a local file
+go = load_vocabulary("go.ttl"; base="http://purl.obolibrary.org/obo/")
+```
+
+See the [Vocabulary API](vocabulary.md) page for the full reference.
 
 ## Built-in vocabularies
 
