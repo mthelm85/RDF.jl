@@ -4,6 +4,7 @@
 *.jl.mem
 Manifest*.toml
 /docs/build/
+/build/
 LocalPreferences.toml
 
 # Benchmarks
