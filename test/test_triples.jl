@@ -154,6 +154,57 @@ using Test
         @test t2 isa Triple
     end
 
+    @testset "TripleTerm (RDF 1.2 embedded triples)" begin
+        # Construction — positional (subject, predicate, object)
+        tt = TripleTerm(ex.alice, ex.age, Literal(30))
+        @test tt isa TripleTerm
+        @test tt.subject   == ex.alice
+        @test tt.predicate == ex.age
+        @test tt.object    == Literal(30)
+
+        # Equality and hashing
+        @test tt == TripleTerm(ex.alice, ex.age, Literal(30))
+        @test hash(tt) == hash(TripleTerm(ex.alice, ex.age, Literal(30)))
+        @test tt != TripleTerm(ex.bob, ex.age, Literal(30))
+
+        # TripleTerm is a valid ObjectTerm but NOT a SubjectTerm or PredicateTerm
+        @test tt isa RDFTerm
+        @test tt isa ObjectTerm
+        @test !(tt isa SubjectTerm)
+
+        # Nested TripleTerm (embedded triple as object of another TripleTerm)
+        nested = TripleTerm(ex.bob, ex.knows, tt)
+        @test nested.object == tt
+
+        # push! a triple with a TripleTerm object into a graph
+        g = Graph()
+        @test_nowarn push!(g, Triple(ex.claim, rdf.reifies, tt))
+        @test length(g) == 1
+
+        # The triple can be retrieved via pattern match
+        results = collect(match(g; predicate=rdf.reifies))
+        @test length(results) == 1
+        @test results[1].object == tt
+
+        # Multiple TripleTerms in the same graph
+        tt3 = TripleTerm(ex.bob, ex.age, Literal(25))
+        push!(g, Triple(ex.claim2, rdf.reifies, tt3))
+        @test length(g) == 2
+
+        # Deduplication — pushing the same triple twice is a no-op
+        push!(g, Triple(ex.claim, rdf.reifies, tt))
+        @test length(g) == 2
+
+        # Pattern-match by object (TripleTerm as object term)
+        results2 = collect(match(g; subject=ex.claim))
+        @test length(results2) == 1
+        @test results2[1].object isa TripleTerm
+        obj = results2[1].object
+        @test obj.subject   == ex.alice
+        @test obj.predicate == ex.age
+        @test obj.object    == Literal(30)
+    end
+
     @testset "GeneralizedTriple — literals and blank nodes in any position" begin
         g = Graph()
         b = blank!(g)

@@ -128,7 +128,7 @@ TripleTerm
 ```
 
 ```julia
-tt = TripleTerm(Triple(ex.alice, ex.age, Literal(30)))
+tt = TripleTerm(ex.alice, ex.age, Literal(30))
 push!(g, Triple(ex.claim, rdf.reifies, tt))
 ```
 
@@ -144,7 +144,7 @@ when iterating [`Dataset`](@ref) quads.
 
 | Alias | Allowed types |
 |---|---|
-| `SubjectTerm` | `IRI`, `BlankNode`, `TripleTerm` |
+| `SubjectTerm` | `IRI`, `BlankNode` |
 | `PredicateTerm` | `IRI` |
 | `ObjectTerm` | `IRI`, `BlankNode`, `Literal`, `TripleTerm` |
 | `GraphName` | `IRI`, `BlankNode` |

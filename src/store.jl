@@ -1,17 +1,19 @@
 # Global term registry — shared across all graphs/datasets.
 # Split into three concrete-type tables to eliminate abstract dispatch in hash/isequal.
 
-const _IRI_TO_ID     = RobinDict{IRI,       UInt32}()
-const _BNODE_TO_ID   = RobinDict{BlankNode,  UInt32}()
-const _LITERAL_TO_ID = RobinDict{Literal,    UInt32}()
+const _IRI_TO_ID          = RobinDict{IRI,         UInt32}()
+const _BNODE_TO_ID        = RobinDict{BlankNode,    UInt32}()
+const _LITERAL_TO_ID      = RobinDict{Literal,      UInt32}()
+const _TRIPLE_TERM_TO_ID  = RobinDict{TripleTerm,   UInt32}()
 const _ID_TO_TERM    = RDFTerm[]
 const _NUMERIC_CACHE = Float64[]   # NaN for non-numeric/un-cacheable terms; indexed by term ID
 const _REGISTRY_LOCK = ReentrantLock()
 
 # Return the per-type map for dispatch without abstract keys
-@inline _type_map(::IRI)       = _IRI_TO_ID
-@inline _type_map(::BlankNode) = _BNODE_TO_ID
-@inline _type_map(::Literal)   = _LITERAL_TO_ID
+@inline _type_map(::IRI)        = _IRI_TO_ID
+@inline _type_map(::BlankNode)  = _BNODE_TO_ID
+@inline _type_map(::Literal)    = _LITERAL_TO_ID
+@inline _type_map(::TripleTerm) = _TRIPLE_TERM_TO_ID
 
 # Numeric XSD datatypes for the cache
 const _NUMERIC_DTS = Set{String}((
