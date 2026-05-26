@@ -25,5 +25,6 @@ using Test
     include("test_w3c_nquads.jl")
     include("test_w3c_isomorphism.jl")
     include("test_jsonld.jl")
+    include("test_vocabulary.jl")
     include("test_aqua.jl")
 end

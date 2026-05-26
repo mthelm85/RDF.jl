@@ -259,4 +259,61 @@ end
 _truncate(s::AbstractString, n::Int) =
     length(s) <= n ? s : s[1:n] * "…"
 
+
+# ── Vocabulary loading over HTTP ───────────────────────────────────────────────
+
+"""
+    load_vocabulary(url; base=nothing, format=nothing) -> Vocabulary
+
+Fetch and load an RDF vocabulary from an HTTP/HTTPS URL.
+
+Content-negotiation requests Turtle first (`q=1.0`), then N-Triples (`q=0.9`),
+then JSON-LD (`q=0.7`).  Pass `format` to request a specific MIME type instead.
+
+Activated automatically when `HTTP.jl` is loaded alongside `RDF.jl`.
+
+# Examples
+
+```julia
+using RDF, HTTP
+
+ctdl = load_vocabulary("https://credreg.net/ctdl/schema/encoding/turtle";
+                        base="http://purl.org/ctdl/terms/")
+
+ctdl.BachelorDegree          # => IRI("http://purl.org/ctdl/terms/BachelorDegree")
+label(ctdl, ctdl.Course)     # => "Course"
+```
+"""
+function RDF._vocab_load_http(source::AbstractString;
+                               base   = nothing,
+                               format = nothing)
+    accept = if format !== nothing
+        string(format)   # e.g. "text/turtle"
+    else
+        "text/turtle;q=1.0, application/n-triples;q=0.9, application/ld+json;q=0.7"
+    end
+
+    headers = Pair{String,String}[
+        "Accept"     => accept,
+        "User-Agent" => "RDF.jl/0.1 (+https://github.com/mthelm85/RDF.jl)",
+    ]
+
+    resp = _http_request(source, headers, "", true, 60_000, 2)
+
+    ct = HTTP.header(resp, "Content-Type", "text/turtle")
+    io = IOBuffer(resp.body)
+
+    g = if _ct_contains(ct, "n-triples")
+        Base.read(io, MIME"application/n-triples"(), Graph)
+    elseif _ct_contains(ct, "ld+json") || _ct_contains(ct, "application/json")
+        ds = Base.read(io, MIME"application/ld+json"(), Dataset)
+        RDF._dataset_to_graph(ds)
+    else
+        # Turtle is the default / most common for vocabulary endpoints
+        Base.read(io, MIME"text/turtle"(), Graph)
+    end
+
+    RDF.Vocabulary(g; base=base)
+end
+
 end # module RDFHTTPExt

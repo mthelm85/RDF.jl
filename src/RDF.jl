@@ -35,6 +35,9 @@ include("serialization/jsonld.jl")
 # ── Query ─────────────────────────────────────────────────────────────────────
 include("sparql.jl")
 
+# ── Vocabulary API ───────────────────────────────────────────────────────────
+include("vocabulary.jl")
+
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")
 include("vocab/rdfs_vocab.jl")
@@ -86,6 +89,9 @@ export validate
 
 # SPARQL
 export SolutionSet, sparql_parse, sparql, sparql_update!, read_sparql_json
+
+# Vocabulary API
+export Vocabulary, load_vocabulary, terms, label, comment
 
 # Vocabulary modules
 export rdf, rdfs, xsd, owl, skos, dc, dcterms, foaf, schema
