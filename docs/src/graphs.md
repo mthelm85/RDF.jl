@@ -39,6 +39,17 @@ g = Graph() do g
 end
 ```
 
+### Bulk loading
+
+```@docs
+bulk_load!
+```
+
+```julia
+# Much faster than push! in a loop for large collections
+bulk_load!(g, triples)
+```
+
 ### Pattern matching
 
 ```@docs
