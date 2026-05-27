@@ -124,6 +124,59 @@ function _sorted_delete!(v::Vector{NTuple{3,UInt32}}, t::NTuple{3,UInt32})
     end
 end
 
+# ── Bulk insertion ────────────────────────────────────────────────────────────
+#
+# Insert many (s,p,o) ID tuples at once via a single sort-and-merge pass.
+# O(n log n) overall rather than O(n²) for repeated _hexa_insert! calls.
+#
+# The `tuples` vector may be mutated (sorted/deduplicated in the fast path
+# for an empty store).  Returns the number of net new triples added.
+
+function _hexa_bulk_insert!(h::HexaStore, tuples::Vector{NTuple{3,UInt32}})
+    isempty(tuples) && return 0
+
+    # Build the complete deduplicated SPO set.
+    # Fast path: empty store — sort and dedup in place, no extra allocation.
+    spo_all = if isempty(h.spo)
+        sort!(unique!(tuples))
+    else
+        combined = vcat(h.spo, tuples)
+        sort!(unique!(combined))
+    end
+
+    n     = length(spo_all)
+    added = n - length(h.spo)   # computed before we overwrite h.spo
+
+    # SPO — already in the correct order
+    resize!(h.spo, n)
+    copyto!(h.spo, spo_all)
+
+    # Reuse one temporary buffer for all five remaining permutations
+    tmp = Vector{NTuple{3,UInt32}}(undef, n)
+
+    # SOP (1,3,2)
+    @inbounds for i in 1:n; t = spo_all[i]; tmp[i] = (t[1], t[3], t[2]); end
+    sort!(tmp); resize!(h.sop, n); copyto!(h.sop, tmp)
+
+    # PSO (2,1,3)
+    @inbounds for i in 1:n; t = spo_all[i]; tmp[i] = (t[2], t[1], t[3]); end
+    sort!(tmp); resize!(h.pso, n); copyto!(h.pso, tmp)
+
+    # POS (2,3,1)
+    @inbounds for i in 1:n; t = spo_all[i]; tmp[i] = (t[2], t[3], t[1]); end
+    sort!(tmp); resize!(h.pos, n); copyto!(h.pos, tmp)
+
+    # OSP (3,1,2)
+    @inbounds for i in 1:n; t = spo_all[i]; tmp[i] = (t[3], t[1], t[2]); end
+    sort!(tmp); resize!(h.osp, n); copyto!(h.osp, tmp)
+
+    # OPS (3,2,1)
+    @inbounds for i in 1:n; t = spo_all[i]; tmp[i] = (t[3], t[2], t[1]); end
+    sort!(tmp); resize!(h.ops, n); copyto!(h.ops, tmp)
+
+    added
+end
+
 # ── Index-selection for pattern matching ──────────────────────────────────────
 #
 # Select the index whose leading positions are all bound, yielding the most

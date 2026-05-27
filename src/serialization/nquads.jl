@@ -29,25 +29,64 @@ end
 
 function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset
     ds = Dataset()
-    blank_map = Dict{String, BlankNode}()
+    blank_map       = Dict{String, BlankNode}()
     graph_blank_map = Dict{String, BlankNode}()
     lineno = 0
+
+    # Collect interned IDs as we parse, deferring hexastore insertion until the
+    # end so all six index arrays can be built with a single sort rather than
+    # N individual sorted inserts (O(n log n) vs O(n²)).
+    default_tuples   = NTuple{3,UInt32}[]
+    named_tuples     = Dict{UInt32, Vector{NTuple{3,UInt32}}}()
+    graph_id_to_name = Dict{UInt32, GraphName}()
+    default_blanks   = Set{UInt64}()
+    named_blanks     = Dict{UInt32, Set{UInt64}}()
+
     for line in eachline(io)
         lineno += 1
         line = strip(line)
         (isempty(line) || startswith(line, "#")) && continue
         q = _parse_nq_line(line, lineno, blank_map, graph_blank_map)
         q === nothing && continue
+
+        s_id = _intern!(q.subject)
+        p_id = _intern!(q.predicate)
+        o_id = _intern!(q.object)
+
         if q.graph === nothing
-            push!(ds.default_graph, Triple(q))
+            push!(default_tuples, (s_id, p_id, o_id))
+            q.subject isa BlankNode && push!(default_blanks, (q.subject::BlankNode).id)
+            q.object  isa BlankNode && push!(default_blanks, (q.object::BlankNode).id)
         else
-            name = q.graph::GraphName
-            if !haskey(ds, name)
-                ds[name] = Graph()
-            end
-            push!(ds[name], Triple(q))
+            gname = q.graph::GraphName
+            g_id  = _intern!(gname)
+            graph_id_to_name[g_id] = gname
+            v = get!(Vector{NTuple{3,UInt32}}, named_tuples, g_id)
+            push!(v, (s_id, p_id, o_id))
+            bns = get!(Set{UInt64}, named_blanks, g_id)
+            q.subject isa BlankNode && push!(bns, (q.subject::BlankNode).id)
+            q.object  isa BlankNode && push!(bns, (q.object::BlankNode).id)
         end
     end
+
+    # Bulk-insert into each graph
+    if !isempty(default_tuples)
+        _hexa_bulk_insert!(ds.default_graph.store, default_tuples)
+        ds.default_graph._size = length(ds.default_graph.store.spo)
+        union!(ds.default_graph.blank_nodes, default_blanks)
+    end
+
+    for (g_id, tuples) in named_tuples
+        name = graph_id_to_name[g_id]
+        if !haskey(ds, name)
+            ds[name] = Graph()
+        end
+        g = ds[name]
+        _hexa_bulk_insert!(g.store, tuples)
+        g._size = length(g.store.spo)
+        haskey(named_blanks, g_id) && union!(g.blank_nodes, named_blanks[g_id])
+    end
+
     ds
 end
 

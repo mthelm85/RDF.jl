@@ -71,14 +71,28 @@ function Base.read(io::IO, ::_MIME_NT, ::Type{Graph})::Graph
     g = Graph()
     blank_map = Dict{String, BlankNode}()
     lineno = 0
+
+    # Collect interned IDs as we parse, deferring hexastore insertion until the
+    # end so all six index arrays can be built with a single sort rather than
+    # N individual sorted inserts (O(n log n) vs O(n²)).
+    tuples = NTuple{3,UInt32}[]
+
     for line in eachline(io)
         lineno += 1
         line = strip(line)
         (isempty(line) || line[1] == '#') && continue
         t = _parse_nt_line(line, lineno, blank_map)
         t === nothing && continue
-        push!(g, t)
+        s_id = _intern!(t.subject)
+        p_id = _intern!(t.predicate)
+        o_id = _intern!(t.object)
+        push!(tuples, (s_id, p_id, o_id))
+        t.subject isa BlankNode && push!(g.blank_nodes, (t.subject::BlankNode).id)
+        t.object  isa BlankNode && push!(g.blank_nodes, (t.object::BlankNode).id)
     end
+
+    _hexa_bulk_insert!(g.store, tuples)
+    g._size = length(g.store.spo)
     g
 end
 

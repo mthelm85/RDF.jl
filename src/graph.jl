@@ -33,6 +33,36 @@ end
 
 Base.append!(g::Graph, ts) = (foreach(t -> push!(g, t), ts); g)
 
+"""
+    bulk_load!(g::Graph, triples) -> g
+
+Load a large collection of triples into `g` at once using a single
+sort-and-merge pass — O(n log n) rather than O(n²) for repeated `push!`.
+Significantly faster than `push!` in a loop for thousands or millions of triples.
+
+```julia
+# From a parsed graph
+bulk_load!(g, read("data.nt", MIME"application/n-triples"(), Graph))
+
+# From a generator
+bulk_load!(g, (Triple(ex[string(i)], rdf.type, ex.Thing) for i in 1:100_000))
+```
+"""
+function bulk_load!(g::Graph, triples)
+    tuples = NTuple{3,UInt32}[]
+    for t in triples
+        s_id = _intern!(t.subject)
+        p_id = _intern!(t.predicate)
+        o_id = _intern!(t.object)
+        push!(tuples, (s_id, p_id, o_id))
+        t.subject isa BlankNode && push!(g.blank_nodes, (t.subject::BlankNode).id)
+        t.object  isa BlankNode && push!(g.blank_nodes, (t.object::BlankNode).id)
+    end
+    _hexa_bulk_insert!(g.store, tuples)
+    g._size = length(g.store.spo)
+    g
+end
+
 function Base.push!(g::Graph, t::Triple)
     s_id = _intern!(t.subject)
     p_id = _intern!(t.predicate)

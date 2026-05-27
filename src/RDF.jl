@@ -69,7 +69,7 @@ export value, tryvalue
 export blank!
 
 # Graph operations
-export issubgraph, isomorphic, ≅, merge!, skolemize, deskolemize
+export issubgraph, isomorphic, ≅, merge!, skolemize, deskolemize, bulk_load!
 export blank_nodes, subjects, predicates, objects
 
 # Dataset operations
