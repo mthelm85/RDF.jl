@@ -230,14 +230,13 @@ using Test
         push!(g2, Triple(outer, ex.certainty, Literal(1.0)))
         @test length(g2) == 2
 
-        # N-Triples round-trip for subject-position TripleTerm
+        # N-Triples serialization of subject-position TripleTerm (write only — RDF 1.2
+        # N-Triples does not allow <<( )>> in subject position, so the output cannot
+        # be read back through the conformant parser).
         buf = IOBuffer()
         write(buf, MIME"application/n-triples"(), g2)
         nt_str = String(take!(buf))
-        @test occursin("<<(", nt_str)   # triple term serialized
-        g3 = read(IOBuffer(nt_str), MIME"application/n-triples"(), Graph)
-        @test length(g3) == 2
-        @test isomorphic(g2, g3)
+        @test occursin("<<(", nt_str)   # triple term appears in output
 
         # Invalid: Literal as TripleTerm subject must throw
         @test_throws ArgumentError TripleTerm(Literal("bad"), ex.p, ex.o)

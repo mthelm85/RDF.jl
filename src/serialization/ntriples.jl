@@ -237,15 +237,11 @@ end
 
 function _parse_nt_subject(s, pos, lineno, blank_map)
     pos <= lastindex(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
-    if s[pos] == '<'
-        # TripleTerm in subject position: <<( ... )>>
-        if pos + 2 <= lastindex(s) && s[pos+1] == '<' && s[pos+2] == '('
-            return _parse_nt_triple_term(s, pos, lineno, blank_map)
-        end
-        return _parse_nt_iri(s, pos, lineno)
-    end
+    # RDF 1.2 N-Triples: subject must be IRI or blank node — TripleTerm (<<( )>>) is
+    # only valid in object position.
+    s[pos] == '<' && return _parse_nt_iri(s, pos, lineno)
     s[pos] == '_' && return _parse_nt_blank(s, pos, lineno, blank_map)
-    throw(ParseError("Expected subject (IRI, blank node, or triple term)", lineno, pos, _MIME_NT()))
+    throw(ParseError("Expected subject (IRI or blank node)", lineno, pos, _MIME_NT()))
 end
 
 function _parse_nt_object(s, pos, lineno, blank_map)
