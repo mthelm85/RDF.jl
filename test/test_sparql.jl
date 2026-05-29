@@ -754,4 +754,111 @@ end
             "INSERT DATA { <http://example.org/x> <http://example.org/p> <http://example.org/o> }")
     end
 
+    # ── RDF-star SPARQL (embedded triple terms) ───────────────────────────────
+
+    @testset "sparql — RDF-star: lexer recognises <<( and )>>" begin
+        ast = sparql_parse("""
+            SELECT ?s ?certainty WHERE {
+                <<( <http://example.org/alice> <http://example.org/age> ?age )>>
+                    <http://example.org/source> <http://example.org/doc1> .
+            }
+        """)
+        @test ast !== nothing
+    end
+
+    @testset "sparql — RDF-star: constant embedded triple in object position" begin
+        ex = Namespace("http://example.org/")
+        g  = Graph()
+        tt = TripleTerm(ex.alice, ex.age, Literal(30))
+        push!(g, Triple(ex.claim1, ex.reifies, tt))
+        push!(g, Triple(ex.claim2, ex.reifies, TripleTerm(ex.bob, ex.age, Literal(25))))
+
+        # Query with a fully-constant embedded triple term in object position
+        result = sparql(g, """
+            PREFIX ex: <http://example.org/>
+            SELECT ?claim WHERE {
+                ?claim ex:reifies <<( ex:alice ex:age 30 )>> .
+            }
+        """)
+        @test length(result) == 1
+        @test result[1][:claim] == ex.claim1
+    end
+
+    @testset "sparql — RDF-star: variable binding inside embedded triple (object pos)" begin
+        ex = Namespace("http://example.org/")
+        g  = Graph()
+        push!(g, Triple(ex.claim1, ex.reifies, TripleTerm(ex.alice, ex.age, Literal(30))))
+        push!(g, Triple(ex.claim2, ex.reifies, TripleTerm(ex.bob,   ex.age, Literal(25))))
+        push!(g, Triple(ex.claim3, ex.reifies, TripleTerm(ex.carol, ex.name, Literal("Carol"))))
+
+        result = sparql(g, """
+            PREFIX ex: <http://example.org/>
+            SELECT ?claim ?person ?v WHERE {
+                ?claim ex:reifies <<( ?person ex:age ?v )>> .
+            }
+            ORDER BY ?v
+        """)
+        @test length(result) == 2
+        @test result[1][:person] == ex.bob
+        @test result[1][:v]      == Literal(25)
+        @test result[2][:person] == ex.alice
+        @test result[2][:v]      == Literal(30)
+    end
+
+    @testset "sparql — RDF-star: embedded triple in subject position" begin
+        ex = Namespace("http://example.org/")
+        g  = Graph()
+        tt1 = TripleTerm(ex.alice, ex.age, Literal(30))
+        tt2 = TripleTerm(ex.bob,   ex.age, Literal(25))
+        push!(g, Triple(tt1, ex.certainty, Literal(0.9)))
+        push!(g, Triple(tt2, ex.certainty, Literal(0.8)))
+
+        result = sparql(g, """
+            PREFIX ex: <http://example.org/>
+            SELECT ?person ?age ?cert WHERE {
+                <<( ?person ex:age ?age )>> ex:certainty ?cert .
+            }
+            ORDER BY ?age
+        """)
+        @test length(result) == 2
+        @test result[1][:person] == ex.bob
+        @test result[1][:age]    == Literal(25)
+        @test result[2][:person] == ex.alice
+        @test result[2][:age]    == Literal(30)
+    end
+
+    @testset "sparql — RDF-star: mixed constant and variable in embedded triple" begin
+        ex = Namespace("http://example.org/")
+        g  = Graph()
+        push!(g, Triple(ex.s1, ex.reifies, TripleTerm(ex.alice, ex.age,  Literal(30))))
+        push!(g, Triple(ex.s2, ex.reifies, TripleTerm(ex.alice, ex.name, Literal("Alice"))))
+        push!(g, Triple(ex.s3, ex.reifies, TripleTerm(ex.bob,   ex.age,  Literal(25))))
+
+        # Filter by constant predicate inside the embedded triple
+        result = sparql(g, """
+            PREFIX ex: <http://example.org/>
+            SELECT ?s ?person ?val WHERE {
+                ?s ex:reifies <<( ?person ex:age ?val )>> .
+            }
+        """)
+        @test length(result) == 2
+        persons = Set(r[:person] for r in result)
+        @test ex.alice in persons
+        @test ex.bob   in persons
+    end
+
+    @testset "sparql — RDF-star: no results for non-matching embedded triple" begin
+        ex = Namespace("http://example.org/")
+        g  = Graph()
+        push!(g, Triple(ex.s1, ex.reifies, TripleTerm(ex.alice, ex.age, Literal(30))))
+
+        result = sparql(g, """
+            PREFIX ex: <http://example.org/>
+            SELECT ?s WHERE {
+                ?s ex:reifies <<( ex:alice ex:age 99 )>> .
+            }
+        """)
+        @test isempty(result)
+    end
+
 end

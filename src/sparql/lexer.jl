@@ -63,6 +63,10 @@
     SP_TOK_OR           # ||
     SP_TOK_HATHAT       # ^^
     SP_TOK_QUEST        # ? (path ZeroOrOne modifier, not followed by identifier)
+
+    # RDF-star (embedded triple terms)
+    SP_TOK_TT_OPEN   # <<(  — start of an embedded triple term
+    SP_TOK_TT_CLOSE  # )>>  — end of an embedded triple term
 end
 
 # ── Token struct ──────────────────────────────────────────────────────────────
@@ -633,7 +637,13 @@ function _sp_scan!(lex::SpLexer)::SpToken
             # bare '<' in an expression context
             return SpToken(SP_TOK_LT, "<", sline, scol)
         elseif nc == '<'
-            # '<<' — bare LT (RDF-star triple pattern opening handled by parser)
+            # Check for '<<(' — RDF-star embedded triple term opening
+            if _sp_peek_char(lex, 1) == '('
+                _sp_advance!(lex)  # consume second '<'
+                _sp_advance!(lex)  # consume '('
+                return SpToken(SP_TOK_TT_OPEN, "<<(", sline, scol)
+            end
+            # Bare '<<' — return first '<' as LT
             return SpToken(SP_TOK_LT, "<", sline, scol)
         else
             # Everything else: treat as start of an IRI reference
@@ -692,7 +702,14 @@ function _sp_scan!(lex::SpLexer)::SpToken
     elseif c == '}'
         _sp_advance!(lex); return SpToken(SP_TOK_RBRACE, "}", sline, scol)
     elseif c == ')'
-        _sp_advance!(lex); return SpToken(SP_TOK_RPAREN, ")", sline, scol)
+        _sp_advance!(lex)
+        # Check for ')>>' — RDF-star embedded triple term closing
+        if _sp_peek_char(lex) == '>' && _sp_peek_char(lex, 1) == '>'
+            _sp_advance!(lex)  # consume first '>'
+            _sp_advance!(lex)  # consume second '>'
+            return SpToken(SP_TOK_TT_CLOSE, ")>>", sline, scol)
+        end
+        return SpToken(SP_TOK_RPAREN, ")", sline, scol)
     elseif c == ']'
         _sp_advance!(lex); return SpToken(SP_TOK_RBRACKET, "]", sline, scol)
     # ── Bare colon: empty prefix PNAME_NS/PNAME_LN ──────────────────────────

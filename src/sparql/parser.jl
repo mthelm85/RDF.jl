@@ -638,7 +638,32 @@ function _sp_next_is_var_or_term(p::SpParser)::Bool
     k == SP_TOK_STR1 || k == SP_TOK_STR2 || k == SP_TOK_STR_LONG1 || k == SP_TOK_STR_LONG2 ||
     k == SP_TOK_INTEGER || k == SP_TOK_DECIMAL || k == SP_TOK_DOUBLE ||
     (k == SP_TOK_KW && (sp_peek_token(p.lex).value == "true" || sp_peek_token(p.lex).value == "false")) ||
-    k == SP_TOK_LBRACKET  # start of blank node property list
+    k == SP_TOK_LBRACKET ||  # start of blank node property list
+    k == SP_TOK_TT_OPEN       # RDF-star embedded triple term
+end
+
+# Parse an embedded triple term <<( subject predicate object )>>
+# Caller must have already peeked SP_TOK_TT_OPEN but NOT consumed it.
+function _sp_parse_triple_term_expr(p::SpParser)::SpTripleTerm
+    _sp_expect!(p, SP_TOK_TT_OPEN)   # consume '<<('
+    s = _sp_parse_var_or_term(p)
+    # Predicate inside an embedded triple: only IRI, 'a', or variable (no paths)
+    pred_tok = sp_peek_token(p.lex)
+    pred = if pred_tok.kind == SP_TOK_A
+        _sp_next!(p)
+        SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+    elseif pred_tok.kind == SP_TOK_VAR
+        _sp_next!(p)
+        SpVar(Symbol(pred_tok.value))
+    elseif _sp_next_is_iri(p)
+        _sp_parse_iri_node(p)
+    else
+        _sp_parse_error(p, pred_tok,
+            "Expected IRI, 'a', or variable as predicate in embedded triple term")
+    end
+    o = _sp_parse_var_or_term(p)
+    _sp_expect!(p, SP_TOK_TT_CLOSE)  # consume ')>>'
+    SpTripleTerm(s, pred, o)
 end
 
 # Parse a VarOrTerm (used in triple subject/object contexts)
@@ -664,8 +689,10 @@ function _sp_parse_var_or_term(p::SpParser)::SpExpr
         return _sp_parse_numeric_literal(p)
     elseif _sp_next_is_boolean(p)
         return _sp_parse_boolean_literal(p)
+    elseif tok.kind == SP_TOK_TT_OPEN
+        return _sp_parse_triple_term_expr(p)
     else
-        _sp_parse_error(p, tok, "Expected term (variable, IRI, literal, or blank node)")
+        _sp_parse_error(p, tok, "Expected term (variable, IRI, literal, blank node, or embedded triple term)")
     end
 end
 
@@ -852,6 +879,7 @@ function _sp_next_starts_triples(p::SpParser)::Bool
     k == SP_TOK_STR1 || k == SP_TOK_STR2 || k == SP_TOK_STR_LONG1 || k == SP_TOK_STR_LONG2 ||
     k == SP_TOK_INTEGER || k == SP_TOK_DECIMAL || k == SP_TOK_DOUBLE ||
     k == SP_TOK_LBRACKET || k == SP_TOK_LPAREN ||
+    k == SP_TOK_TT_OPEN ||   # RDF-star: <<( ... )>> as subject
     (k == SP_TOK_KW && (sp_peek_token(p.lex).value == "true" || sp_peek_token(p.lex).value == "false"))
 end
 

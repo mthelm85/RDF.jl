@@ -40,6 +40,16 @@ struct SpAnonBNode <: SpExpr
     id::UInt64
 end
 
+"""An embedded triple term `<<( subject predicate object )>>` used as subject or
+object in an RDF-star triple pattern.  Each inner field is itself an `SpExpr`
+(typically `SpVar`, `SpIRI`, or `SpLiteral`); nested `SpTripleTerm` values are
+allowed for deeply nested annotations."""
+struct SpTripleTerm <: SpExpr
+    subject::SpExpr
+    predicate::SpExpr   # must resolve to an IRI at evaluation time
+    object::SpExpr
+end
+
 # Global counter for SpAnonBNode IDs (separate from RDF blank-node counter)
 const _SP_ANON_COUNTER = Threads.Atomic{UInt64}(0)
 SpAnonBNode() = SpAnonBNode(Threads.atomic_add!(_SP_ANON_COUNTER, UInt64(1)))

@@ -172,6 +172,23 @@ end
             return (true, UInt32(0))
         end
         return (true, get(_LITERAL_TO_ID, term, UInt32(0)))
+    elseif expr isa SpTripleTerm
+        # Constant only when every inner position is itself constant
+        s_is_c, s_id = _bt_const_id(expr.subject,   ctx)
+        s_is_c || return (false, UInt32(0))
+        p_is_c, p_id = _bt_const_id(expr.predicate, ctx)
+        p_is_c || return (false, UInt32(0))
+        o_is_c, o_id = _bt_const_id(expr.object,    ctx)
+        o_is_c || return (false, UInt32(0))
+        # All constant — any missing from registry means no match possible
+        (s_id == 0 || p_id == 0 || o_id == 0) && return (true, UInt32(0))
+        s_term = _resolve(s_id)
+        p_term = _resolve(p_id)
+        o_term = _resolve(o_id)
+        p_term isa IRI || return (true, UInt32(0))
+        s_term isa SubjectTerm || return (true, UInt32(0))
+        tt = try TripleTerm(s_term, p_term::IRI, o_term) catch; return (true, UInt32(0)) end
+        return (true, get(_TRIPLE_TERM_TO_ID, tt, UInt32(0)))
     end
     (false, UInt32(0))
 end
@@ -479,7 +496,8 @@ function _bt_left_join(bt::_BT, opt_pat::SpPat, ctx::_SpEvalCtx)::_BT
     # BIND, nested OPTIONAL, etc.) into a single merged BGP so we get the fast path.
     bgp = _bt_extract_plain_bgp(opt_pat)
 
-    if bgp !== nothing && !any(tp -> _bt_is_complex_path(tp.predicate), bgp.triples)
+    if bgp !== nothing &&
+       !any(tp -> _bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp), bgp.triples)
         isempty(bgp.triples) && return bt
         length(bgp.triples) == 1 && return _bt_left_join_tp(bt, bgp.triples[1], ctx)
         return _bt_left_join_bgp(bt, bgp, ctx)
@@ -571,6 +589,9 @@ function _sp_expr_no_exists(expr::SpExpr)::Bool
     expr isa SpIn      && return _sp_expr_no_exists(expr.expr) && all(_sp_expr_no_exists, expr.list)
     expr isa SpIf      && return _sp_expr_no_exists(expr.cond) && _sp_expr_no_exists(expr.then_) && _sp_expr_no_exists(expr.else_)
     expr isa SpAggregate && return expr.arg === nothing || _sp_expr_no_exists(expr.arg)
+    expr isa SpTripleTerm && return _sp_expr_no_exists(expr.subject) &&
+                                    _sp_expr_no_exists(expr.predicate) &&
+                                    _sp_expr_no_exists(expr.object)
     true   # unknown node type — conservative
 end
 
@@ -593,6 +614,10 @@ function _sp_expr_vars!(expr::SpExpr, out::Set{Symbol})
         _sp_expr_vars!(expr.cond, out);  _sp_expr_vars!(expr.then_, out);  _sp_expr_vars!(expr.else_, out)
     elseif expr isa SpAggregate
         expr.arg !== nothing && _sp_expr_vars!(expr.arg, out)
+    elseif expr isa SpTripleTerm
+        _sp_expr_vars!(expr.subject,   out)
+        _sp_expr_vars!(expr.predicate, out)
+        _sp_expr_vars!(expr.object,    out)
     end
     # SpExists / SpNotExists: handled by _sp_expr_no_exists guard in caller.
 end
@@ -1081,6 +1106,13 @@ end
         sym = Symbol("_sp_anon_", pattern.id)
         existing = get(μ, sym, nothing)
         return existing === nothing || existing == val
+    elseif pattern isa SpTripleTerm
+        val isa TripleTerm || return false
+        tt = val::TripleTerm
+        _sp_compat_term(pattern.subject,   tt.subject,   μ) || return false
+        _sp_compat_term(pattern.predicate, tt.predicate, μ) || return false
+        _sp_compat_term(pattern.object,    tt.object,    μ) || return false
+        return true
     else
         return false
     end
@@ -1095,6 +1127,13 @@ end
     elseif pattern isa SpAnonBNode
         sym = Symbol("_sp_anon_", pattern.id)
         haskey(μ, sym) || (μ[sym] = val)
+    elseif pattern isa SpTripleTerm
+        # Recurse into the embedded triple term to bind inner variables
+        val isa TripleTerm || return
+        tt = val::TripleTerm
+        _sp_new_binding!(pattern.subject,   tt.subject,   μ)
+        _sp_new_binding!(pattern.predicate, tt.predicate, μ)
+        _sp_new_binding!(pattern.object,    tt.object,    μ)
     end
     # SpIRI and SpLiteral are constants — no binding to set
 end
@@ -1155,6 +1194,13 @@ function _sp_bind_term(pattern::SpExpr, val::RDFTerm, μ::_SpSolution)::Bool
             μ[sym] = val
             return true
         end
+    elseif pattern isa SpTripleTerm
+        val isa TripleTerm || return false
+        tt = val::TripleTerm
+        _sp_bind_term(pattern.subject,   tt.subject,   μ) || return false
+        _sp_bind_term(pattern.predicate, tt.predicate, μ) || return false
+        _sp_bind_term(pattern.object,    tt.object,    μ) || return false
+        return true
     else
         return false
     end
@@ -1184,17 +1230,90 @@ function _sp_resolve_tp_term(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution)::Un
         # Look up the anonymous blank node binding already established in this solution
         sym = Symbol("_sp_anon_", expr.id)
         get(μ, sym, nothing)
+    elseif expr isa SpTripleTerm
+        s_term = _sp_resolve_tp_term(expr.subject,   ctx, μ)
+        p_term = _sp_resolve_tp_term(expr.predicate, ctx, μ)
+        o_term = _sp_resolve_tp_term(expr.object,    ctx, μ)
+        (s_term === nothing || p_term === nothing || o_term === nothing) && return nothing
+        p_term isa IRI       || return nothing
+        s_term isa SubjectTerm || return nothing
+        try TripleTerm(s_term, p_term::IRI, o_term) catch; nothing end
     else
         nothing
     end
+end
+
+# ── RDF-star triple-term helpers ──────────────────────────────────────────────
+
+# Returns true when an expression is (or contains) an SpTripleTerm that has at
+# least one inner variable — meaning we cannot treat it as a static hexastore key
+# and must fall back to per-row matching.
+function _expr_has_tt_vars(expr::SpExpr)::Bool
+    expr isa SpVar       && return false   # just a variable, not a TripleTerm
+    expr isa SpTripleTerm && return (
+        _expr_has_tt_vars_inner(expr.subject)   ||
+        _expr_has_tt_vars_inner(expr.predicate) ||
+        _expr_has_tt_vars_inner(expr.object))
+    false
+end
+
+function _expr_has_tt_vars_inner(expr::SpExpr)::Bool
+    expr isa SpVar        && return true
+    expr isa SpBNode      && return true
+    expr isa SpAnonBNode  && return true
+    expr isa SpTripleTerm && return (
+        _expr_has_tt_vars_inner(expr.subject)   ||
+        _expr_has_tt_vars_inner(expr.predicate) ||
+        _expr_has_tt_vars_inner(expr.object))
+    false
+end
+
+# Returns true when a triple pattern requires per-row TripleTerm matching
+# (i.e., subject or object is an SpTripleTerm with inner variables).
+@inline function _tp_needs_tt_matching(tp::SpTriple)::Bool
+    _expr_has_tt_vars(tp.subject) || _expr_has_tt_vars(tp.object)
+end
+
+# Evaluate a single triple pattern per-row.  Used when the subject or object is
+# an SpTripleTerm with inner variables that the columnar BT path cannot handle.
+function _sp_eval_tp_row(tp::SpTriple, ctx::_SpEvalCtx, μ::_SpSolution)::Vector{_SpSolution}
+    # Resolve constants for the hexastore filter; leave wildcards as nothing.
+    s_filter = begin
+        t = _sp_resolve_tp_term(tp.subject, ctx, μ)
+        t isa SubjectTerm ? t : nothing
+    end
+    p_filter = if tp.predicate isa SpPathA
+        IRI(_SP_RDF_TYPE)
+    elseif tp.predicate isa SpPathIRI
+        IRI((tp.predicate::SpPathIRI).value)
+    elseif tp.predicate isa SpExpr
+        t = _sp_resolve_tp_term(tp.predicate::SpExpr, ctx, μ)
+        t isa IRI ? t : nothing
+    else
+        nothing
+    end
+    o_filter = begin
+        t = _sp_resolve_tp_term(tp.object, ctx, μ)
+        t isa ObjectTerm ? t : nothing
+    end
+
+    results = _SpSolution[]
+    for triple in match(ctx.active_graph;
+                        subject   = s_filter,
+                        predicate = p_filter,
+                        object    = o_filter)
+        μ2 = _sp_bind_triple(tp, triple, μ)
+        μ2 !== nothing && push!(results, μ2)
+    end
+    results
 end
 
 # Evaluate a BGP against the active graph using a columnar BindingTable.
 #
 # Solutions are stored column-wise as parallel Vector{UInt32} arrays during
 # the join loop, eliminating per-row Dict copy allocations.  Property-path
-# triples fall back to per-solution evaluation (they are uncommon and require
-# graph traversal that doesn't map to a simple hexastore lookup).
+# triples and RDF-star triple-term patterns with inner variables fall back to
+# per-solution evaluation.
 function _sp_eval_bgp(bgp::SpBGP, ctx::_SpEvalCtx, input::Vector{_SpSolution})::Vector{_SpSolution}
     bt = _solutions_to_bt(input)
 
@@ -1209,6 +1328,15 @@ function _sp_eval_bgp(bgp::SpBGP, ctx::_SpEvalCtx, input::Vector{_SpSolution})::
             for μ in sols
                 append!(next, _sp_eval_path_pattern(
                     tp.subject, tp.predicate::SpPath, tp.object, ctx, μ))
+            end
+            bt = _solutions_to_bt(next)
+        elseif _tp_needs_tt_matching(tp)
+            # SpTripleTerm with inner variables: per-row matching so we can
+            # filter for TripleTerm terms and bind their inner variables.
+            sols = _bt_to_solutions(bt)
+            next = _SpSolution[]
+            for μ in sols
+                append!(next, _sp_eval_tp_row(tp, ctx, μ))
             end
             bt = _solutions_to_bt(next)
         else
@@ -2078,7 +2206,7 @@ function _sp_eval_where_bt(pat::SpPat, ctx::_SpEvalCtx)::Union{_BT, Nothing}
     if pat isa SpBGP
         for tp in pat.triples
             _bt_nrows(bt) == 0 && return bt
-            _bt_is_complex_path(tp.predicate) && return nothing
+            (_bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp)) && return nothing
             bt = _bt_extend_tp(bt, tp, ctx)
         end
         return bt
@@ -2091,8 +2219,8 @@ function _sp_eval_where_bt(pat::SpPat, ctx::_SpEvalCtx)::Union{_BT, Nothing}
         if !(elem isa SpBGP || elem isa SpOptional || elem isa SpBind || elem isa SpFilter)
             return nothing   # nested SpGroup, SpValues, SpUnion, SpGraph, SpService, …
         end
-        if elem isa SpBGP && any(tp -> _bt_is_complex_path(tp.predicate), elem.triples)
-            return nothing   # property path inside BGP
+        if elem isa SpBGP && any(tp -> _bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp), elem.triples)
+            return nothing   # property path or RDF-star pattern inside BGP
         end
     end
 
