@@ -2383,10 +2383,12 @@ function _sp_apply_group_aggregation(q::SpSelectQuery, sols::Vector{_SpSolution}
                 val !== nothing && (μ[vname] = val)
             end
         end
-        # Evaluate HAVING (with access to the group for aggregate expressions)
+        # Evaluate HAVING.  Pass μ so that aggregate aliases (e.g. ?blastRadius
+        # defined by COUNT(DISTINCT ...) AS ?blastRadius in SELECT) resolve
+        # correctly — they live in μ, not in the raw group solutions.
         having_ok = true
         for having_expr in q.having
-            val = try _sp_eval_aggregate_expr(having_expr, group, ctx, sols) catch; nothing end
+            val = try _sp_eval_aggregate_expr(having_expr, group, ctx, sols, μ) catch; nothing end
             b   = val === nothing ? false : (try _sp_to_bool(val) catch; false end)
             if !b; having_ok = false; break; end
         end
@@ -2397,14 +2399,18 @@ function _sp_apply_group_aggregation(q::SpSelectQuery, sols::Vector{_SpSolution}
 end
 
 function _sp_eval_aggregate_expr(expr::SpExpr, group::Vector{_SpSolution}, ctx::_SpEvalCtx,
-                                  all_sols::Vector{_SpSolution})::Union{RDFTerm, Nothing}
+                                  all_sols::Vector{_SpSolution},
+                                  precomputed::Union{_SpSolution, Nothing}=nothing)::Union{RDFTerm, Nothing}
+    # Shorthand for recursive calls that propagates precomputed bindings
+    rec(e) = _sp_eval_aggregate_expr(e, group, ctx, all_sols, precomputed)
+
     if expr isa SpAggregate
         return _sp_apply_aggregate(expr, group, ctx)
 
     elseif expr isa SpBinary
         # Recursively evaluate both sides in aggregate context
-        l = _sp_eval_aggregate_expr(expr.left,  group, ctx, all_sols)
-        r = _sp_eval_aggregate_expr(expr.right, group, ctx, all_sols)
+        l = rec(expr.left)
+        r = rec(expr.right)
         (l === nothing || r === nothing) && return nothing
         # Evaluate the operator via a temporary solution with pre-computed values
         μt = _SpSolution(:_l => l, :_r => r)
@@ -2412,7 +2418,7 @@ function _sp_eval_aggregate_expr(expr::SpExpr, group::Vector{_SpSolution}, ctx::
         return try _sp_eval_expr(fake, ctx, μt, all_sols) catch; nothing end
 
     elseif expr isa SpUnary
-        v = _sp_eval_aggregate_expr(expr.arg, group, ctx, all_sols)
+        v = rec(expr.arg)
         v === nothing && return nothing
         μt = _SpSolution(:_v => v)
         fake = SpUnary(expr.op, SpVar(:_v))
@@ -2421,26 +2427,31 @@ function _sp_eval_aggregate_expr(expr::SpExpr, group::Vector{_SpSolution}, ctx::
     elseif expr isa SpCall
         args = Union{RDFTerm, Nothing}[]
         for a in expr.args
-            push!(args, _sp_eval_aggregate_expr(a, group, ctx, all_sols))
+            push!(args, rec(a))
         end
         nothing in args && return nothing
         return try _sp_call_builtin(expr.func, RDFTerm[a for a in args], ctx.base) catch; nothing end
 
     elseif expr isa SpIf
-        cond = _sp_eval_aggregate_expr(expr.cond, group, ctx, all_sols)
+        cond = rec(expr.cond)
         b = try _sp_to_bool(cond) catch; return nothing end
-        return b ? _sp_eval_aggregate_expr(expr.then_, group, ctx, all_sols) :
-                   _sp_eval_aggregate_expr(expr.else_, group, ctx, all_sols)
+        return b ? rec(expr.then_) : rec(expr.else_)
 
     elseif expr isa SpCoalesce
         for a in expr.args
-            v = try _sp_eval_aggregate_expr(a, group, ctx, all_sols) catch; nothing end
+            v = try rec(a) catch; nothing end
             v !== nothing && return v
         end
         return nothing
 
     else
-        # Non-aggregate: evaluate against first solution in group
+        # Non-aggregate: check precomputed aggregate aliases first (e.g. aliases
+        # defined in SELECT that are referenced in HAVING), then fall back to
+        # evaluating against the first solution in the group.
+        if precomputed !== nothing && expr isa SpVar
+            v = get(precomputed, expr.name, nothing)
+            v !== nothing && return v
+        end
         isempty(group) && return nothing
         try _sp_eval_expr(expr, ctx, group[1], all_sols) catch; nothing end
     end

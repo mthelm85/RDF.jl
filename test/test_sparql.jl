@@ -241,6 +241,52 @@ end
         @test avg ≈ (30.0 + 25.0 + 35.0) / 3
     end
 
+    @testset "SELECT — HAVING references aggregate alias" begin
+        # Regression: HAVING (?alias > N) where ?alias is defined by an
+        # aggregate in SELECT used to return zero results because the alias
+        # lived in μ (the computed result row) but HAVING looked it up in the
+        # raw group solutions where it doesn't exist.
+        ttl = """
+          PREFIX ex: <http://example.org/>
+          ex:a ex:group "g1" ; ex:val 1 .
+          ex:b ex:group "g1" ; ex:val 2 .
+          ex:c ex:group "g1" ; ex:val 3 .
+          ex:d ex:group "g2" ; ex:val 1 .
+        """
+        ds = Dataset(; default_graph=read(IOBuffer(ttl), MIME"text/turtle"(), Graph))
+
+        # Without HAVING — should return both groups
+        r_all = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          SELECT ?g (COUNT(?v) AS ?n) WHERE {
+            ?s ex:group ?g ; ex:val ?v .
+          } GROUP BY ?g
+        """)
+        @test length(r_all) == 2
+
+        # With HAVING referencing the alias — should filter to only "g1" (count=3)
+        r_filtered = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          SELECT ?g (COUNT(?v) AS ?n) WHERE {
+            ?s ex:group ?g ; ex:val ?v .
+          } GROUP BY ?g
+          HAVING (?n > 1)
+        """)
+        @test length(r_filtered) == 1
+        @test value(String, r_filtered[1][:g]) == "g1"
+        @test value(Int64, r_filtered[1][:n]) == 3
+
+        # With HAVING using inline aggregate (not alias) — same result
+        r_inline = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          SELECT ?g (COUNT(?v) AS ?n) WHERE {
+            ?s ex:group ?g ; ex:val ?v .
+          } GROUP BY ?g
+          HAVING (COUNT(?v) > 1)
+        """)
+        @test length(r_inline) == 1
+    end
+
     @testset "SELECT — GROUP_CONCAT" begin
         ds = _sparql_ds()
         result = sparql(ds, """
