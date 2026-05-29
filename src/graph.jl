@@ -55,8 +55,8 @@ function bulk_load!(g::Graph, triples)
         p_id = _intern!(t.predicate)
         o_id = _intern!(t.object)
         push!(tuples, (s_id, p_id, o_id))
-        t.subject isa BlankNode && push!(g.blank_nodes, (t.subject::BlankNode).id)
-        t.object  isa BlankNode && push!(g.blank_nodes, (t.object::BlankNode).id)
+        _collect_blank_ids!(g.blank_nodes, t.subject)
+        _collect_blank_ids!(g.blank_nodes, t.object)
     end
     _hexa_bulk_insert!(g.store, tuples)
     g._size = length(g.store.spo)
@@ -67,12 +67,8 @@ function Base.push!(g::Graph, t::Triple)
     s_id = _intern!(t.subject)
     p_id = _intern!(t.predicate)
     o_id = _intern!(t.object)
-    if t.subject isa BlankNode
-        push!(g.blank_nodes, t.subject.id)
-    end
-    if t.object isa BlankNode
-        push!(g.blank_nodes, (t.object::BlankNode).id)
-    end
+    _collect_blank_ids!(g.blank_nodes, t.subject)
+    _collect_blank_ids!(g.blank_nodes, t.object)
     if _hexa_insert!(g.store, s_id, p_id, o_id)
         g._size += 1
     end
@@ -157,6 +153,39 @@ end
 const ∪ = Base.union
 const ∩ = Base.intersect
 
+# ── Blank node helpers ───────────────────────────────────────────────────────
+#
+# These recurse into TripleTerms so that blank nodes nested inside embedded
+# triple subjects and objects are properly tracked / remapped.
+
+# Collect all blank node IDs reachable from `term` into `ids`.
+function _collect_blank_ids!(ids::Set{UInt64}, term)
+    if term isa BlankNode
+        push!(ids, term.id)
+    elseif term isa TripleTerm
+        _collect_blank_ids!(ids, term.subject)
+        _collect_blank_ids!(ids, term.object)
+    end
+end
+
+# Return true if `term` contains any blank node at any depth.
+function _has_blank(term)::Bool
+    term isa BlankNode  && return true
+    term isa TripleTerm && return _has_blank(term.subject) || _has_blank(term.object)
+    return false
+end
+
+# Recursively remap blank nodes in `term` using `mapping`.
+function _remap_term(term, mapping::Dict{UInt64, BlankNode})
+    term isa BlankNode  && return get(mapping, term.id, term)
+    term isa TripleTerm && return TripleTerm(
+        _remap_term(term.subject, mapping),
+        term.predicate,
+        _remap_term(term.object,  mapping),
+    )
+    return term
+end
+
 # ── Blank node renaming for merge ─────────────────────────────────────────────
 
 function _rename_blanks(g::Graph, existing_ids::Set{UInt64})
@@ -171,9 +200,7 @@ function _rename_blanks(g::Graph, existing_ids::Set{UInt64})
 end
 
 function _remap_triple(t::Triple, m::Dict{UInt64, BlankNode})
-    s = t.subject isa BlankNode ? get(m, (t.subject::BlankNode).id, t.subject) : t.subject
-    o = t.object  isa BlankNode ? get(m, (t.object::BlankNode).id,  t.object)  : t.object
-    Triple(s, t.predicate, o)
+    Triple(_remap_term(t.subject, m), t.predicate, _remap_term(t.object, m))
 end
 
 # ── Subgraph and isomorphism ──────────────────────────────────────────────────
@@ -214,7 +241,7 @@ function _split_ground(g::Graph)
     ground = Set{Triple}()
     bnode  = Triple[]
     for t in g
-        if t.subject isa BlankNode || t.object isa BlankNode
+        if _has_blank(t.subject) || _has_blank(t.object)
             push!(bnode, t)
         else
             push!(ground, t)
@@ -233,9 +260,18 @@ end
 
 function _blanks_in(t::Triple)
     result = BlankNode[]
-    t.subject isa BlankNode && push!(result, t.subject::BlankNode)
-    t.object  isa BlankNode && push!(result, t.object::BlankNode)
+    _collect_blanks_vec!(result, t.subject)
+    _collect_blanks_vec!(result, t.object)
     result
+end
+
+function _collect_blanks_vec!(result::Vector{BlankNode}, term)
+    if term isa BlankNode
+        push!(result, term)
+    elseif term isa TripleTerm
+        _collect_blanks_vec!(result, term.subject)
+        _collect_blanks_vec!(result, term.object)
+    end
 end
 
 function _try_bijection(ids1, ids2, ts1, ts2, mapping::Dict{UInt64,UInt64})
@@ -255,12 +291,9 @@ end
 hasvalue(d::Dict, v) = v in values(d)
 
 function _check_mapping(ts1, ts2, mapping::Dict{UInt64,UInt64})
-    mapped = Set{Triple}()
-    for t in ts1
-        s = t.subject isa BlankNode ? BlankNode(mapping[(t.subject::BlankNode).id]) : t.subject
-        o = t.object  isa BlankNode ? BlankNode(mapping[(t.object::BlankNode).id])  : t.object
-        push!(mapped, Triple(s, t.predicate, o))
-    end
+    id_map = Dict{UInt64, BlankNode}(k => BlankNode(v) for (k, v) in mapping)
+    mapped = Set{Triple}(Triple(_remap_term(t.subject, id_map), t.predicate,
+                                _remap_term(t.object,  id_map)) for t in ts1)
     mapped == Set{Triple}(ts2)
 end
 

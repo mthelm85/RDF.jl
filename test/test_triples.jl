@@ -154,7 +154,7 @@ using Test
         @test t2 isa Triple
     end
 
-    @testset "TripleTerm (RDF 1.2 embedded triples)" begin
+    @testset "TripleTerm (RDF-star embedded triples)" begin
         # Construction — positional (subject, predicate, object)
         tt = TripleTerm(ex.alice, ex.age, Literal(30))
         @test tt isa TripleTerm
@@ -167,10 +167,10 @@ using Test
         @test hash(tt) == hash(TripleTerm(ex.alice, ex.age, Literal(30)))
         @test tt != TripleTerm(ex.bob, ex.age, Literal(30))
 
-        # TripleTerm is a valid ObjectTerm but NOT a SubjectTerm or PredicateTerm
+        # TripleTerm is both a SubjectTerm and an ObjectTerm (full RDF-star)
         @test tt isa RDFTerm
         @test tt isa ObjectTerm
-        @test !(tt isa SubjectTerm)
+        @test tt isa SubjectTerm
 
         # Nested TripleTerm (embedded triple as object of another TripleTerm)
         nested = TripleTerm(ex.bob, ex.knows, tt)
@@ -203,6 +203,44 @@ using Test
         @test obj.subject   == ex.alice
         @test obj.predicate == ex.age
         @test obj.object    == Literal(30)
+
+        # ── Subject position ──────────────────────────────────────────────────
+
+        # TripleTerm as Triple subject (full RDF-star)
+        g2 = Graph()
+        tt_subj = TripleTerm(ex.alice, ex.age, Literal(30))
+        push!(g2, Triple(tt_subj, ex.certainty, Literal(0.9)))
+        @test length(g2) == 1
+
+        # Retrieve by subject
+        r = collect(match(g2; subject=tt_subj))
+        @test length(r) == 1
+        @test r[1].subject == tt_subj
+        @test r[1].predicate == ex.certainty
+
+        # Retrieve by predicate (wildcard subject)
+        r2 = collect(match(g2; predicate=ex.certainty))
+        @test length(r2) == 1
+        @test r2[1].subject isa TripleTerm
+
+        # Nested TripleTerm as subject (TripleTerm whose own subject is a TripleTerm)
+        inner = TripleTerm(ex.alice, ex.knows, ex.bob)
+        outer = TripleTerm(inner, ex.source, ex.doc)
+        @test outer.subject isa TripleTerm
+        push!(g2, Triple(outer, ex.certainty, Literal(1.0)))
+        @test length(g2) == 2
+
+        # N-Triples round-trip for subject-position TripleTerm
+        buf = IOBuffer()
+        write(buf, MIME"application/n-triples"(), g2)
+        nt_str = String(take!(buf))
+        @test occursin("<<(", nt_str)   # triple term serialized
+        g3 = read(IOBuffer(nt_str), MIME"application/n-triples"(), Graph)
+        @test length(g3) == 2
+        @test isomorphic(g2, g3)
+
+        # Invalid: Literal as TripleTerm subject must throw
+        @test_throws ArgumentError TripleTerm(Literal("bad"), ex.p, ex.o)
     end
 
     @testset "GeneralizedTriple — literals and blank nodes in any position" begin

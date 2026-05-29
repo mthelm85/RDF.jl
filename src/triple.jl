@@ -1,8 +1,9 @@
 """
     Triple(subject, predicate, object)
 
-An RDF triple. `subject` must be a `SubjectTerm` (`IRI` or `BlankNode`),
-`predicate` must be an `IRI`, and `object` may be any `ObjectTerm`.
+An RDF triple. `subject` must be a `SubjectTerm` (`IRI`, `BlankNode`, or
+`TripleTerm`), `predicate` must be an `IRI`, and `object` may be any
+`ObjectTerm`.
 
 ```julia
 ex = Namespace("http://example.org/")

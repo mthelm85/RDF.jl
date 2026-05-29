@@ -154,8 +154,9 @@ function Base.write(io::IO, ::_MIME_TTL, g::Graph;
     end
 
     for (subj, po_pairs) in by_subj
-        if subj isa IRI; print(io, _abbrev(subj))
-        else;            print(io, "_:b$(subj.id)"); end
+        if subj isa IRI;        print(io, _abbrev(subj))
+        elseif subj isa BlankNode; print(io, "_:b$(subj.id)")
+        else;                   _write_triple_term(io, subj); end  # TripleTerm
 
         pred_objs = Dict{IRI,Vector{ObjectTerm}}()
         for (pred, obj) in po_pairs
@@ -169,9 +170,10 @@ function Base.write(io::IO, ::_MIME_TTL, g::Graph;
             for (j, obj) in enumerate(objs)
                 j > 1 && print(io, ",")
                 print(io, " ")
-                if obj isa IRI;        print(io, _abbrev(obj))
+                if obj isa IRI;           print(io, _abbrev(obj))
                 elseif obj isa BlankNode; print(io, "_:b$(obj.id)")
                 elseif obj isa Literal;   _write_literal(io, obj)
+                elseif obj isa TripleTerm; _write_triple_term(io, obj)
                 end
             end
             i < length(pred_list) ? print(io, " ;") : print(io, " .")
@@ -625,6 +627,9 @@ function _ttl_parse_object_term!(p::_TurtleParser)::ObjectTerm
     _ttl_skip!(p)
     c = _ttl_peek(p)
     if c == '<'
+        if _ttl_peek_at(p, 1) == '<'
+            return _ttl_parse_triple_term!(p)
+        end
         return _ttl_parse_iriref!(p)
     elseif c == '"' || c == '\''
         return _ttl_parse_literal!(p)
@@ -678,11 +683,36 @@ function _ttl_parse_predicate!(p::_TurtleParser)::IRI
     end
 end
 
+# ── Triple term ──────────────────────────────────────────────────────────────
+
+function _ttl_parse_triple_term!(p::_TurtleParser)::TripleTerm
+    # Consume '<<('
+    _ttl_expect_char!(p, '<')
+    _ttl_expect_char!(p, '<')
+    _ttl_expect_char!(p, '(')
+    _ttl_skip!(p)
+    subj = _ttl_parse_subject!(p)
+    _ttl_skip!(p)
+    pred = _ttl_parse_predicate!(p)
+    _ttl_skip!(p)
+    obj  = _ttl_parse_object_term!(p)
+    _ttl_skip!(p)
+    # Consume ')>>'
+    _ttl_expect_char!(p, ')')
+    _ttl_expect_char!(p, '>')
+    _ttl_expect_char!(p, '>')
+    TripleTerm(subj, pred, obj)
+end
+
 # ── Subject ───────────────────────────────────────────────────────────────────
 
-function _ttl_parse_subject!(p::_TurtleParser)::Union{IRI,BlankNode}
+function _ttl_parse_subject!(p::_TurtleParser)::SubjectTerm
     c = _ttl_peek(p)
     if c == '<'
+        # TripleTerm in subject position: <<( ... )>>
+        if _ttl_peek_at(p, 1) == '<'
+            return _ttl_parse_triple_term!(p)
+        end
         return _ttl_parse_iriref!(p)
     elseif c == '_' && _ttl_peek_at(p,1) == ':'
         return _ttl_parse_blank_node_label!(p)
@@ -693,7 +723,7 @@ end
 
 # ── Predicate-object list ─────────────────────────────────────────────────────
 
-function _ttl_parse_po_list!(p::_TurtleParser, subj::Union{IRI,BlankNode})
+function _ttl_parse_po_list!(p::_TurtleParser, subj::SubjectTerm)
     while true
         _ttl_skip!(p)
         pred = _ttl_parse_predicate!(p)

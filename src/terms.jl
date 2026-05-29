@@ -242,28 +242,32 @@ Base.hash(a::Literal, h::UInt) =
 """
     TripleTerm(subject, predicate, object) <: RDFTerm
 
-An RDF-star triple term representing a triple embedded as an RDF term (object position).
-Enables statement-level annotations via `rdf:reifies` without blank-node reification.
+An RDF-star triple term — an embedded triple used as an RDF term in either
+subject or object position. Enables statement-level annotations (e.g. via
+`rdf:reifies`) without blank-node reification.
 
-The subject must be an `IRI` or `BlankNode`; the predicate must be an `IRI`;
-the object may be any `ObjectTerm` (including a nested `TripleTerm`).
-
-!!! note
-    `TripleTerm` is supported in **object position** only. Use as a `Triple` subject
-    is not currently supported.
+The subject may be an `IRI`, `BlankNode`, or nested `TripleTerm`; the
+predicate must be an `IRI`; the object may be any `ObjectTerm`.
 
 ```julia
 tt = TripleTerm(iri"http://example.org/bob", rdf.type, iri"http://example.org/Person")
-push!(g, Triple(iri"http://example.org/alice", iri"http://example.org/knows", tt))
+
+# As object (most common — rdf:reifies annotation)
+push!(g, Triple(iri"http://example.org/claim", rdf.reifies, tt))
+
+# As subject
+push!(g, Triple(tt, iri"http://example.org/certainty", Literal(0.9)))
 ```
 """
 struct TripleTerm <: RDFTerm
-    subject::Union{IRI, BlankNode}
+    # Both subject and object are Any because Julia doesn't support recursive
+    # immutable structs; the inner constructor enforces the correct types.
+    subject::Any   # Union{IRI, BlankNode, TripleTerm}
     predicate::IRI
-    # object is Any because Julia doesn't support recursive immutable structs;
-    # the inner constructor enforces Union{IRI, BlankNode, Literal, TripleTerm}
-    object::Any
-    function TripleTerm(s::Union{IRI, BlankNode}, p::IRI, o)
+    object::Any    # Union{IRI, BlankNode, Literal, TripleTerm}
+    function TripleTerm(s, p::IRI, o)
+        s isa IRI || s isa BlankNode || s isa TripleTerm ||
+            throw(ArgumentError("TripleTerm subject must be IRI, BlankNode, or TripleTerm"))
         o isa IRI || o isa BlankNode || o isa Literal || o isa TripleTerm ||
             throw(ArgumentError("TripleTerm object must be IRI, BlankNode, Literal, or TripleTerm"))
         new(s, p, o)
@@ -280,9 +284,10 @@ Base.hash(a::TripleTerm, h::UInt) =
 """
     SubjectTerm
 
-Union type for valid RDF subject positions: `IRI` or `BlankNode`.
+Union type for valid RDF subject positions: `IRI`, `BlankNode`, or `TripleTerm`
+(RDF-star embedded triple).
 """
-const SubjectTerm   = Union{IRI, BlankNode}
+const SubjectTerm   = Union{IRI, BlankNode, TripleTerm}
 
 """
     PredicateTerm

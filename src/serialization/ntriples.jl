@@ -17,8 +17,9 @@ function _write_triple(io::IO, t::Triple)
     println(io, " .")
 end
 
-_write_subject(io, iri::IRI)      = _write_iri(io, iri)
-_write_subject(io, bn::BlankNode) = _write_blank(io, bn)
+_write_subject(io, iri::IRI)       = _write_iri(io, iri)
+_write_subject(io, bn::BlankNode)  = _write_blank(io, bn)
+_write_subject(io, tt::TripleTerm) = _write_triple_term(io, tt)
 _write_object(io, iri::IRI)       = _write_iri(io, iri)
 _write_object(io, bn::BlankNode)  = _write_blank(io, bn)
 _write_object(io, lit::Literal)   = _write_literal(io, lit)
@@ -87,8 +88,8 @@ function Base.read(io::IO, ::_MIME_NT, ::Type{Graph})::Graph
         p_id = _intern!(t.predicate)
         o_id = _intern!(t.object)
         push!(tuples, (s_id, p_id, o_id))
-        t.subject isa BlankNode && push!(g.blank_nodes, (t.subject::BlankNode).id)
-        t.object  isa BlankNode && push!(g.blank_nodes, (t.object::BlankNode).id)
+        _collect_blank_ids!(g.blank_nodes, t.subject)
+        _collect_blank_ids!(g.blank_nodes, t.object)
     end
 
     _hexa_bulk_insert!(g.store, tuples)
@@ -237,13 +238,14 @@ end
 function _parse_nt_subject(s, pos, lineno, blank_map)
     pos <= lastindex(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
     if s[pos] == '<'
-        # Reject triple terms (<<...) as outer subject
-        pos + 1 <= lastindex(s) && s[pos+1] == '<' &&
-            throw(ParseError("Triple term not allowed as subject", lineno, pos, _MIME_NT()))
+        # TripleTerm in subject position: <<( ... )>>
+        if pos + 2 <= lastindex(s) && s[pos+1] == '<' && s[pos+2] == '('
+            return _parse_nt_triple_term(s, pos, lineno, blank_map)
+        end
         return _parse_nt_iri(s, pos, lineno)
     end
     s[pos] == '_' && return _parse_nt_blank(s, pos, lineno, blank_map)
-    throw(ParseError("Expected subject (IRI or blank node)", lineno, pos, _MIME_NT()))
+    throw(ParseError("Expected subject (IRI, blank node, or triple term)", lineno, pos, _MIME_NT()))
 end
 
 function _parse_nt_object(s, pos, lineno, blank_map)
@@ -269,7 +271,7 @@ function _parse_nt_triple_term(s, pos, lineno, blank_map)
     pos += 3  # skip '<<('
     pos = _skip_ws(s, pos)
 
-    # Subject: IRI or BlankNode only (triple term subject cannot be a triple term)
+    # Subject: IRI, BlankNode, or nested TripleTerm
     subj, pos = _parse_nt_subject(s, pos, lineno, blank_map)
     pos = _skip_ws(s, pos)
 

@@ -17,7 +17,7 @@ RDFTerm
 ├── IRI
 ├── BlankNode
 ├── Literal
-└── TripleTerm   (RDF-star — embedded triple terms)
+└── TripleTerm   (RDF-star — embedded triples in subject or object position)
 ```
 
 ## IRI
@@ -120,10 +120,9 @@ Abstract supertypes like `Number` or `AbstractFloat` work too.
 
 ## TripleTerm
 
-`TripleTerm` (RDF-star) allows an embedded triple to appear as an **object**,
-enabling statement-level annotations without blank-node reification.
-This covers the primary `rdf:reifies` use case.
-Note: TripleTerm in subject position is not currently supported.
+`TripleTerm` (RDF-star) allows an embedded triple to appear in both **subject**
+and **object** positions, enabling statement-level annotations without
+blank-node reification.
 
 ```@docs
 TripleTerm
@@ -146,7 +145,7 @@ when iterating [`Dataset`](@ref) quads.
 
 | Alias | Allowed types |
 |---|---|
-| `SubjectTerm` | `IRI`, `BlankNode` |
+| `SubjectTerm` | `IRI`, `BlankNode`, `TripleTerm` |
 | `PredicateTerm` | `IRI` |
 | `ObjectTerm` | `IRI`, `BlankNode`, `Literal`, `TripleTerm` |
 | `GraphName` | `IRI`, `BlankNode` |

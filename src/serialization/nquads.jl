@@ -55,8 +55,8 @@ function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset
 
         if q.graph === nothing
             push!(default_tuples, (s_id, p_id, o_id))
-            q.subject isa BlankNode && push!(default_blanks, (q.subject::BlankNode).id)
-            q.object  isa BlankNode && push!(default_blanks, (q.object::BlankNode).id)
+            _collect_blank_ids!(default_blanks, q.subject)
+            _collect_blank_ids!(default_blanks, q.object)
         else
             gname = q.graph::GraphName
             g_id  = _intern!(gname)
@@ -64,8 +64,8 @@ function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset
             v = get!(Vector{NTuple{3,UInt32}}, named_tuples, g_id)
             push!(v, (s_id, p_id, o_id))
             bns = get!(Set{UInt64}, named_blanks, g_id)
-            q.subject isa BlankNode && push!(bns, (q.subject::BlankNode).id)
-            q.object  isa BlankNode && push!(bns, (q.object::BlankNode).id)
+            _collect_blank_ids!(bns, q.subject)
+            _collect_blank_ids!(bns, q.object)
         end
     end
 
