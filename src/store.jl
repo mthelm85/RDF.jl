@@ -7,6 +7,18 @@ const _LITERAL_TO_ID      = RobinDict{Literal,      UInt32}()
 const _TRIPLE_TERM_TO_ID  = RobinDict{TripleTerm,   UInt32}()
 const _ID_TO_TERM    = RDFTerm[]
 const _NUMERIC_CACHE = Float64[]   # NaN for non-numeric/un-cacheable terms; indexed by term ID
+# Pre-formatted N-Triples serialization for each interned term (indexed by term ID).
+# Populated lazily by _ensure_nt_cache!() in ntriples.jl before any write operation.
+# Enables the fast write path: write(io, _NT_TERM_STRINGS[id]) × 3 per triple with no
+# _resolve(), no Triple allocation, and no formatting work on the hot path.
+const _NT_TERM_STRINGS = String[]
+# String-keyed IRI lookup table.  Mirrors _IRI_TO_ID but keyed by the raw IRI value
+# string rather than the IRI struct.  A SubString can be looked up here without first
+# allocating a String (Julia's Dict uses hash/isequal on content, and SubString and
+# String with identical content are equal and share the same hash).  This lets the
+# N-Triples / N-Quads parsers skip the String + IRI struct allocations entirely for
+# any IRI that has already been interned (predicates, datatype IRIs, repeated objects).
+const _IRI_STR_TO_ID = Dict{String, UInt32}()
 const _REGISTRY_LOCK = ReentrantLock()
 
 # Return the per-type map for dispatch without abstract keys
@@ -53,7 +65,10 @@ function _intern!(term::RDFTerm)::UInt32
     # during a write (Robin Hood hashing moves existing entries on insert,
     # so a lockless read can return a false miss or corrupt probe sequence).
     # ReentrantLock is uncontested in the single-threaded case (~5 ns overhead).
-    lock(_REGISTRY_LOCK) do
+    # Use lock/try/finally rather than lock(lk) do...end so no closure is heap-
+    # allocated on every call.
+    lock(_REGISTRY_LOCK)
+    try
         tmap = _type_map(term)
         id = get(tmap, term, UInt32(0))
         id != 0 && return id
@@ -61,7 +76,36 @@ function _intern!(term::RDFTerm)::UInt32
         push!(_ID_TO_TERM, term)
         push!(_NUMERIC_CACHE, _compute_numeric(term))
         tmap[term] = new_id
-        new_id
+        return new_id
+    finally
+        unlock(_REGISTRY_LOCK)
+    end
+end
+
+# Specialised intern for IRI: also populates _IRI_STR_TO_ID so the parser can
+# do SubString dedup lookups without constructing a temporary IRI struct.
+function _intern!(iri::IRI)::UInt32
+    lock(_REGISTRY_LOCK)
+    try
+        # String-keyed fast path: same lookup the parser uses.
+        id = get(_IRI_STR_TO_ID, iri.value, UInt32(0))
+        id != 0 && return id
+        # Fallback to the RobinDict (handles IRIs interned before this method
+        # existed, e.g. during vocabulary module init).
+        id = get(_IRI_TO_ID, iri, UInt32(0))
+        if id != 0
+            _IRI_STR_TO_ID[iri.value] = id   # backfill for future parser dedup
+            return id
+        end
+        # New IRI — register in both tables.
+        new_id = UInt32(length(_ID_TO_TERM) + 1)
+        push!(_ID_TO_TERM, iri)
+        push!(_NUMERIC_CACHE, NaN)            # IRIs are never numeric literals
+        _IRI_TO_ID[iri]           = new_id
+        _IRI_STR_TO_ID[iri.value] = new_id
+        return new_id
+    finally
+        unlock(_REGISTRY_LOCK)
     end
 end
 

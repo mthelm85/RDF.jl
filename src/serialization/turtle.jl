@@ -132,54 +132,121 @@ end
 
 function Base.write(io::IO, ::_MIME_TTL, g::Graph;
                     prefixes::Dict{String,String}=Dict{String,String}())
+    # Emit @prefix declarations
     for (pn, pi) in sort(collect(prefixes), by=first)
         println(io, "@prefix $pn: <$pi> .")
     end
     !isempty(prefixes) && println(io)
 
-    function _abbrev(iri::IRI)
-        best_len = 0; best_pn = ""
-        for (pn, pi) in prefixes
-            if startswith(iri.value, pi) && length(pi) > best_len
-                best_len = length(pi); best_pn = pn
-            end
-        end
-        best_len > 0 ? "$best_pn:$(iri.value[best_len+1:end])" : "<$(iri.value)>"
-    end
+    isempty(g) && return nothing
 
-    by_subj = Dict{SubjectTerm, Vector{Pair{IRI,ObjectTerm}}}()
-    for t in g
-        push!(get!(by_subj, t.subject) do; Pair{IRI,ObjectTerm}[] end,
-              t.predicate => t.object)
-    end
+    # Populate the per-term N-Triples string cache.  N-Triples and Turtle share
+    # the same surface syntax for every term type:
+    #   IRI       → <http://…>
+    #   BlankNode → _:b<id>
+    #   Literal   → "…"^^<dt> or "…"@lang
+    #   TripleTerm→ <<( … )>>   (RDF 1.2)
+    # So cache[id] is always valid Turtle output — no reformatting needed.
+    _ensure_nt_cache!()
+    cache     = _NT_TERM_STRINGS   # local alias — avoids repeated global lookup
+    no_prefix = isempty(prefixes)
 
-    for (subj, po_pairs) in by_subj
-        if subj isa IRI;        print(io, _abbrev(subj))
-        elseif subj isa BlankNode; print(io, "_:b$(subj.id)")
-        else;                   _write_triple_term(io, subj); end  # TripleTerm
+    # Intern rdf:type for the "a" shorthand (safe: _TTL_RDF_TYPE is a module constant).
+    rdf_type_id = _intern!(_TTL_RDF_TYPE)
 
-        pred_objs = Dict{IRI,Vector{ObjectTerm}}()
-        for (pred, obj) in po_pairs
-            push!(get!(pred_objs, pred) do; ObjectTerm[] end, obj)
-        end
+    # ── Per-ID write helpers ───────────────────────────────────────────────────
+    #
+    # When no prefixes are in scope every term comes straight from the cache —
+    # zero _resolve() calls, zero allocations per triple.
+    # When prefixes are provided, IRIs are abbreviated via a linear scan of the
+    # prefix table (same cost as the previous implementation).
 
-        pred_list = collect(pred_objs)
-        for (i, (pred, objs)) in enumerate(pred_list)
-            ps = pred == _TTL_RDF_TYPE ? " a" : " " * _abbrev(pred)
-            print(io, ps)
-            for (j, obj) in enumerate(objs)
-                j > 1 && print(io, ",")
-                print(io, " ")
-                if obj isa IRI;           print(io, _abbrev(obj))
-                elseif obj isa BlankNode; print(io, "_:b$(obj.id)")
-                elseif obj isa Literal;   _write_literal(io, obj)
-                elseif obj isa TripleTerm; _write_triple_term(io, obj)
+    function _write_iri_id(id::UInt32)
+        if no_prefix
+            @inbounds write(io, cache[id])
+        else
+            iri = _resolve(id)::IRI
+            best_len = 0; best_pn = ""
+            for (pn, pi) in prefixes
+                if startswith(iri.value, pi) && length(pi) > best_len
+                    best_len = length(pi); best_pn = pn
                 end
             end
-            i < length(pred_list) ? print(io, " ;") : print(io, " .")
-            println(io)
+            if best_len > 0
+                write(io, best_pn); write(io, ':')
+                write(io, iri.value[best_len+1:end])
+            else
+                @inbounds write(io, cache[id])
+            end
         end
     end
+
+    function _write_subj_id(id::UInt32)
+        if no_prefix
+            @inbounds write(io, cache[id])
+        else
+            term = _resolve(id)
+            term isa IRI ? _write_iri_id(id) : @inbounds write(io, cache[id])
+        end
+    end
+
+    function _write_pred_id(id::UInt32)
+        id == rdf_type_id && (write(io, 'a'); return)
+        no_prefix ? (@inbounds write(io, cache[id])) : _write_iri_id(id)
+    end
+
+    function _write_obj_id(id::UInt32)
+        if no_prefix
+            @inbounds write(io, cache[id])
+        else
+            term = _resolve(id)
+            term isa IRI ? _write_iri_id(id) : @inbounds write(io, cache[id])
+        end
+    end
+
+    # ── Single-pass streaming write ────────────────────────────────────────────
+    #
+    # The SPO hexastore index is sorted by (s_id, p_id, o_id).  That means all
+    # triples for the same subject are contiguous, and within a subject all
+    # triples for the same predicate are sub-contiguous.  We exploit this to emit
+    # a fully-grouped Turtle serialisation in a single O(n) pass with O(1) extra
+    # memory — no Dict accumulation, no Vector-of-pairs, no collect().
+    #
+    # Output format (same as the previous grouped implementation):
+    #
+    #   <s1> <p1> <o1>, <o2> ;
+    #    <p2> <o3> .
+    #   <s2> a <o4> .
+
+    prev_s_id = UInt32(0)
+    prev_p_id = UInt32(0)
+
+    for (s_id, p_id, o_id) in eachid(g)
+        if s_id != prev_s_id
+            # ── New subject block ──────────────────────────────────────────────
+            prev_s_id != UInt32(0) && write(io, " .\n")
+            _write_subj_id(s_id)
+            write(io, ' ')
+            _write_pred_id(p_id)
+            write(io, ' ')
+            _write_obj_id(o_id)
+            prev_s_id = s_id
+            prev_p_id = p_id
+        elseif p_id != prev_p_id
+            # ── New predicate within same subject ──────────────────────────────
+            write(io, " ;\n ")
+            _write_pred_id(p_id)
+            write(io, ' ')
+            _write_obj_id(o_id)
+            prev_p_id = p_id
+        else
+            # ── Additional object for same (subject, predicate) ────────────────
+            write(io, ", ")
+            _write_obj_id(o_id)
+        end
+    end
+    prev_s_id != UInt32(0) && write(io, " .\n")
+    return nothing
 end
 
 # ── Parser struct ─────────────────────────────────────────────────────────────

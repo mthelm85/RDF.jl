@@ -76,7 +76,7 @@ export blank_nodes, subjects, predicates, objects
 export ntriples, quads
 
 # Pattern matching
-export match
+export match, eachid, match_ids
 
 # Serialization
 export parse_triples, rdf_read, rdf_write

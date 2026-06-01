@@ -3,9 +3,22 @@ const _MIME_NT = MIME"application/n-triples"
 # ── Write ─────────────────────────────────────────────────────────────────────
 
 function Base.write(io::IO, ::_MIME_NT, g::Graph)
-    for t in g
-        _write_triple(io, t)
+    # Build/extend the pre-formatted term-string cache, then stream raw ID tuples.
+    # This avoids _resolve(), Triple struct construction, and per-field formatting
+    # work on the hot path — the loop body is just four write() calls per triple.
+    # For IO types that already buffer internally (BufferedStream for files,
+    # IOBuffer for in-memory accumulation) no extra intermediate buffer is needed.
+    _ensure_nt_cache!()
+    cache = _NT_TERM_STRINGS   # local alias; no repeated global lookup
+    @inbounds for tup in g.store.spo
+        write(io, cache[tup[1]])
+        write(io, 0x20)                # space
+        write(io, cache[tup[2]])
+        write(io, 0x20)                # space
+        write(io, cache[tup[3]])
+        write(io, " .\n")
     end
+    return nothing
 end
 
 function _write_triple(io::IO, t::Triple)
@@ -35,33 +48,132 @@ function _write_triple_term(io, tt::TripleTerm)
     print(io, ")>>")
 end
 
-_write_iri(io, iri::IRI)      = print(io, '<', iri.value, '>')
-_write_blank(io, bn::BlankNode) = print(io, "_:b", bn.id)
+function _write_iri(io, iri::IRI)
+    write(io, 0x3C)          # <
+    write(io, iri.value)
+    write(io, 0x3E)          # >
+end
 
+function _write_blank(io, bn::BlankNode)
+    write(io, "_:b")
+    write(io, string(bn.id))
+end
+
+# Emit the N-Triples serialisation of `lit` to `io` using byte-span writes.
+# Instead of iterating character-by-character and calling print() for every byte,
+# we scan the codeunit array looking for bytes that need escaping and write the
+# clean spans between them in a single write() call each.  For typical literals
+# (ASCII text, no control characters) the entire lexical form is written in one
+# call; for long strings with rare escapes the savings are proportionally larger.
 function _write_literal(io, lit::Literal)
-    print(io, '"')
-    for c in lit.lexical_form
-        if c == '"';  print(io, "\\\"")
-        elseif c == '\\'; print(io, "\\\\")
-        elseif c == '\n'; print(io, "\\n")
-        elseif c == '\r'; print(io, "\\r")
-        elseif c == '\t'; print(io, "\\t")
-        else
-            cp = UInt32(c)
-            if cp <= 0x08 || cp == 0x0B || cp == 0x0C || (0x0E <= cp <= 0x1F) || cp == 0x7F
-                @printf(io, "\\u%04X", cp)
-            elseif cp > 0xFFFF
+    write(io, 0x22)  # opening "
+    b  = codeunits(lit.lexical_form)
+    n  = length(b)
+    i  = 1
+    span_start = 1
+    while i <= n
+        @inbounds byte = b[i]
+        if byte == 0x22      # "  → \"
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            write(io, 0x5C, 0x22)
+            span_start = i + 1
+        elseif byte == 0x5C  # \  → \\
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            write(io, 0x5C, 0x5C)
+            span_start = i + 1
+        elseif byte == 0x0A  # LF → \n
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            write(io, 0x5C, 0x6E)
+            span_start = i + 1
+        elseif byte == 0x0D  # CR → \r
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            write(io, 0x5C, 0x72)
+            span_start = i + 1
+        elseif byte == 0x09  # HT → \t
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            write(io, 0x5C, 0x74)
+            span_start = i + 1
+        elseif byte < 0x20 || byte == 0x7F   # other ASCII control chars → \uXXXX
+            i > span_start && write(io, @view(b[span_start:i-1]))
+            @printf(io, "\\u%04X", byte)
+            span_start = i + 1
+        elseif byte >= 0xF0  # 4-byte UTF-8 lead: codepoint > U+FFFF → \UXXXXXXXX
+            # Decode the 4-byte sequence to get the actual codepoint.
+            if i + 3 <= n
+                @inbounds b1,b2,b3,b4 = b[i],b[i+1],b[i+2],b[i+3]
+                cp = ((UInt32(b1) & 0x07) << 18) |
+                     ((UInt32(b2) & 0x3F) << 12) |
+                     ((UInt32(b3) & 0x3F) <<  6) |
+                      (UInt32(b4) & 0x3F)
+                i > span_start && write(io, @view(b[span_start:i-1]))
                 @printf(io, "\\U%08X", cp)
-            else
-                print(io, c)
+                span_start = i + 4
+                i += 4
+                continue
             end
         end
+        i += 1
     end
-    print(io, '"')
+    span_start <= n && write(io, @view(b[span_start:n]))
+    write(io, 0x22)  # closing "
     if !isempty(lit.language_tag)
-        print(io, '@', lit.language_tag)
+        write(io, 0x40)   # @
+        write(io, lit.language_tag)
     else
-        print(io, "^^<", lit.datatype.value, '>')
+        write(io, "^^<")
+        write(io, lit.datatype.value)
+        write(io, 0x3E)   # >
+    end
+end
+
+# ── N-Triples term string cache ───────────────────────────────────────────────
+#
+# _NT_TERM_STRINGS[id] holds the complete N-Triples serialisation of the term
+# with that ID.  Built lazily: _ensure_nt_cache!() extends the cache to cover
+# every currently-interned term, then the fast write path below uses it so the
+# entire graph serialisation loop becomes:
+#
+#   write(io, cache[s_id]); write(io, ' ');
+#   write(io, cache[p_id]); write(io, ' ');
+#   write(io, cache[o_id]); write(io, " .\n")
+#
+# with zero _resolve() calls, zero Term allocations, and zero formatting work.
+
+function _nt_term_string(iri::IRI)::String
+    string('<', iri.value, '>')
+end
+
+function _nt_term_string(bn::BlankNode)::String
+    string("_:b", bn.id)
+end
+
+function _nt_term_string(lit::Literal)::String
+    buf = IOBuffer(sizehint = ncodeunits(lit.lexical_form) + 32)
+    _write_literal(buf, lit)
+    String(take!(buf))
+end
+
+function _nt_term_string(tt::TripleTerm)::String
+    buf = IOBuffer()
+    _write_triple_term(buf, tt)
+    String(take!(buf))
+end
+
+# Extend _NT_TERM_STRINGS so it covers every currently-interned term.
+# Called once per write operation — the hot write loop can then use the cache
+# without holding the lock.
+function _ensure_nt_cache!()
+    lock(_REGISTRY_LOCK)
+    try
+        n_needed = length(_ID_TO_TERM)
+        n_have   = length(_NT_TERM_STRINGS)
+        n_have >= n_needed && return
+        sizehint!(_NT_TERM_STRINGS, n_needed)
+        for i in (n_have + 1):n_needed
+            push!(_NT_TERM_STRINGS, _nt_term_string(_ID_TO_TERM[i]))
+        end
+    finally
+        unlock(_REGISTRY_LOCK)
     end
 end
 
@@ -72,17 +184,41 @@ function Base.read(io::IO, ::_MIME_NT, ::Type{Graph})::Graph
     g = Graph()
     blank_map = Dict{String, BlankNode}()
     lineno = 0
+    lex_buf = IOBuffer()   # reused across every literal in this parse
 
     # Collect interned IDs as we parse, deferring hexastore insertion until the
     # end so all six index arrays can be built with a single sort rather than
     # N individual sorted inserts (O(n log n) vs O(n²)).
     tuples = NTuple{3,UInt32}[]
 
-    for line in eachline(io)
+    # Read the entire input at once: one large String instead of N per-line Strings.
+    # We then scan for '\n' boundaries and create zero-copy SubString views for each
+    # line — eliminating the ~N readline() allocations that eachline() would produce.
+    content = String(Base.read(io))
+    nb      = ncodeunits(content)
+    pos     = 1
+    while pos <= nb
+        # Locate end of line
+        ls = pos
+        while pos <= nb && codeunit(content, pos) != UInt8('\n')
+            pos += 1
+        end
+        le = pos - 1
+        pos += 1   # skip '\n' (safe even at EOF: pos becomes nb+1)
         lineno += 1
-        line = strip(line)
-        (isempty(line) || line[1] == '#') && continue
-        t = _parse_nt_line(line, lineno, blank_map)
+        # Trim trailing '\r' for CRLF files
+        le >= ls && codeunit(content, le) == UInt8('\r') && (le -= 1)
+        le < ls && continue   # empty line
+        # Trim leading whitespace
+        while ls <= le && (codeunit(content, ls) == UInt8(' ') ||
+                           codeunit(content, ls) == UInt8('\t'))
+            ls += 1
+        end
+        ls > le && continue   # blank after trim
+        codeunit(content, ls) == UInt8('#') && continue   # comment line
+        # Zero-copy SubString view into the content buffer
+        line = SubString(content, ls, le)
+        t = _parse_nt_line(line, lineno, blank_map, lex_buf)
         t === nothing && continue
         s_id = _intern!(t.subject)
         p_id = _intern!(t.predicate)
@@ -126,12 +262,28 @@ Currently supported MIME types: `application/n-triples`.
 """
 function parse_triples(f::Function, io::IO, mime::_MIME_NT)
     blank_map = Dict{String, BlankNode}()
-    lineno = 0
-    for line in eachline(io)
+    lex_buf   = IOBuffer()
+    content   = String(Base.read(io))
+    nb        = ncodeunits(content)
+    lineno    = 0
+    pos       = 1
+    while pos <= nb
+        ls = pos
+        while pos <= nb && codeunit(content, pos) != UInt8('\n')
+            pos += 1
+        end
+        le = pos - 1
+        pos += 1
         lineno += 1
-        line = strip(line)
-        (isempty(line) || startswith(line, "#")) && continue
-        t = _parse_nt_line(line, lineno, blank_map)
+        le >= ls && codeunit(content, le) == UInt8('\r') && (le -= 1)
+        le < ls && continue
+        while ls <= le && (codeunit(content, ls) == UInt8(' ') ||
+                           codeunit(content, ls) == UInt8('\t'))
+            ls += 1
+        end
+        ls > le && continue
+        codeunit(content, ls) == UInt8('#') && continue
+        t = _parse_nt_line(SubString(content, ls, le), lineno, blank_map, lex_buf)
         t !== nothing && f(t)
     end
 end
@@ -140,13 +292,14 @@ function parse_triples(io::IO, mime::_MIME_NT)
     blank_map = Dict{String, BlankNode}()
     lineno = Ref(0)
     lines = eachline(io)
-    _NTriplesIterator(lines, blank_map, lineno)
+    _NTriplesIterator(lines, blank_map, lineno, IOBuffer())
 end
 
 struct _NTriplesIterator{L}
     lines::L
     blank_map::Dict{String, BlankNode}
     lineno::Ref{Int}
+    lex_buf::IOBuffer   # reused across literals; take!() resets it after each use
 end
 
 function Base.iterate(it::_NTriplesIterator, state=nothing)
@@ -157,7 +310,7 @@ function Base.iterate(it::_NTriplesIterator, state=nothing)
         it.lineno[] += 1
         s = strip(line)
         (isempty(s) || startswith(s, "#")) && (state = next_state; continue)
-        t = _parse_nt_line(s, it.lineno[], it.blank_map)
+        t = _parse_nt_line(s, it.lineno[], it.blank_map, it.lex_buf)
         t !== nothing && return (t, next_state)
         state = next_state
     end
@@ -183,7 +336,8 @@ function _strip_inline_comment(s::AbstractString)
     s
 end
 
-function _parse_nt_line(line::AbstractString, lineno::Int, blank_map::Dict{String,BlankNode})
+function _parse_nt_line(line::AbstractString, lineno::Int,
+                       blank_map::Dict{String,BlankNode}, lex_buf::IOBuffer)
     line = _strip_inline_comment(strip(line))
     endswith(line, '.') || throw(ParseError("Missing trailing '.'", lineno, length(line), _MIME_NT()))
     line = strip(line[1:end-1])
@@ -193,7 +347,7 @@ function _parse_nt_line(line::AbstractString, lineno::Int, blank_map::Dict{Strin
     pos = _skip_ws(line, pos)
     pred, pos = _parse_nt_iri(line, pos, lineno)
     pos = _skip_ws(line, pos)
-    obj, pos  = _parse_nt_object(line, pos, lineno, blank_map)
+    obj, pos  = _parse_nt_object(line, pos, lineno, blank_map, lex_buf)
     pos = _skip_ws(line, pos)
     pos <= lastindex(line) && throw(ParseError("Unexpected content after object", lineno, pos, _MIME_NT()))
     Triple(subj, pred, obj)
@@ -206,18 +360,66 @@ function _skip_ws(s, pos)
     pos
 end
 
+# Inline scheme check: returns true iff `s` starts with
+# ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"
+# (RFC 3987 §2.2, which N-Triples requires for absolute IRIs).
+# Using byte arithmetic instead of a regex avoids regex engine overhead on
+# the hot parsing path.  For a typical IRI like "http://…" this terminates
+# after scanning 5 bytes.
+function _nt_has_scheme(s::AbstractString)::Bool
+    b = codeunits(s)
+    n = length(b)
+    n == 0 && return false
+    c = b[1]
+    (UInt8('A') <= c <= UInt8('Z')) || (UInt8('a') <= c <= UInt8('z')) || return false
+    for i in 2:n
+        @inbounds c = b[i]
+        c == UInt8(':') && return true
+        (UInt8('A') <= c <= UInt8('Z')) || (UInt8('a') <= c <= UInt8('z')) ||
+        (UInt8('0') <= c <= UInt8('9')) ||
+        c == UInt8('+') || c == UInt8('-') || c == UInt8('.') || return false
+    end
+    false  # ':' never found → no scheme
+end
+
 function _parse_nt_iri(s, pos, lineno)
     pos <= lastindex(s) && s[pos] == '<' || throw(ParseError("Expected IRI", lineno, pos, _MIME_NT()))
     close = _find_close(s, pos + 1, '>')
     close === nothing && throw(ParseError("Unterminated IRI", lineno, pos, _MIME_NT()))
     raw = s[pos+1:prevind(s, close)]
-    iri = try
-        IRI(_unescape_iri(raw))
-    catch e
-        e isa IRIError && throw(ParseError("Invalid IRI: $(e.value)", lineno, pos, _MIME_NT()))
-        rethrow()
+
+    if !occursin('\\', raw)
+        # Dedup: look up by SubString content without allocating a String or IRI struct.
+        # Julia's Dict uses hash/isequal on content, so a SubString and the equivalent
+        # String share the same hash — the lookup is a zero-allocation operation.
+        # For repeated IRIs (predicates, datatype IRIs, common objects) this is the
+        # common case; we return the existing IRI object directly.
+        # Use lock/try/finally rather than lock(lk) do...end to avoid heap-allocating
+        # a closure that captures `raw` on every call.
+        local existing
+        lock(_REGISTRY_LOCK)
+        try
+            id = get(_IRI_STR_TO_ID, raw, UInt32(0))
+            existing = id != 0 ? _ID_TO_TERM[id]::IRI : nothing
+        finally
+            unlock(_REGISTRY_LOCK)
+        end
+        existing !== nothing && return (existing, close + 1)
+
+        # IRI not yet seen — validate inline, allocate, return.
+        isempty(raw)       && throw(ParseError("IRI must not be empty",                   lineno, pos, _MIME_NT()))
+        occursin(' ', raw) && throw(ParseError("IRI must not contain unencoded spaces",   lineno, pos, _MIME_NT()))
+        _nt_has_scheme(raw) || throw(ParseError("IRI must be absolute (no scheme found)", lineno, pos, _MIME_NT()))
+        return (IRI(String(raw), Val(:_trusted)), close + 1)
+    else
+        iri = try
+            IRI(_unescape_iri(raw))   # full validation after unescaping
+        catch e
+            e isa IRIError && throw(ParseError("Invalid IRI: $(e.value)", lineno, pos, _MIME_NT()))
+            rethrow()
+        end
+        return (iri, close + 1)
     end
-    iri, close + 1
 end
 
 function _find_close(s, from, ch)
@@ -244,23 +446,23 @@ function _parse_nt_subject(s, pos, lineno, blank_map)
     throw(ParseError("Expected subject (IRI or blank node)", lineno, pos, _MIME_NT()))
 end
 
-function _parse_nt_object(s, pos, lineno, blank_map)
+function _parse_nt_object(s, pos, lineno, blank_map, lex_buf::IOBuffer)
     pos <= lastindex(s) || throw(ParseError("Unexpected end of line", lineno, pos, _MIME_NT()))
     if s[pos] == '<'
         if pos + 1 <= lastindex(s) && s[pos+1] == '<'
             # RDF 1.2 triple term: must use <<( ... )>> syntax
             pos + 2 <= lastindex(s) && s[pos+2] == '(' ||
                 throw(ParseError("Invalid triple term syntax; RDF 1.2 requires <<( ... )>>", lineno, pos, _MIME_NT()))
-            return _parse_nt_triple_term(s, pos, lineno, blank_map)
+            return _parse_nt_triple_term(s, pos, lineno, blank_map, lex_buf)
         end
         return _parse_nt_iri(s, pos, lineno)
     end
     s[pos] == '_' && return _parse_nt_blank(s, pos, lineno, blank_map)
-    s[pos] == '"' && return _parse_nt_literal(s, pos, lineno, blank_map)
+    s[pos] == '"' && return _parse_nt_literal(s, pos, lineno, blank_map, lex_buf)
     throw(ParseError("Expected object (IRI, blank node, or literal)", lineno, pos, _MIME_NT()))
 end
 
-function _parse_nt_triple_term(s, pos, lineno, blank_map)
+function _parse_nt_triple_term(s, pos, lineno, blank_map, lex_buf::IOBuffer)
     # Expects <<( at current pos
     (pos + 2 <= lastindex(s) && s[pos] == '<' && s[pos+1] == '<' && s[pos+2] == '(') ||
         throw(ParseError("Expected '<<('", lineno, pos, _MIME_NT()))
@@ -276,7 +478,7 @@ function _parse_nt_triple_term(s, pos, lineno, blank_map)
     pos = _skip_ws(s, pos)
 
     # Object: IRI, BlankNode, Literal, or nested TripleTerm
-    obj, pos = _parse_nt_object(s, pos, lineno, blank_map)
+    obj, pos = _parse_nt_object(s, pos, lineno, blank_map, lex_buf)
     pos = _skip_ws(s, pos)
 
     # Closing ')>>'
@@ -309,10 +511,14 @@ function _parse_nt_blank(s, pos, lineno, blank_map)
     bn, i
 end
 
-function _parse_nt_literal(s, pos, lineno, blank_map)
+function _parse_nt_literal(s, pos, lineno, blank_map, lex_buf::IOBuffer)
     s[pos] == '"' || throw(ParseError("Expected literal", lineno, pos, _MIME_NT()))
     i = pos + 1
-    buf = IOBuffer()
+    # lex_buf is reused across literals in the same parse: take!() resets it after
+    # each call, so no internal state leaks between literals.  The buffer's backing
+    # store grows to the largest literal seen and is then reused without reallocating,
+    # eliminating the per-literal IOBuffer allocation that was present before.
+    buf = lex_buf
     while i <= lastindex(s)
         c = s[i]
         if c == '\\'

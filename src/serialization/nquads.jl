@@ -3,12 +3,30 @@ const _MIME_NQ = MIME"application/n-quads"
 # ── Write ─────────────────────────────────────────────────────────────────────
 
 function Base.write(io::IO, ::_MIME_NQ, ds::Dataset)
-    for t in ds.default_graph
-        _write_triple(io, t)           # default graph — no graph name
+    # Build/extend the pre-formatted term-string cache, then stream raw ID tuples.
+    # Same strategy as the N-Triples writer: the inner loop is four write() calls per
+    # quad with zero _resolve() calls, zero Term allocations, and zero formatting work.
+    _ensure_nt_cache!()
+    cache = _NT_TERM_STRINGS
+
+    # Default graph — no graph name (N-Quads triple line)
+    @inbounds for tup in ds.default_graph.store.spo
+        write(io, cache[tup[1]]); write(io, 0x20)
+        write(io, cache[tup[2]]); write(io, 0x20)
+        write(io, cache[tup[3]]); write(io, " .\n")
     end
+
+    # Named graphs — intern the graph name once per graph, then stream triples
     for (name, g) in ds.named_graphs
-        for t in g
-            _write_quad(io, t, name)
+        g_id = _intern!(name)
+        # _intern! may have added new terms; extend the cache to cover them.
+        g_id > length(cache) && _ensure_nt_cache!()
+        gname_str = @inbounds cache[g_id]
+        @inbounds for tup in g.store.spo
+            write(io, cache[tup[1]]); write(io, 0x20)
+            write(io, cache[tup[2]]); write(io, 0x20)
+            write(io, cache[tup[3]]); write(io, 0x20)
+            write(io, gname_str);     write(io, " .\n")
         end
     end
 end
@@ -42,11 +60,28 @@ function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset
     default_blanks   = Set{UInt64}()
     named_blanks     = Dict{UInt32, Set{UInt64}}()
 
-    for line in eachline(io)
+    lex_buf = IOBuffer()   # reused across every literal in this parse
+    content = String(Base.read(io))
+    nb      = ncodeunits(content)
+    pos     = 1
+    while pos <= nb
+        ls = pos
+        while pos <= nb && codeunit(content, pos) != UInt8('\n')
+            pos += 1
+        end
+        le = pos - 1
+        pos += 1
         lineno += 1
-        line = strip(line)
-        (isempty(line) || startswith(line, "#")) && continue
-        q = _parse_nq_line(line, lineno, blank_map, graph_blank_map)
+        le >= ls && codeunit(content, le) == UInt8('\r') && (le -= 1)
+        le < ls && continue
+        while ls <= le && (codeunit(content, ls) == UInt8(' ') ||
+                           codeunit(content, ls) == UInt8('\t'))
+            ls += 1
+        end
+        ls > le && continue
+        codeunit(content, ls) == UInt8('#') && continue
+        line = SubString(content, ls, le)
+        q = _parse_nq_line(line, lineno, blank_map, graph_blank_map, lex_buf)
         q === nothing && continue
 
         s_id = _intern!(q.subject)
@@ -98,13 +133,29 @@ end
 
 function parse_triples(f::Function, io::IO, mime::_MIME_NQ)
     blank_map = Dict{String, BlankNode}()
-    gbm = Dict{String, BlankNode}()
-    lineno = 0
-    for line in eachline(io)
+    gbm       = Dict{String, BlankNode}()
+    lex_buf   = IOBuffer()
+    content   = String(Base.read(io))
+    nb        = ncodeunits(content)
+    lineno    = 0
+    pos       = 1
+    while pos <= nb
+        ls = pos
+        while pos <= nb && codeunit(content, pos) != UInt8('\n')
+            pos += 1
+        end
+        le = pos - 1
+        pos += 1
         lineno += 1
-        line = strip(line)
-        (isempty(line) || startswith(line, "#")) && continue
-        q = _parse_nq_line(line, lineno, blank_map, gbm)
+        le >= ls && codeunit(content, le) == UInt8('\r') && (le -= 1)
+        le < ls && continue
+        while ls <= le && (codeunit(content, ls) == UInt8(' ') ||
+                           codeunit(content, ls) == UInt8('\t'))
+            ls += 1
+        end
+        ls > le && continue
+        codeunit(content, ls) == UInt8('#') && continue
+        q = _parse_nq_line(SubString(content, ls, le), lineno, blank_map, gbm, lex_buf)
         q !== nothing && f(q)
     end
 end
@@ -113,7 +164,7 @@ function parse_triples(io::IO, mime::_MIME_NQ)
     blank_map = Dict{String, BlankNode}()
     gbm = Dict{String, BlankNode}()
     lineno = Ref(0)
-    _NQuadsIterator(eachline(io), blank_map, gbm, lineno)
+    _NQuadsIterator(eachline(io), blank_map, gbm, lineno, IOBuffer())
 end
 
 struct _NQuadsIterator{L}
@@ -121,6 +172,7 @@ struct _NQuadsIterator{L}
     blank_map::Dict{String, BlankNode}
     graph_blank_map::Dict{String, BlankNode}
     lineno::Ref{Int}
+    lex_buf::IOBuffer   # reused across literals; take!() resets it after each use
 end
 
 function Base.iterate(it::_NQuadsIterator, state=nothing)
@@ -131,7 +183,7 @@ function Base.iterate(it::_NQuadsIterator, state=nothing)
         it.lineno[] += 1
         s = strip(line)
         (isempty(s) || startswith(s, "#")) && (state = next_state; continue)
-        q = _parse_nq_line(s, it.lineno[], it.blank_map, it.graph_blank_map)
+        q = _parse_nq_line(s, it.lineno[], it.blank_map, it.graph_blank_map, it.lex_buf)
         q !== nothing && return (q, next_state)
         state = next_state
     end
@@ -144,7 +196,8 @@ Base.IteratorSize(::Type{<:_NQuadsIterator}) = Base.SizeUnknown()
 
 function _parse_nq_line(line::AbstractString, lineno::Int,
                         blank_map::Dict{String,BlankNode},
-                        gbm::Dict{String,BlankNode})
+                        gbm::Dict{String,BlankNode},
+                        lex_buf::IOBuffer)
     line = _strip_inline_comment(strip(line))
     endswith(line, '.') || throw(ParseError("Missing trailing '.'", lineno, length(line), _MIME_NQ()))
     line = strip(line[1:end-1])
@@ -154,7 +207,7 @@ function _parse_nq_line(line::AbstractString, lineno::Int,
     pos = _skip_ws(line, pos)
     pred, pos = _parse_nt_iri(line, pos, lineno)
     pos = _skip_ws(line, pos)
-    obj, pos  = _parse_nt_object(line, pos, lineno, blank_map)
+    obj, pos  = _parse_nt_object(line, pos, lineno, blank_map, lex_buf)
     pos = _skip_ws(line, pos)
 
     # Optional graph name

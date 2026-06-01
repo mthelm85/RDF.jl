@@ -35,11 +35,15 @@ iri"http://schema.org/Person"
 """
 struct IRI <: RDFTerm
     value::String
-    # Inner constructor validates: no default constructor bypasses this
+    # Public constructor: validates the string is an absolute IRI.
     function IRI(s::String)
         _validate_iri(s)
         new(s)
     end
+    # Internal bypass: skip validation for strings already known to be valid IRIs
+    # (e.g., freshly parsed from a <...> token in N-Triples / Turtle / SPARQL).
+    # Never call this from user-facing code.
+    IRI(s::String, ::Val{:_trusted}) = new(s)
 end
 
 # Convenience for AbstractString inputs

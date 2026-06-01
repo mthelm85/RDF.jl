@@ -104,6 +104,66 @@ end
 Base.eltype(::Type{_TripleMatchIterator}) = Triple
 Base.IteratorSize(::Type{_TripleMatchIterator}) = Base.SizeUnknown()
 
+# ── Zero-allocation raw-ID graph iterator ─────────────────────────────────────
+
+"""
+    eachid(g::Graph) -> iterator
+
+Zero-allocation iterator over every triple in `g` as a raw
+`(s_id, p_id, o_id)::NTuple{3,UInt32}` tuple, reading directly from the
+underlying hexastore without constructing `Triple` structs or boxing
+union-typed terms.
+
+Use `RDF._resolve(id)` to convert an ID back to an `RDFTerm` when needed.
+This is the preferred inner loop for bulk write operations and any code that
+only needs a subset of the resolved terms per row.
+
+```julia
+# Count triples matching a condition without allocating Triple structs
+_ensure_nt_cache!()
+cache = RDF._NT_TERM_STRINGS
+n = 0
+for (s, p, o) in eachid(g)
+    startswith(cache[s], "<http://example.org") && (n += 1)
+end
+```
+
+See also: [`match_ids`](@ref) for pattern-filtered raw-ID iteration.
+"""
+eachid(g::Graph) = _RawSPOIterator(g.store.spo)
+
+struct _RawSPOIterator
+    spo::Vector{NTuple{3,UInt32}}
+end
+
+@inline function Base.iterate(it::_RawSPOIterator, i::Int=1)
+    i > length(it.spo) && return nothing
+    @inbounds it.spo[i], i + 1
+end
+
+Base.eltype(::Type{_RawSPOIterator})     = NTuple{3,UInt32}
+Base.IteratorSize(::Type{_RawSPOIterator}) = Base.HasLength()
+Base.length(it::_RawSPOIterator)         = length(it.spo)
+
+"""
+    match_ids(g::Graph; subject=nothing, predicate=nothing, object=nothing)
+
+Like [`match`](@ref) but yields raw `(s_id, p_id, o_id)::NTuple{3,UInt32}` tuples
+rather than resolved `Triple`s.  Arguments are `UInt32` IDs (use
+`RDF._intern!(term)` to get the ID for a term) or `nothing` for wildcards.
+Pass `UInt32(0)` for any bound position that is definitely not in the registry
+to get an immediately-empty iterator.
+
+This is a zero-allocation alternative to `match` for code that needs pattern
+filtering without the overhead of `_resolve()` and `Triple` construction.
+"""
+function match_ids(g::Graph;
+                   subject::Union{UInt32, Nothing}   = nothing,
+                   predicate::Union{UInt32, Nothing} = nothing,
+                   object::Union{UInt32, Nothing}    = nothing)
+    _match_ids(g, subject, predicate, object)
+end
+
 # ── ID-based match iterator ───────────────────────────────────────────────────
 #
 # Returns raw (s_id, p_id, o_id) NTuples directly from the hexastore.
