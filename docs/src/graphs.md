@@ -101,6 +101,20 @@ predicates(g)  # Set{IRI}          — all distinct predicates
 objects(g)     # Set{ObjectTerm}   — all distinct objects
 ```
 
+### Raw-ID iteration
+
+For performance-critical code that needs to iterate large graphs without
+constructing `Triple` structs, RDF.jl exposes two zero-allocation alternatives:
+
+```@docs
+eachid
+match_ids
+```
+
+Both yield `NTuple{3,UInt32}` tuples of interned term IDs. Use
+`RDF._resolve(id)` to convert an ID back to an `RDFTerm`, or index into
+`RDF._NT_TERM_STRINGS` for the pre-formatted N-Triples string of that term.
+
 ### Set operations
 
 Standard set operations return new graphs without modifying their arguments:
