@@ -6,6 +6,7 @@ using Test
     include("test_blank_nodes.jl")
     include("test_triples.jl")
     include("test_graphs.jl")
+    include("test_graph_conversion.jl")
     include("test_datasets.jl")
     include("test_namespaces.jl")
     include("test_pattern_matching.jl")

@@ -29,6 +29,7 @@ include("inference.jl")
 # ── Serialization ─────────────────────────────────────────────────────────────
 include("serialization/ntriples.jl")
 include("serialization/nquads.jl")
+include("graph_conversion.jl")
 include("serialization/turtle.jl")
 include("serialization/jsonld.jl")
 
@@ -77,6 +78,10 @@ export ntriples, quads
 
 # Pattern matching
 export match, eachid, match_ids
+
+# Graphs.jl integration
+export to_digraph, to_weighted_digraph
+export RDFDiGraph, vertex_id, term_id, resolve_vertex, edge_predicates
 
 # Serialization
 export parse_triples, rdf_read, rdf_write
