@@ -4,8 +4,6 @@ using Graphs
 using SimpleWeightedGraphs
 # Graphs.jl also exports `Graph` — explicitly bring in RDF.Graph to resolve ambiguity
 import RDF: Graph
-# _resolve is an internal helper used extensively in these tests
-const _resolve = RDF._resolve
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared fixtures
@@ -134,8 +132,8 @@ end
             result = to_digraph(_social_graph())
             terms = result.terms
             dg    = result.graph
-            alice_v = findfirst(id -> _resolve(id) == _ex.alice, terms)
-            bob_v   = findfirst(id -> _resolve(id) == _ex.bob,   terms)
+            alice_v = findfirst(id -> resolve_term(id) == _ex.alice, terms)
+            bob_v   = findfirst(id -> resolve_term(id) == _ex.bob,   terms)
             @test alice_v !== nothing
             @test bob_v   !== nothing
             @test has_edge(dg, alice_v, bob_v)
@@ -151,7 +149,7 @@ end
             @test ne(dg) == 2
             # literal vertices have out-degree 0
             lit_vtxs = [i for (i, id) in enumerate(terms)
-                        if _resolve(id) isa Literal]
+                        if resolve_term(id) isa Literal]
             @test length(lit_vtxs) == 2
             @test all(outdegree(dg, v) == 0 for v in lit_vtxs)
         end
@@ -166,7 +164,7 @@ end
         @testset "terms vector maps every vertex back to an RDFTerm" begin
             result = to_digraph(_social_graph())
             @test all(result.terms[v] isa UInt32 for v in vertices(result.graph))
-            resolved = _resolve.(result.terms)
+            resolved = resolve_term.(result.terms)
             @test _ex.alice in resolved
             @test _ex.bob   in resolved
             @test _ex.carol in resolved
@@ -185,7 +183,7 @@ end
             result = to_digraph(g)
             @test nv(result.graph) == 2
             @test ne(result.graph) == 1
-            resolved = _resolve.(result.terms)
+            resolved = resolve_term.(result.terms)
             @test any(t isa BlankNode for t in resolved)
         end
 
@@ -202,7 +200,7 @@ end
             # alice→bob, alice→carol, bob→carol: vertices = {alice,bob,carol}
             @test nv(result.graph) == 3
             @test ne(result.graph) == 3
-            resolved = Set(_resolve.(result.terms))
+            resolved = Set(resolve_term.(result.terms))
             @test _ex.alice in resolved
             @test _ex.bob   in resolved
             @test _ex.carol in resolved
@@ -215,7 +213,7 @@ end
             # alice→Person, bob→Person: vertices = {alice,bob,Person}
             @test nv(result.graph) == 3
             @test ne(result.graph) == 2
-            resolved = Set(_resolve.(result.terms))
+            resolved = Set(resolve_term.(result.terms))
             @test _ex.alice  in resolved
             @test _ex.bob    in resolved
             @test _ex.Person in resolved
@@ -233,8 +231,8 @@ end
             result = to_digraph(_social_graph(), _foaf.knows)
             terms = result.terms
             dg    = result.graph
-            alice_v = findfirst(id -> _resolve(id) == _ex.alice, terms)
-            carol_v = findfirst(id -> _resolve(id) == _ex.carol, terms)
+            alice_v = findfirst(id -> resolve_term(id) == _ex.alice, terms)
+            carol_v = findfirst(id -> resolve_term(id) == _ex.carol, terms)
             @test alice_v !== nothing && carol_v !== nothing
             @test has_edge(dg, alice_v, carol_v)
             @test !has_edge(dg, carol_v, alice_v)
@@ -248,7 +246,7 @@ end
 
         @testset "terms vector covers exactly the predicate's subjects and objects" begin
             result = to_digraph(_social_graph(), rdf.type)
-            resolved = Set(_resolve.(result.terms))
+            resolved = Set(resolve_term.(result.terms))
             # Only terms that appear in rdf:type triples
             @test all(t in resolved for t in [_ex.alice, _ex.bob, _ex.Person])
             @test _ex.carol ∉ resolved
@@ -299,7 +297,7 @@ end
             terms = result.terms
             dg    = result.graph
             # Find the edge from 'a' to its literal object and check weight ≈ 10.0
-            a_v = findfirst(id -> _resolve(id) == _ex.a, terms)
+            a_v = findfirst(id -> resolve_term(id) == _ex.a, terms)
             @test a_v !== nothing
             # SimpleWeightedDiGraph.weights is indexed [dst, src]
             weights_from_a = [dg.weights[nb, a_v] for nb in outneighbors(dg, a_v)]
@@ -314,7 +312,7 @@ end
 
         @testset "terms vector covers predicate's subjects and objects" begin
             result = to_weighted_digraph(_weight_graph(), _ex.cost; weight = o -> 1.0)
-            resolved = Set(_resolve.(result.terms))
+            resolved = Set(resolve_term.(result.terms))
             @test _ex.a in resolved
             @test _ex.b in resolved
             @test _ex.c in resolved
@@ -330,8 +328,8 @@ end
                                          weight = o -> get(edges_weight, o, 1.0))
             terms = result.terms
             dg    = result.graph
-            a_v   = findfirst(id -> _resolve(id) == _ex.a, terms)
-            c_v   = findfirst(id -> _resolve(id) == _ex.c, terms)
+            a_v   = findfirst(id -> resolve_term(id) == _ex.a, terms)
+            c_v   = findfirst(id -> resolve_term(id) == _ex.c, terms)
             @test a_v !== nothing && c_v !== nothing
             ds = dijkstra_shortest_paths(dg, a_v)
             @test ds.dists[c_v] ≈ 3.0
@@ -430,7 +428,7 @@ end
             @test outdegree(rdfdg, alice_v) == 2
             # find the literal vertices and verify out-degree 0
             for v in vertices(rdfdg)
-                if _resolve(term_id(rdfdg, v)) isa Literal
+                if resolve_term(term_id(rdfdg, v)) isa Literal
                     @test outdegree(rdfdg, v) == 0
                 end
             end
@@ -490,7 +488,7 @@ end
             rdfdg = RDFDiGraph(_social_graph())
             for v in vertices(rdfdg)
                 id  = term_id(rdfdg, v)
-                term = _resolve(id)
+                term = resolve_term(id)
                 @test vertex_id(rdfdg, term) == v
             end
         end
@@ -648,9 +646,9 @@ end
             g = Graph()
             push!(g, Triple(_ex.alice, _foaf.knows, _ex.bob))
             for (s_id, p_id, o_id) in eachid(g)
-                @test _resolve(s_id) == _ex.alice
-                @test _resolve(p_id) == _foaf.knows
-                @test _resolve(o_id) == _ex.bob
+                @test resolve_term(s_id) == _ex.alice
+                @test resolve_term(p_id) == _foaf.knows
+                @test resolve_term(o_id) == _ex.bob
             end
         end
 
@@ -670,12 +668,12 @@ end
 
         @testset "match_ids — filtered raw-ID iteration" begin
             g = _social_graph()
-            p_id = RDF._intern!(_foaf.knows)
+            p_id = term_id(_foaf.knows)
             ids  = collect(match_ids(g; predicate=p_id))
             @test length(ids) == 3  # three foaf:knows triples
             @test all(tup isa NTuple{3,UInt32} for tup in ids)
             # All returned tuples have foaf:knows as predicate
-            @test all(_resolve(tup[2]) == _foaf.knows for tup in ids)
+            @test all(resolve_term(tup[2]) == _foaf.knows for tup in ids)
         end
 
         @testset "match_ids — unbound returns all triples" begin

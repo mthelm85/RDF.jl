@@ -79,9 +79,14 @@ export ntriples, quads
 # Pattern matching
 export match, eachid, match_ids
 
+# Term ID ↔ RDFTerm bridge (used with eachid, match_ids, to_digraph results)
+export resolve_term   # UInt32 ID  → RDFTerm
+export term_id        # RDFTerm    → UInt32 ID  (0 if not interned)
+                      # also: RDFDiGraph + vertex index → UInt32 ID (see below)
+
 # Graphs.jl integration
 export to_digraph, to_weighted_digraph
-export RDFDiGraph, vertex_id, term_id, resolve_vertex, edge_predicates
+export RDFDiGraph, vertex_id, resolve_vertex, edge_predicates
 
 # Serialization
 export parse_triples, rdf_read, rdf_write

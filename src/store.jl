@@ -111,6 +111,65 @@ end
 
 @inline _resolve(id::UInt32)::RDFTerm = @inbounds _ID_TO_TERM[id]
 
+"""
+    term_id(term::RDFTerm) -> UInt32
+
+Return the interned ID for `term`, or `UInt32(0)` if the term has never been
+interned (i.e., it does not exist in any graph currently loaded in memory).
+
+This is the read-only counterpart to the internal `_intern!` function.  Use it
+to obtain an ID for passing to [`match_ids`](@ref):
+
+```julia
+p_id = term_id(foaf.knows)            # UInt32(0) if foaf.knows not in any graph
+for (s, p, o) in match_ids(g; predicate=p_id)
+    println(resolve_term(s))
+end
+```
+
+Returns `UInt32(0)` — which [`match_ids`](@ref) treats as "not found" — rather
+than throwing, so it is always safe to call on unknown terms.
+"""
+function term_id(term::RDFTerm)::UInt32
+    lock(_REGISTRY_LOCK)
+    try
+        return get(_type_map(term), term, UInt32(0))
+    finally
+        unlock(_REGISTRY_LOCK)
+    end
+end
+
+# Specialised fast path for IRI: checks the string-keyed table first (no IRI allocation).
+function term_id(iri::IRI)::UInt32
+    lock(_REGISTRY_LOCK)
+    try
+        id = get(_IRI_STR_TO_ID, iri.value, UInt32(0))
+        id != 0 && return id
+        return get(_IRI_TO_ID, iri, UInt32(0))
+    finally
+        unlock(_REGISTRY_LOCK)
+    end
+end
+
+"""
+    resolve_term(id::UInt32) -> RDFTerm
+
+Convert an interned term ID (as returned by `eachid`, `match_ids`,
+`term_id`, or `result.terms[v]` from `to_digraph` / `to_weighted_digraph`)
+back to its `RDFTerm`.
+
+```julia
+for (s_id, p_id, o_id) in eachid(g)
+    println(resolve_term(s_id), " -- ", resolve_term(p_id), " --> ", resolve_term(o_id))
+end
+
+result = to_digraph(g, foaf.knows)
+top    = argmax(pagerank(result.graph))
+println("Most central: ", resolve_term(result.terms[top]))
+```
+"""
+@inline resolve_term(id::UInt32)::RDFTerm = @inbounds _ID_TO_TERM[id]
+
 # Fast numeric value lookup by term ID — NaN if term is not a numeric literal
 @inline _numeric_float(id::UInt32)::Float64 = @inbounds _NUMERIC_CACHE[id]
 

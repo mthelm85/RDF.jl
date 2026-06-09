@@ -114,17 +114,13 @@ Zero-allocation iterator over every triple in `g` as a raw
 underlying hexastore without constructing `Triple` structs or boxing
 union-typed terms.
 
-Use `RDF._resolve(id)` to convert an ID back to an `RDFTerm` when needed.
+Use [`resolve_term(id)`](@ref) to convert an ID back to an `RDFTerm` when needed.
 This is the preferred inner loop for bulk write operations and any code that
 only needs a subset of the resolved terms per row.
 
 ```julia
-# Count triples matching a condition without allocating Triple structs
-_ensure_nt_cache!()
-cache = RDF._NT_TERM_STRINGS
-n = 0
-for (s, p, o) in eachid(g)
-    startswith(cache[s], "<http://example.org") && (n += 1)
+for (s_id, p_id, o_id) in eachid(g)
+    println(resolve_term(s_id), " -- ", resolve_term(p_id), " --> ", resolve_term(o_id))
 end
 ```
 
@@ -150,7 +146,7 @@ Base.length(it::_RawSPOIterator)         = length(it.spo)
 
 Like [`match`](@ref) but yields raw `(s_id, p_id, o_id)::NTuple{3,UInt32}` tuples
 rather than resolved `Triple`s.  Arguments are `UInt32` IDs (use
-`RDF._intern!(term)` to get the ID for a term) or `nothing` for wildcards.
+[`term_id(term)`](@ref) to look up the ID for a term) or `nothing` for wildcards.
 Pass `UInt32(0)` for any bound position that is definitely not in the registry
 to get an immediately-empty iterator.
 

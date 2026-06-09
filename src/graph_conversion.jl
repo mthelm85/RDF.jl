@@ -19,13 +19,13 @@ Multiple predicates between the same two terms collapse to a single edge.
 Returns a named tuple with:
 - `graph`  — the `Graphs.SimpleDiGraph`
 - `terms`  — `Vector{UInt32}` mapping vertex index → interned term ID.
-  Use `RDF._resolve(terms[v])` to recover the `RDFTerm` for vertex `v`.
+  Use `resolve_term(terms[v])` to recover the `RDFTerm` for vertex `v`.
 
 ```julia
 result = to_digraph(g)
 pr = pagerank(result.graph)   # PageRank over all entities
 top = sortperm(pr; rev=true)
-println("Most central: ", _resolve(result.terms[top[1]]))
+println("Most central: ", resolve_term(result.terms[top[1]]))
 ```
 
 See also: [`to_digraph(g, pred)`](@ref), [`to_weighted_digraph`](@ref),
@@ -71,7 +71,7 @@ Returns the same named tuple as [`to_digraph(g)`](@ref).
 result  = to_digraph(g, foaf.knows)
 pr      = pagerank(result.graph)
 top     = argmax(pr)
-println("Most central person: ", _resolve(result.terms[top]))
+println("Most central person: ", resolve_term(result.terms[top]))
 ```
 """
 function to_digraph(g::Graph, pred::IRI)
@@ -151,7 +151,7 @@ function to_weighted_digraph(g::Graph, pred::IRI; weight::Function = _ -> 1.0)
                 id_to_vtx[id] = length(vtx_to_id)
             end
         end
-        w = Float64(weight(_resolve(o_id)))
+        w = Float64(weight(resolve_term(o_id)))
         push!(weighted_edges, (id_to_vtx[s_id], id_to_vtx[o_id], w))
     end
 
@@ -301,7 +301,7 @@ end
 """
     term_id(rdfdg::RDFDiGraph, v::Int) -> UInt32
 
-Return the interned term ID for vertex `v`.  Use `RDF._resolve(term_id(rdfdg, v))`
+Return the interned term ID for vertex `v`.  Use `resolve_term(term_id(rdfdg, v))`
 to recover the `RDFTerm`.
 """
 term_id(g::RDFDiGraph, v::Int) = @inbounds g.vtx_to_id[v]
@@ -311,7 +311,7 @@ term_id(g::RDFDiGraph, v::Int) = @inbounds g.vtx_to_id[v]
 
 Return the `RDFTerm` for vertex `v`.
 """
-resolve_vertex(g::RDFDiGraph, v::Int) = _resolve(term_id(g, v))
+resolve_vertex(g::RDFDiGraph, v::Int) = resolve_term(term_id(g, v))
 
 """
     edge_predicates(rdfdg::RDFDiGraph, u::Int, v::Int) -> Vector{IRI}
@@ -329,7 +329,7 @@ function edge_predicates(g::RDFDiGraph, u::Int, v::Int)
     preds = IRI[]
     # SOP index: scan all triples with this (subject, object) pair
     for (s2, p_id, o2) in _match_ids(g.rdf, s_id, nothing, o_id)
-        push!(preds, _resolve(p_id)::IRI)
+        push!(preds, resolve_term(p_id)::IRI)
     end
     preds
 end
