@@ -15,6 +15,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 - **Named graphs / Datasets** with full SPARQL dataset semantics
 - **RDFS inference** (forward-chaining closure, entailment check)
 - **Graph isomorphism** (blank-node bijection)
+- **Graphs.jl integration** — convert any RDF graph to a `SimpleDiGraph`, `SimpleWeightedDiGraph`, or full `RDFDiGraph <: AbstractGraph`; run PageRank, betweenness centrality, shortest paths, community detection, and any other Graphs.jl algorithm directly on RDF data
 - **Tables.jl integration** — match results and `SolutionSet` work directly with DataFrames and any Tables consumer
 - **Vocabulary API** — load any external ontology as a `Vocabulary` with dot-notation term access, `rdfs:label`/`rdfs:comment` metadata, and HTTP loading via HTTP.jl
 - Built-in vocabulary modules: `rdf`, `rdfs`, `xsd`, `owl`, `skos`, `dc`, `dcterms`, `foaf`, `schema`
@@ -254,6 +255,62 @@ infer_rdfs!(g)   # closes g in place
 entails(g, Triple(ex.alice, rdf.type, ex.Animal))
 ```
 
+### Graphs.jl integration
+
+Convert an RDF graph to a Graphs.jl graph and run any algorithm from that ecosystem.
+Three strategies, following knowledge-graph analytics conventions:
+
+```julia
+using RDF, Graphs, SimpleWeightedGraphs
+
+ex   = Namespace("http://example.org/")
+foaf = Namespace("http://xmlns.com/foaf/0.1/")
+
+# ── Projection ─────────────────────────────────────────────────────────────
+# Drop predicate labels; get a SimpleDiGraph for topology-based analytics.
+
+result = to_digraph(g, foaf.knows)          # single-predicate (lossless)
+pr     = pagerank(result.graph)
+top    = argmax(pr)
+println("Most influential: ", resolve_term(result.terms[top]))
+
+result = to_digraph(g)                      # all predicates (topology only)
+weakly_connected_components(result.graph)
+
+# ── Weighting ──────────────────────────────────────────────────────────────
+# Attach numeric edge weights derived from literal objects.
+
+result = to_weighted_digraph(g, schema.distance;
+             weight = obj -> tryparse(Float64, obj.lexical_form) |> something)
+src    = findfirst(id -> resolve_term(id) == ex.A, result.terms)
+ds     = dijkstra_shortest_paths(result.graph, src)
+
+# ── Customisation — RDFDiGraph ─────────────────────────────────────────────
+# Full AbstractGraph{Int} wrapper: all Graphs.jl algorithms work directly;
+# predicate information is preserved and queryable per edge.
+
+rdfdg   = RDFDiGraph(g)
+pr      = pagerank(rdfdg)
+bc      = betweenness_centrality(rdfdg)
+wcc     = weakly_connected_components(rdfdg)
+
+# Map vertex indices back to RDF terms
+alice_v = vertex_id(rdfdg, ex.alice)
+println("Alice's PageRank: ", pr[alice_v])
+println("Alice→Bob via: ", edge_predicates(rdfdg, alice_v, vertex_id(rdfdg, ex.bob)))
+
+# Raw-ID iteration (zero allocations — no Triple struct construction)
+for (s_id, p_id, o_id) in eachid(g)
+    println(resolve_term(s_id), " -- ", resolve_term(p_id), " --> ", resolve_term(o_id))
+end
+
+# Pattern-filtered raw-ID iteration
+p_id = term_id(foaf.knows)
+for (s, _, o) in match_ids(g; predicate=p_id)
+    println(resolve_term(s), " knows ", resolve_term(o))
+end
+```
+
 ### Tables.jl integration
 
 Match results and SPARQL `SolutionSet`s both implement the Tables.jl interface.
@@ -354,11 +411,11 @@ schema.Person     # IRI("https://schema.org/Person")
 
 Run the included benchmark suite with:
 
-```powershell
-julia --project=benchmarks benchmarks/benchmarks.jl
+```julia
+julia --project=bench bench/benchmarks.jl
 ```
 
-See `benchmarks/benchmarks.jl` for the full suite, which covers triple insertion throughput, hexastore pattern matching, Turtle/N-Triples serialization, RDFS inference, and SPARQL query execution.
+See `bench/benchmarks.jl` for the full suite, which covers triple insertion, hexastore pattern matching, N-Triples/N-Quads/Turtle serialization (read and write), and raw-ID iteration. `bench/compare.jl` shows before/after write-path speedups.
 
 ## W3C conformance
 

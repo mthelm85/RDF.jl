@@ -109,11 +109,26 @@ constructing `Triple` structs, RDF.jl exposes two zero-allocation alternatives:
 ```@docs
 eachid
 match_ids
+resolve_term
+term_id
 ```
 
-Both yield `NTuple{3,UInt32}` tuples of interned term IDs. Use
-`RDF._resolve(id)` to convert an ID back to an `RDFTerm`, or index into
-`RDF._NT_TERM_STRINGS` for the pre-formatted N-Triples string of that term.
+Both `eachid` and `match_ids` yield `NTuple{3,UInt32}` tuples of interned term
+IDs.  Use [`resolve_term`](@ref) to convert an ID back to an `RDFTerm`, and
+[`term_id`](@ref) to look up the ID for a term you already have.
+
+```julia
+# Iterate without allocating Triple structs
+for (s_id, p_id, o_id) in eachid(g)
+    println(resolve_term(s_id), " -- ", resolve_term(p_id), " --> ", resolve_term(o_id))
+end
+
+# Pattern-filtered raw-ID iteration
+p_id = term_id(foaf.knows)
+for (s, p, o) in match_ids(g; predicate=p_id)
+    println(resolve_term(s), " knows ", resolve_term(o))
+end
+```
 
 ### Set operations
 
@@ -222,6 +237,89 @@ quads
 ```julia
 ntriples(ds)          # total triples across all graphs (including default)
 collect(quads(ds))    # lazy iterator of all Quad values including default graph
+```
+
+---
+
+## Graphs.jl integration
+
+RDF.jl bridges into the [Graphs.jl](https://juliagraphs.org/) ecosystem,
+letting you run graph algorithms — PageRank, betweenness centrality, shortest
+paths, community detection, and more — directly on RDF data.
+
+Three conversion strategies correspond to the *Projection*, *Weighting*, and
+*Customisation* approaches described in the knowledge-graph analytics
+literature:
+
+### Projection — `to_digraph`
+
+```@docs
+to_digraph
+```
+
+Drop predicate labels and project onto a `SimpleDiGraph` for topology-based
+analytics:
+
+```julia
+# All-predicates reachability graph
+result  = to_digraph(g)
+pr      = pagerank(result.graph)
+top     = argmax(pr)
+println("Most central entity: ", resolve_term(result.terms[top]))
+
+# Single-predicate lossless projection
+result  = to_digraph(g, foaf.knows)
+cc      = weakly_connected_components(result.graph)
+println("Social network has $(length(cc)) components")
+```
+
+### Weighting — `to_weighted_digraph`
+
+```@docs
+to_weighted_digraph
+```
+
+Attach numeric edge weights derived from literal objects:
+
+```julia
+# Weight edges by a numeric literal property on the object
+result = to_weighted_digraph(g, schema.distance;
+             weight = obj -> tryparse(Float64, obj.lexical_form) |> something)
+src    = vertex_id(result.graph, term_id(ex.A))
+ds     = dijkstra_shortest_paths(result.graph, src)
+```
+
+### Customisation — `RDFDiGraph`
+
+```@docs
+RDFDiGraph
+vertex_id
+resolve_vertex
+edge_predicates
+```
+
+`RDFDiGraph` is a full `AbstractGraph{Int}` wrapper: every Graphs.jl algorithm
+accepts it without any data copy, and predicate information is preserved and
+queryable per-edge:
+
+```julia
+rdfdg   = RDFDiGraph(g)
+
+# Standard Graphs.jl algorithms
+pr  = pagerank(rdfdg)
+bc  = betweenness_centrality(rdfdg)
+wcc = weakly_connected_components(rdfdg)
+
+# Map results back to RDF terms
+alice_v = vertex_id(rdfdg, ex.alice)
+println("Alice's PageRank: ", pr[alice_v])
+
+# Recover predicate information on an edge
+bob_v   = vertex_id(rdfdg, ex.bob)
+println("Alice→Bob via: ", edge_predicates(rdfdg, alice_v, bob_v))
+
+# Resolve a vertex back to an RDFTerm
+println(resolve_vertex(rdfdg, argmax(pr)))
 ```
 
 ---
