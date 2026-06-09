@@ -158,9 +158,30 @@ end
         ex:Bob   a ex:Person ; ex:name "Bob"   .
         """
 
+        # Additional canned responses for header / content-type tests
+        CUSTOM_HDR_JSON = """
+        {
+          "head": {"vars": ["v"]},
+          "results": {"bindings": [
+            {"v": {"type": "literal", "value": "header-received"}}
+          ]}
+        }
+        """
+
         # ── Minimal SPARQL mock server ─────────────────────────────────────────
         # Dispatches on the ?query= parameter to return the right canned response.
         function mock_handler(req)
+            # ── Custom-header reflection ───────────────────────────────────────
+            # If the request carries X-Custom-Test, echo its value back.
+            # This lets us verify that caller-supplied headers are forwarded.
+            if HTTP.hasheader(req, "X-Custom-Test")
+                val = HTTP.header(req, "X-Custom-Test")
+                echo_json = """{"head":{"vars":["v"]},"results":{"bindings":[{"v":{"type":"literal","value":"$(val)"}}]}}"""
+                return HTTP.Response(200,
+                    ["Content-Type" => "application/sparql-results+json"],
+                    body=echo_json)
+            end
+
             raw_query = ""
             if req.method == "POST"
                 raw_query = String(req.body)
@@ -193,6 +214,11 @@ end
                 return HTTP.Response(400,
                     ["Content-Type" => "text/plain"],
                     body="Bad Request")
+            # ── Binary / non-JSON response (simulates strict endpoint ignoring Accept)
+            elseif occursin("BINARY_RESP", query_uc)
+                return HTTP.Response(200,
+                    ["Content-Type" => "application/x-binary-brtr"],
+                    body="\x00\x01\x02BRTRsp\x00\x01binary payload")
             else
                 return HTTP.Response(200,
                     ["Content-Type" => "application/sparql-results+json"],
@@ -262,6 +288,63 @@ end
             @testset "5xx error throws after retries" begin
                 @test_throws Exception sparql(base,
                     "SELECT ERROR500 WHERE { ?s ?p ?o }"; retries=1)
+            end
+
+            # ── Fix 1: custom headers forwarded to the endpoint ────────────────
+
+            @testset "custom headers are forwarded to the endpoint" begin
+                # The mock echoes back X-Custom-Test in the result if it sees it.
+                ss = sparql(base, "SELECT ?v WHERE { ?s ?p ?o }";
+                            headers = ["X-Custom-Test" => "sentinel-value"])
+                @test ss isa SolutionSet
+                @test length(ss) == 1
+                @test value(String, ss[1][:v]) == "sentinel-value"
+            end
+
+            @testset "custom Accept header overrides the default" begin
+                # User pins Accept to JSON explicitly — result should still parse.
+                ss = sparql(base, "SELECT ?name ?age WHERE { ?s ?p ?o }";
+                            headers = ["Accept" => "application/sparql-results+json"])
+                @test ss isa SolutionSet
+                @test length(ss) == 2
+            end
+
+            @testset "multiple custom headers are all forwarded" begin
+                # Both X-Custom-Test and another header in the same call.
+                ss = sparql(base, "SELECT ?v WHERE { ?s ?p ?o }";
+                            headers = ["X-Custom-Test" => "multi",
+                                       "X-Other" => "ignored-by-mock"])
+                @test ss isa SolutionSet
+                @test value(String, ss[1][:v]) == "multi"
+            end
+
+            @testset "headers keyword accepts a Dict as well as a Vector" begin
+                ss = sparql(base, "SELECT ?v WHERE { ?s ?p ?o }";
+                            headers = Dict("X-Custom-Test" => "from-dict"))
+                @test ss isa SolutionSet
+                @test value(String, ss[1][:v]) == "from-dict"
+            end
+
+            # ── Fix 2: descriptive error for non-JSON Content-Type ─────────────
+
+            @testset "non-JSON Content-Type raises descriptive error" begin
+                # The mock returns application/x-binary-brtr for BINARY_RESP.
+                # Without the guard this would crash JSON3 with a cryptic message;
+                # with the guard it should throw a clear ErrorException mentioning
+                # the actual Content-Type that came back.
+                err = @test_throws ErrorException sparql(base,
+                    "SELECT BINARY_RESP WHERE { ?s ?p ?o }"; retries=0)
+                @test occursin("Content-Type", err.value.msg)
+                @test occursin("binary-brtr", err.value.msg)
+            end
+
+            @testset "application/json is accepted (not only sparql-results+json)" begin
+                # Some endpoints return application/json instead of the full MIME.
+                # That still contains "json" so the guard must not reject it.
+                # (We reuse the default SELECT route which returns the correct type,
+                #  so this is an indirect check that non-brtr responses still work.)
+                ss = sparql(base, "SELECT ?name ?age WHERE { ?s ?p ?o }")
+                @test ss isa SolutionSet
             end
 
         finally

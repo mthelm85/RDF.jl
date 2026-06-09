@@ -88,6 +88,7 @@ Execute a SPARQL 1.1 query against a remote HTTP endpoint.
 | `named_graph`    | `AbstractString`, `IRI`, `Nothing` | `nothing` | `named-graph-uri` parameter |
 | `method`         | `Symbol`                      | `:auto`  | `:get`, `:post`, or `:auto` (GET for ≤ 2 kB, POST otherwise) |
 | `retries`        | `Int`                         | `2`      | Number of retry attempts on transient errors (5xx) |
+| `headers`        | `AbstractVector`, `AbstractDict`, `Nothing` | `nothing` | Extra HTTP headers forwarded to every request. User-supplied headers win on name conflicts with the defaults (case-insensitive), so you can override `Accept` or `Content-Type` when needed. |
 
 # Return types
 | Query form  | Return type   |
@@ -139,7 +140,8 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
                     default_graph    = nothing,
                     named_graph      = nothing,
                     method::Symbol   = :auto,
-                    retries::Int     = 2)
+                    retries::Int     = 2,
+                    headers          = nothing)
 
     qtype = _detect_query_type(query)
 
@@ -150,17 +152,16 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
         query = prefix_lines * "\n" * query
     end
 
-    # Accept header: prefer the most information-rich parseable format
+    # Accept header: prefer the most information-rich parseable format.
+    # We only advertise formats we can actually parse — no binary formats.
     accept = if qtype in (:select, :ask)
-        # Always request JSON — widely supported and we have a fast reader
         "application/sparql-results+json"
     else
-        # Turtle first, N-Triples as fallback (both parseable without extra deps)
         "text/turtle;q=1.0, application/n-triples;q=0.9"
     end
 
-    # Build request headers
-    headers = Pair{String,String}[
+    # Build base request headers
+    req_headers = Pair{String,String}[
         "Accept"       => accept,
         "Content-Type" => "application/x-www-form-urlencoded",
         "User-Agent"   => "RDF.jl/0.1 (+https://github.com/mthelm85/RDF.jl)",
@@ -169,9 +170,21 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
     if auth !== nothing
         if auth isa Tuple
             creds = base64encode("$(auth[1]):$(auth[2])")
-            push!(headers, "Authorization" => "Basic $creds")
+            push!(req_headers, "Authorization" => "Basic $creds")
         elseif auth isa AbstractString
-            push!(headers, "Authorization" => "Bearer $auth")
+            push!(req_headers, "Authorization" => "Bearer $auth")
+        end
+    end
+
+    # Fix 1: merge caller-supplied headers.
+    # User-supplied headers win on name conflicts (case-insensitive comparison),
+    # so callers can override Accept, Content-Type, or add auth/proxy headers.
+    if headers !== nothing
+        for pair in headers
+            k = string(first(pair))
+            v = string(last(pair))
+            filter!(p -> lowercase(first(p)) != lowercase(k), req_headers)
+            push!(req_headers, k => v)
         end
     end
 
@@ -194,10 +207,23 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
     timeout_ms = round(Int, timeout * 1000)
 
     # Make the request with retry on transient server errors
-    resp = _http_request(endpoint, headers, body, use_get, timeout_ms, retries)
+    resp = _http_request(endpoint, req_headers, body, use_get, timeout_ms, retries)
 
     # Parse and return
     if qtype in (:select, :ask)
+        # Fix 2: guard against endpoints that ignore the Accept header and return
+        # a binary or unexpected format.  JSON3 would crash with a cryptic
+        # "invalid JSON at byte position 1" message; instead we surface the actual
+        # Content-Type so the user knows exactly what to fix (typically by passing
+        # headers=["Accept" => "application/sparql-results+json"]).
+        ct = HTTP.header(resp, "Content-Type", "")
+        if !isempty(ct) && !_ct_contains(ct, "json")
+            ct_bare = split(ct, ';')[1]
+            error("""SPARQL endpoint returned Content-Type '$ct_bare' but only JSON \
+(application/sparql-results+json) is currently supported for SELECT/ASK results. \
+If the endpoint advertises binary serialisation formats, pin the format with: \
+headers=["Accept" => "application/sparql-results+json"]""")
+        end
         body_str = String(resp.body)
         return read_sparql_json(body_str)
     else
