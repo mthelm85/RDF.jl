@@ -130,6 +130,36 @@ for (s, p, o) in match_ids(g; predicate=p_id)
 end
 ```
 
+### Concurrency and the term registry
+
+RDF.jl interns every distinct term (IRI, literal, blank node) into a global,
+process-wide registry that maps terms to `UInt32` IDs. Two consequences of
+this design matter for long-running or multi-threaded programs:
+
+**Threading contract.**
+
+- Interning is thread-safe: any number of threads may build graphs
+  concurrently (`push!`, `bulk_load!`, parsing).
+- Reading is thread-safe: any number of threads may query already-built
+  graphs concurrently (`match`, `sparql`, iteration, `resolve_term`).
+- Resolving an ID you already hold is safe *while* other threads intern new
+  terms — the ID→term table is append-only, so established IDs stay valid.
+  An ID produced by a concurrent task must be handed over with normal
+  synchronization (`@sync`, a `Channel`, a lock) before it is resolved.
+- A single `Graph`/`Dataset` is **not** safe for concurrent mutation, and
+  mutating a graph while another thread queries *that same graph* is a data
+  race — the same contract as Julia's built-in collections.
+
+**Registry lifetime.** Interned terms are never freed: every distinct term
+seen during the process lifetime occupies a registry slot until exit, even
+after all graphs containing it are garbage-collected. For scripts and
+notebooks this is irrelevant. For long-running services that continuously
+ingest *new* vocabularies (e.g. a pipeline processing unbounded document
+streams), the registry grows monotonically — budget roughly 100 bytes per
+distinct term, and restart or shard across worker processes if unbounded
+distinct-term growth is expected. Repeated use of the *same* terms costs
+nothing extra.
+
 ### Set operations
 
 Standard set operations return new graphs without modifying their arguments:

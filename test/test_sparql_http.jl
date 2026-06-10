@@ -280,14 +280,18 @@ end
                 @test ss isa SolutionSet
             end
 
-            @testset "4xx error throws" begin
-                @test_throws Exception sparql(base,
+            @testset "4xx error throws typed RemoteEndpointError" begin
+                err = @test_throws RemoteEndpointError sparql(base,
                     "SELECT ERROR400 WHERE { ?s ?p ?o }"; retries=0)
+                @test err.value isa RDFError
+                @test occursin("400", sprint(showerror, err.value))
+                @test err.value.endpoint == base
             end
 
-            @testset "5xx error throws after retries" begin
-                @test_throws Exception sparql(base,
+            @testset "5xx error throws typed RemoteEndpointError after retries" begin
+                err = @test_throws RemoteEndpointError sparql(base,
                     "SELECT ERROR500 WHERE { ?s ?p ?o }"; retries=1)
+                @test occursin("500", sprint(showerror, err.value))
             end
 
             # ── Fix 1: custom headers forwarded to the endpoint ────────────────
@@ -330,12 +334,30 @@ end
             @testset "non-JSON Content-Type raises descriptive error" begin
                 # The mock returns application/x-binary-brtr for BINARY_RESP.
                 # Without the guard this would crash JSON3 with a cryptic message;
-                # with the guard it should throw a clear ErrorException mentioning
-                # the actual Content-Type that came back.
-                err = @test_throws ErrorException sparql(base,
+                # with the guard it should throw a clear RemoteEndpointError
+                # mentioning the actual Content-Type that came back.
+                err = @test_throws RemoteEndpointError sparql(base,
                     "SELECT BINARY_RESP WHERE { ?s ?p ?o }"; retries=0)
-                @test occursin("Content-Type", err.value.msg)
-                @test occursin("binary-brtr", err.value.msg)
+                msg = sprint(showerror, err.value)
+                @test occursin("Content-Type", msg)
+                @test occursin("binary-brtr", msg)
+            end
+
+            # ── Audit fix: _truncate must respect UTF-8 character boundaries ───
+
+            @testset "_truncate is UTF-8 safe" begin
+                ext = Base.get_extension(RDF, :RDFHTTPExt)
+                @test ext !== nothing
+                # 300 two-byte characters: byte index 200 is mid-character, so
+                # the old s[1:n] implementation throws StringIndexError here.
+                s = "α"^300
+                t = ext._truncate(s, 200)
+                @test length(t) == 201            # 200 chars + ellipsis
+                @test endswith(t, "…")
+                @test ext._truncate("short", 200) == "short"
+                # Mixed-width content around the boundary
+                s2 = "a"^199 * "β" * "γ"^100
+                @test length(ext._truncate(s2, 200)) == 201
             end
 
             @testset "application/json is accepted (not only sparql-results+json)" begin

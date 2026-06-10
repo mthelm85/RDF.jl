@@ -6,6 +6,11 @@ using RDF
 # Threading model for RDF.jl:
 #   • The global term intern table is protected by _REGISTRY_LOCK; safe for
 #     concurrent intern!() calls from any number of threads.
+#   • resolve_term / _resolve on an ID you already hold is safe while other
+#     threads intern new terms (the ID→term table is append-only and readers
+#     stay within the previously-published prefix).  An ID produced by a
+#     *concurrent* intern must be handed to the reader with external
+#     synchronization (@sync, a channel, a lock, …) before it is resolved.
 #   • The property-path LRU cache is protected by _PATH_CACHE_LOCK.
 #   • Graph / Dataset / HexaStore are NOT thread-safe for concurrent mutation
 #     (same contract as Julia's built-in mutable collections). Build on one
@@ -181,6 +186,61 @@ using RDF
         end
 
         @test all(==(UInt32(1)), ids)
+    end
+
+    # ── 6. Mixed workload — readers resolving established IDs while other ──────
+    # threads intern new terms.  This is the documented contract: resolving an
+    # ID you already hold is safe even while concurrent interning grows the
+    # registry (readers index within the previously-published prefix of the
+    # ID→term table; only IDs obtained from the *concurrent* intern require
+    # external synchronization before use).
+    @testset "Concurrent resolve_term during interning" begin
+        ex = Namespace("http://mixed-rw-test.example/")
+        g  = Graph()
+        n  = 500
+        for i in 1:n
+            push!(g, Triple(ex["s$i"], ex.p, Literal(i)))
+        end
+        # IDs established before the concurrent phase begins
+        established = collect(eachid(g))
+        @test length(established) == n
+
+        n_writers = max(1, min(Threads.nthreads() - 1, 4))
+        n_readers = max(1, min(Threads.nthreads() - 1, 4))
+        reader_ok = fill(false, n_readers)
+
+        @sync begin
+            # Writers: intern a flood of brand-new terms (forces repeated
+            # reallocation of the global ID→term table)
+            for w in 1:n_writers
+                Threads.@spawn begin
+                    gw = Graph()
+                    for i in 1:2_000
+                        push!(gw, Triple(IRI("http://mixed-rw-test.example/w$w/n$i"),
+                                         ex.p, Literal("v$i")))
+                    end
+                end
+            end
+            # Readers: resolve pre-established IDs over and over
+            for r in 1:n_readers
+                let r = r
+                    Threads.@spawn begin
+                        ok = true
+                        for _ in 1:50
+                            for (s_id, p_id, o_id) in established
+                                s = resolve_term(s_id)
+                                p = resolve_term(p_id)
+                                o = resolve_term(o_id)
+                                ok &= s isa IRI && p == ex.p && o isa Literal
+                            end
+                        end
+                        reader_ok[r] = ok
+                    end
+                end
+            end
+        end
+
+        @test all(reader_ok)
     end
 
 end

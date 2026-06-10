@@ -13,9 +13,9 @@ const _REMOTE_SPARQL = Ref{Any}(nothing)
 
 function _remote_sparql(endpoint::AbstractString, query::AbstractString; kwargs...)
     f = _REMOTE_SPARQL[]
-    f === nothing && error(
-        "Remote SPARQL support requires HTTP.jl: run `using HTTP` to activate " *
-        "the RDFHTTPExt extension, then retry.")
+    f === nothing && throw(RemoteEndpointError(String(endpoint),
+        "remote SPARQL support requires HTTP.jl: run `using HTTP` to activate " *
+        "the RDFHTTPExt extension, then retry"))
     f(endpoint, query; kwargs...)
 end
 
@@ -78,8 +78,9 @@ sparql(rg::RemoteGraph, query::AbstractString; kwargs...) =
 function _rg_position(term::Union{RDFTerm, Nothing}, var::String)::String
     term === nothing && return var
     term isa BlankNode &&
-        error("Blank nodes cannot be matched against a remote endpoint: " *
-              "blank node labels are scoped to the remote document")
+        throw(ArgumentError("blank nodes cannot be matched against a remote " *
+                            "endpoint: blank node labels are scoped to the " *
+                            "remote document"))
     sprint(_sp_render_rdfterm, term)
 end
 
@@ -109,8 +110,8 @@ function match(rg::RemoteGraph;
     predicate === nothing && push!(vars, "?p")
     object    === nothing && push!(vars, "?o")
     ss = _rg_query(rg, "SELECT $(join(vars, ' ')) WHERE { $s_txt $p_txt $o_txt }")
-    ss isa SolutionSet ||
-        error("Remote endpoint returned $(typeof(ss)); expected SELECT solutions")
+    ss isa SolutionSet || throw(RemoteEndpointError(rg.endpoint,
+        "endpoint returned $(typeof(ss)); expected SELECT solutions"))
 
     out = Triple[]
     sizehint!(out, length(ss))
@@ -126,10 +127,11 @@ end
 
 function Base.length(rg::RemoteGraph)
     ss = _rg_query(rg, "SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }")
-    (ss isa SolutionSet && length(ss) == 1) ||
-        error("Remote endpoint returned an unexpected COUNT result")
+    (ss isa SolutionSet && length(ss) == 1) || throw(RemoteEndpointError(
+        rg.endpoint, "endpoint returned an unexpected COUNT result"))
     n = ss[1][:n]
-    n isa Literal || error("Remote endpoint returned a non-literal COUNT result")
+    n isa Literal || throw(RemoteEndpointError(
+        rg.endpoint, "endpoint returned a non-literal COUNT result"))
     value(Int64, n)
 end
 
@@ -157,7 +159,7 @@ end
 Base.eltype(::Type{RemoteGraph}) = Triple
 Base.IteratorSize(::Type{RemoteGraph}) = Base.SizeUnknown()
 
-Base.push!(::RemoteGraph, ::Triple) =
-    error("RemoteGraph is read-only; use sparql_update! against an update endpoint")
-Base.delete!(::RemoteGraph, ::Triple) =
-    error("RemoteGraph is read-only; use sparql_update! against an update endpoint")
+Base.push!(::RemoteGraph, ::Triple) = throw(ArgumentError(
+    "RemoteGraph is read-only; use sparql_update! against an update endpoint"))
+Base.delete!(::RemoteGraph, ::Triple) = throw(ArgumentError(
+    "RemoteGraph is read-only; use sparql_update! against an update endpoint"))

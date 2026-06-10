@@ -22,6 +22,19 @@ struct BlankNodeScopeError <: RDFError
     message::String
 end
 
+"""
+    RemoteEndpointError <: RDFError
+
+A remote SPARQL endpoint operation failed: the HTTP transport is unavailable,
+the endpoint returned an error status or an unparseable response, or a
+federated `SERVICE` clause could not be evaluated.  `endpoint` is the endpoint
+URL (or a placeholder such as `"(variable)"` when no concrete URL exists).
+"""
+struct RemoteEndpointError <: RDFError
+    endpoint::String
+    message::String
+end
+
 Base.showerror(io::IO, e::IRIError) =
     print(io, "IRIError: ", e.reason, " (value: ", repr(e.value), ")")
 
@@ -33,3 +46,9 @@ Base.showerror(io::IO, e::LiteralValueError) =
 
 Base.showerror(io::IO, e::BlankNodeScopeError) =
     print(io, "BlankNodeScopeError: ", e.message)
+
+function Base.showerror(io::IO, e::RemoteEndpointError)
+    print(io, "RemoteEndpointError")
+    isempty(e.endpoint) || print(io, " (", e.endpoint, ")")
+    print(io, ": ", e.message)
+end

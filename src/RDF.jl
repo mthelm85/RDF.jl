@@ -62,6 +62,7 @@ export ValidationWarning
 
 # Error types
 export RDFError, IRIError, ParseError, LiteralValueError, BlankNodeScopeError
+export RemoteEndpointError
 
 # Term construction
 export @iri_str
@@ -109,5 +110,58 @@ export Vocabulary, load_vocabulary, terms, label, comment
 
 # Vocabulary modules
 export rdf, rdfs, xsd, owl, skos, dc, dcterms, foaf, schema
+
+# ── Precompile workload ───────────────────────────────────────────────────────
+#
+# Exercises the SPARQL parser/evaluator and the serialization round-trips so
+# their methods are compiled into the package image.  Cuts time-to-first-query
+# from ~12 s to well under a second at the cost of a longer (one-time) package
+# precompile.  The terms interned here use the reserved http://precompile.invalid/
+# namespace; they occupy a few registry slots in every session but are inert.
+using PrecompileTools: @setup_workload, @compile_workload
+
+@setup_workload begin
+    _pc = Namespace("http://precompile.invalid/")
+    @compile_workload begin
+        # Graph construction + pattern matching
+        g = Graph()
+        push!(g, Triple(_pc.s1, rdf.type, _pc.C))
+        push!(g, Triple(_pc.s1, _pc.name, Literal("precompile")))
+        push!(g, Triple(_pc.s1, _pc.age, Literal(1)))
+        push!(g, Triple(_pc.s2, _pc.knows, _pc.s1))
+        bulk_load!(Graph(), [Triple(_pc.s3, _pc.p, Literal(2.5))])
+        collect(match(g; predicate=rdf.type))
+        for _ in eachid(g); end
+        Triple(_pc.s1, rdf.type, _pc.C) in g
+        value(Int64, Literal(1)); value(Literal("precompile"))
+
+        # Serialization round-trips (N-Triples, Turtle, JSON-LD, N-Quads)
+        buf = IOBuffer()
+        write(buf, MIME"application/n-triples"(), g)
+        read(IOBuffer(take!(buf)), MIME"application/n-triples"(), Graph)
+        write(buf, MIME"text/turtle"(), g)
+        read(IOBuffer(take!(buf)), MIME"text/turtle"(), Graph)
+        write(buf, MIME"application/ld+json"(), g)
+        read(IOBuffer(take!(buf)), MIME"application/ld+json"(), Graph)
+        ds = Dataset(; default_graph=g)
+        write(buf, MIME"application/n-quads"(), ds)
+        read(IOBuffer(take!(buf)), MIME"application/n-quads"(), Dataset)
+
+        # SPARQL: parse + evaluate the common query shapes
+        sparql(ds, """
+            SELECT ?s ?o WHERE {
+              ?s <http://precompile.invalid/name> ?o .
+              OPTIONAL { ?s <http://precompile.invalid/age> ?a }
+              FILTER(BOUND(?s) && STRLEN(?o) > 0)
+            } ORDER BY ?o LIMIT 5""")
+        sparql(ds, "ASK { ?s ?p ?o }")
+        sparql(ds, "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }")
+        sparql(ds, "SELECT ?p (COUNT(?s) AS ?n) WHERE { ?s ?p ?o } GROUP BY ?p")
+        sparql(ds, "SELECT ?x WHERE { <http://precompile.invalid/s2> <http://precompile.invalid/knows>+ ?x }")
+        sparql_update!(ds, "INSERT DATA { <http://precompile.invalid/u> <http://precompile.invalid/p> 1 }")
+        sol = sparql(ds, "SELECT ?s WHERE { ?s ?p ?o } LIMIT 2")
+        write(buf, MIME"application/sparql-results+json"(), sol)
+    end
+end
 
 end # module RDF

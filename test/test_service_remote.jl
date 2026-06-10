@@ -186,6 +186,8 @@ end
                 err = e
             end
             @test err !== nothing
+            @test err isa RemoteEndpointError          # typed, catchable error
+            @test err isa RDFError
             @test occursin("HTTP", sprint(showerror, err))
 
             # SERVICE SILENT + no transport → join identity, not an error
@@ -224,10 +226,10 @@ end
             RDF._REMOTE_SPARQL[] = saved
         end
 
-        # 3. Variable endpoint → loud error (unsupported)
+        # 3. Variable endpoint → loud typed error (unsupported)
         RDF._REMOTE_SPARQL[] = (endpoint, query; kwargs...) -> sparql(remote_g, query)
         try
-            @test_throws Exception sparql(local_g, """
+            @test_throws RemoteEndpointError sparql(local_g, """
                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
                 SELECT ?s WHERE {
                   SERVICE ?endpoint { ?s ?p ?o }
@@ -275,8 +277,9 @@ end
             @test r isa SolutionSet
             @test length(r) == 3
 
-            # read-only: mutation is an error
-            @test_throws Exception push!(rg, Triple(_sr_ex.x, _sr_foaf.name, Literal("x")))
+            # read-only: mutation is a typed ArgumentError
+            @test_throws ArgumentError push!(rg, Triple(_sr_ex.x, _sr_foaf.name, Literal("x")))
+            @test_throws ArgumentError delete!(rg, Triple(_sr_ex.x, _sr_foaf.name, Literal("x")))
         finally
             RDF._REMOTE_SPARQL[] = saved
         end
@@ -294,6 +297,7 @@ end
                 err = e
             end
             @test err !== nothing
+            @test err isa RemoteEndpointError
             @test occursin("HTTP", sprint(showerror, err))
         finally
             RDF._REMOTE_SPARQL[] = saved

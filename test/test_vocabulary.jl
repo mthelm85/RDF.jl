@@ -230,8 +230,17 @@ end
         end
     end
 
-    @testset "load_vocabulary — URL without HTTP.jl raises error" begin
-        @test_throws ErrorException load_vocabulary("https://example.org/vocab.ttl")
+    @testset "load_vocabulary — URL failure raises an error" begin
+        # Without HTTP.jl loaded this is the "requires HTTP.jl" ErrorException;
+        # with HTTP.jl loaded (as in this test suite) the request reaches
+        # example.org and the 404 surfaces as a typed RemoteEndpointError.
+        err = nothing
+        try
+            load_vocabulary("https://example.org/vocab.ttl")
+        catch e
+            err = e
+        end
+        @test err isa Union{ErrorException, RemoteEndpointError, RDFError}
     end
 
     # ── Fragment-IRI local name extraction ─────────────────────────────────────

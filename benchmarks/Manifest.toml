@@ -272,7 +272,7 @@ uuid = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
 version = "0.1.6"
 
 [[deps.RDF]]
-deps = ["Base64", "Bumper", "DataStructures", "Dates", "Graphs", "JSON3", "LRUCache", "MD5", "Parsers", "Printf", "SHA", "SimpleWeightedGraphs"]
+deps = ["Base64", "Bumper", "DataStructures", "Dates", "Graphs", "JSON3", "LRUCache", "MD5", "Parsers", "PrecompileTools", "Printf", "SHA", "SimpleWeightedGraphs"]
 path = "C:\\Users\\mthel\\Julia\\MyPackages\\RDF"
 uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
 version = "0.1.0"

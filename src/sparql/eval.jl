@@ -1453,8 +1453,9 @@ function _sp_eval_service(svc::SpService, ctx::_SpEvalCtx,
                           input::Vector{_SpSolution})::Vector{_SpSolution}
     if !(svc.endpoint isa SpIRI)
         svc.silent && return input
-        error("SERVICE with a variable endpoint is not supported; " *
-              "use an explicit IRI (or SERVICE SILENT to tolerate it)")
+        throw(RemoteEndpointError("(variable)",
+            "SERVICE with a variable endpoint is not supported; " *
+            "use an explicit IRI (or SERVICE SILENT to tolerate it)"))
     end
     endpoint = (svc.endpoint::SpIRI).value
     query    = "SELECT * WHERE " * _sp_render_pattern(svc.pattern)
@@ -1467,8 +1468,8 @@ function _sp_eval_service(svc::SpService, ctx::_SpEvalCtx,
     end
     if !(result isa SolutionSet)
         svc.silent && return input
-        error("SERVICE endpoint <$endpoint> returned $(typeof(result)); " *
-              "expected SELECT solutions")
+        throw(RemoteEndpointError(endpoint,
+            "SERVICE endpoint returned $(typeof(result)); expected SELECT solutions"))
     end
 
     remote = _SpSolution[]

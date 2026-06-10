@@ -182,7 +182,8 @@ evaluation errors (e.g. an undeclared prefix).
 function sparql(g::Union{Graph, Dataset}, query::AbstractString;
                 base::Union{AbstractString, Nothing} = nothing)
     unit = sparql_parse(query)
-    unit isa SpQueryUnit || error("Expected a query, got an update")
+    unit isa SpQueryUnit ||
+        throw(ArgumentError("expected a SPARQL query, got an update — use sparql_update!"))
     base_str = base === nothing ? nothing : String(base)
     # Prefer BASE declaration from query over external base
     effective_base = unit.base !== nothing ? unit.base : base_str
@@ -203,7 +204,8 @@ Throws `ParseError` on a syntactically invalid update.
 function sparql_update!(ds::Dataset, update::AbstractString;
                         base::Union{AbstractString, Nothing} = nothing)
     unit = sparql_parse(update)
-    unit isa SpUpdateUnit || error("Expected an update, got a query")
+    unit isa SpUpdateUnit ||
+        throw(ArgumentError("expected a SPARQL update, got a query — use sparql"))
     base_str = base === nothing ? nothing : String(base)
     # Prefer BASE declaration from update over external base
     effective_base = unit.base !== nothing ? unit.base : base_str

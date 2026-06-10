@@ -226,10 +226,11 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
         ct = HTTP.header(resp, "Content-Type", "")
         if !isempty(ct) && !_ct_contains(ct, "json")
             ct_bare = split(ct, ';')[1]
-            error("""SPARQL endpoint returned Content-Type '$ct_bare' but only JSON \
+            throw(RDF.RemoteEndpointError(String(endpoint),
+                """endpoint returned Content-Type '$ct_bare' but only JSON \
 (application/sparql-results+json) is currently supported for SELECT/ASK results. \
 If the endpoint advertises binary serialisation formats, pin the format with: \
-headers=["Accept" => "application/sparql-results+json"]""")
+headers=["Accept" => "application/sparql-results+json"]"""))
         end
         body_str = String(resp.body)
         return read_sparql_json(body_str)
@@ -266,16 +267,19 @@ function _http_request(endpoint::AbstractString,
 
             # 4xx → client error, do not retry
             if resp.status < 500
-                _sparql_http_error(resp)
+                _sparql_http_error(endpoint, resp)
             end
 
             # 5xx → transient, retry after a short back-off
-            last_exc = ErrorException(
-                "SPARQL endpoint returned $(resp.status): " *
+            last_exc = RDF.RemoteEndpointError(String(endpoint),
+                "endpoint returned $(resp.status): " *
                 _truncate(String(resp.body), 200))
             attempt <= retries && sleep(0.5 * attempt)
 
         catch exc
+            # 4xx errors thrown by _sparql_http_error are deliberate client
+            # errors — propagate immediately instead of retrying.
+            exc isa RDF.RemoteEndpointError && rethrow()
             # Network-level errors (connection refused, timeout, etc.) are retried
             last_exc = exc
             attempt <= retries && sleep(0.5 * attempt)
@@ -284,13 +288,16 @@ function _http_request(endpoint::AbstractString,
     throw(last_exc)
 end
 
-function _sparql_http_error(resp::HTTP.Response)
+function _sparql_http_error(endpoint::AbstractString, resp::HTTP.Response)
     msg = _truncate(String(resp.body), 400)
-    error("SPARQL endpoint error $(resp.status): $msg")
+    throw(RDF.RemoteEndpointError(String(endpoint),
+        "endpoint returned $(resp.status): $msg"))
 end
 
+# first(s, n) counts characters, not bytes — s[1:n] would throw
+# StringIndexError when byte n falls inside a multi-byte UTF-8 character.
 _truncate(s::AbstractString, n::Int) =
-    length(s) <= n ? s : s[1:n] * "…"
+    length(s) <= n ? s : first(s, n) * "…"
 
 
 # ── Vocabulary loading over HTTP ───────────────────────────────────────────────
