@@ -412,10 +412,17 @@ schema.Person     # IRI("https://schema.org/Person")
 Run the included benchmark suite with:
 
 ```julia
-julia --project=bench bench/benchmarks.jl
+julia --project=benchmarks benchmarks/benchmarks.jl
 ```
 
-See `bench/benchmarks.jl` for the full suite, which covers triple insertion, hexastore pattern matching, N-Triples/N-Quads/Turtle serialization (read and write), and raw-ID iteration. `bench/compare.jl` shows before/after write-path speedups.
+See `benchmarks/benchmarks.jl` for the full suite, which covers term interning, triple insertion (`push!` and `bulk_load!`), hexastore pattern matching, raw-ID iteration (`eachid`), all serialization formats (read and write, up to 100k triples), SPARQL parsing/evaluation/updates, inference, and validation.
+
+To track regressions, save a baseline and compare against it later:
+
+```julia
+julia --project=benchmarks benchmarks/benchmarks.jl --save=baseline.json
+julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
+```
 
 ## W3C conformance
 

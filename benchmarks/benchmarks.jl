@@ -18,8 +18,9 @@ Via PkgBenchmark (for CI regression tracking):
 
 Sections:
   intern         — term-registry lookup throughput (IRI, Literal, BlankNode)
-  insertion      — triple insertion into a fresh Graph
-  match          — hexastore pattern matching (all 7 binding patterns + full scan)
+  insertion      — triple insertion into a fresh Graph (push! and bulk_load!)
+  match          — hexastore pattern matching (all 7 binding patterns + full
+                   scan) and zero-allocation raw-ID iteration (eachid)
   literal        — Literal construction and value() coercion
   union          — graph union with blank-node renaming
   isomorphism    — blank-node isomorphism check
@@ -92,6 +93,10 @@ function make_jsonld_bytes(n::Int)
     take!(io)
 end
 
+# Shared 100k-triple fixture for the large-scale match and serialization
+# benchmarks (built once — make_graph is too slow to rebuild per section).
+const G_100K = make_graph(100_000)
+
 # ── 1. Intern table ────────────────────────────────────────────────────────────
 # Measures the intern-table lookup path for already-interned terms (hot path
 # during graph construction when the same vocabulary IRIs are reused).
@@ -141,6 +146,11 @@ for n in (1_000, 10_000, 100_000)
     end
 end
 
+for n in (10_000, 100_000)
+    ts = make_triples(n)
+    SUITE["insertion"]["bulk_load!/n=$n"] = @benchmarkable bulk_load!(Graph(), $ts)
+end
+
 # ── 3. Pattern matching ────────────────────────────────────────────────────────
 
 SUITE["match"] = BenchmarkGroup()
@@ -157,6 +167,14 @@ let
     SUITE["match"]["_PO"]  = @benchmarkable collect(match($g; predicate=$p0, object=$o0))
     SUITE["match"]["SPO"]  = @benchmarkable collect(match($g; subject=$s0, predicate=$p0, object=$o0))
     SUITE["match"]["___"]  = @benchmarkable collect(match($g))
+end
+
+# Zero-allocation raw-ID iteration vs. the Triple-constructing full scan
+SUITE["match"]["full_scan/n=100k"] = @benchmarkable collect($(G_100K))
+SUITE["match"]["eachid/n=100k"]    = @benchmarkable begin
+    acc = 0
+    for _ in eachid($(G_100K)); acc += 1; end
+    acc
 end
 
 # ── 4. Literal construction and coercion ──────────────────────────────────────
@@ -228,6 +246,12 @@ let
 
     SUITE["ntriples"]["write_10k"] = @benchmarkable write(IOBuffer(), MIME"application/n-triples"(), $g)
     SUITE["ntriples"]["read_10k"]  = @benchmarkable read(IOBuffer($nt_bytes), MIME"application/n-triples"(), Graph)
+
+    buf_100k      = IOBuffer(); write(buf_100k, MIME"application/n-triples"(), G_100K)
+    nt_bytes_100k = take!(buf_100k)
+
+    SUITE["ntriples"]["write_100k"] = @benchmarkable write(IOBuffer(), MIME"application/n-triples"(), $(G_100K))
+    SUITE["ntriples"]["read_100k"]  = @benchmarkable read(IOBuffer($nt_bytes_100k), MIME"application/n-triples"(), Graph)
 end
 
 # ── 8. N-Quads serialization ──────────────────────────────────────────────────
@@ -248,6 +272,20 @@ let
 
     SUITE["nquads"]["write_10k"] = @benchmarkable write(IOBuffer(), MIME"application/n-quads"(), $ds)
     SUITE["nquads"]["read_10k"]  = @benchmarkable read(IOBuffer($nq_bytes), MIME"application/n-quads"(), Dataset)
+
+    ds_100k = Dataset()
+    for gi in 1:5
+        g = Graph()
+        for i in 1:20_000
+            push!(g, Triple(ex["s$i"], ex["p$(i%100)"], ex["o$i"]))
+        end
+        ds_100k[ex["graph100k_$gi"]] = g
+    end
+    buf_100k      = IOBuffer(); write(buf_100k, MIME"application/n-quads"(), ds_100k)
+    nq_bytes_100k = take!(buf_100k)
+
+    SUITE["nquads"]["write_100k"] = @benchmarkable write(IOBuffer(), MIME"application/n-quads"(), $ds_100k)
+    SUITE["nquads"]["read_100k"]  = @benchmarkable read(IOBuffer($nq_bytes_100k), MIME"application/n-quads"(), Dataset)
 end
 
 # ── 9. Turtle parse and write ─────────────────────────────────────────────────
@@ -264,6 +302,10 @@ let
 
     SUITE["turtle"]["parse_1k"] = @benchmarkable read(IOBuffer($src), MIME"text/turtle"(), Graph)
     SUITE["turtle"]["write_1k"] = @benchmarkable write(IOBuffer(), MIME"text/turtle"(), $g)
+
+    g10k = make_graph(10_000)
+    SUITE["turtle"]["write_10k"]  = @benchmarkable write(IOBuffer(), MIME"text/turtle"(), $g10k)
+    SUITE["turtle"]["write_100k"] = @benchmarkable write(IOBuffer(), MIME"text/turtle"(), $(G_100K))
 end
 
 # ── 10. JSON-LD parse and write ───────────────────────────────────────────────

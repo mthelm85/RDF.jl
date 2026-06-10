@@ -654,7 +654,7 @@ end
 
         @testset "large graph iteration works correctly" begin
             # Build a larger graph and verify eachid counts correctly
-            # (zero-alloc property is verified by bench/benchmarks.jl via BenchmarkTools)
+            # (zero-alloc property is verified by benchmarks/benchmarks.jl via BenchmarkTools)
             g_large = Graph()
             for i in 1:100
                 push!(g_large, Triple(_ex["s$i"], _foaf.knows, _ex["o$i"]))
