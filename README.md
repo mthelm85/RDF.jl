@@ -6,8 +6,9 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 
 ## Features
 
-- **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED
-- **Remote SPARQL endpoints** — `sparql(url, query)` queries any SPARQL 1.1 endpoint (Wikidata, UniProt, DBpedia, …) when HTTP.jl is loaded; same API as local queries
+- **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED, SERVICE
+- **Cost-based query optimization** — basic graph patterns are automatically reordered using exact O(log n) hexastore cardinalities, so pattern order in your query never matters for performance
+- **Remote SPARQL endpoints** — `sparql(url, query)` queries any SPARQL 1.1 endpoint (Wikidata, UniProt, DBpedia, …) when HTTP.jl is loaded; `SERVICE` federates local and remote data in one query; `RemoteGraph` wraps an endpoint in the Graph API
 - **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV for HTTP API integration
 - **Turtle 1.1** parser and serializer
 - **N-Triples / N-Quads** parser and serializer
@@ -170,6 +171,33 @@ sparql("https://private.endpoint.example/sparql", query;
        auth    = ("user", "pass"),   # or auth="bearer-token"
        timeout = 120,
        retries = 3)
+```
+
+### Federated queries and RemoteGraph
+
+The SPARQL 1.1 `SERVICE` clause joins local data with remote endpoints, and
+`RemoteGraph` exposes an endpoint through the familiar Graph API — the data
+never has to fit in local memory:
+
+```julia
+using RDF, HTTP
+
+# SERVICE: join local triples with Wikidata inside one query
+result = sparql(local_graph, """
+  PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+  PREFIX ex:  <http://example.org/>
+  SELECT ?city ?population WHERE {
+    ?city ex:officeLocation true .              # local
+    SERVICE <https://query.wikidata.org/sparql> {
+      ?city wdt:P1082 ?population               # remote
+    }
+  }
+""")
+
+# RemoteGraph: match / in / length / sparql against a remote endpoint
+wd = RemoteGraph("https://query.wikidata.org/sparql")
+match(wd; subject=IRI("http://www.wikidata.org/entity/Q42"),
+          predicate=IRI("http://www.wikidata.org/prop/direct/P31"))
 ```
 
 ### SPARQL UPDATE

@@ -35,6 +35,7 @@ include("serialization/jsonld.jl")
 
 # ── Query ─────────────────────────────────────────────────────────────────────
 include("sparql.jl")
+include("remote.jl")
 
 # ── Vocabulary API ───────────────────────────────────────────────────────────
 include("vocabulary.jl")
@@ -99,6 +100,9 @@ export validate
 
 # SPARQL
 export SolutionSet, SolutionRow, sparql_parse, sparql, sparql_update!, read_sparql_json
+
+# Remote SPARQL endpoints (transport provided by the HTTP.jl extension)
+export RemoteGraph
 
 # Vocabulary API
 export Vocabulary, load_vocabulary, terms, label, comment

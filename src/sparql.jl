@@ -7,6 +7,7 @@ include("sparql/ast.jl")
 include("sparql/lexer.jl")
 include("sparql/parser.jl")
 include("sparql/builtins.jl")
+include("sparql/render.jl")
 include("sparql/eval.jl")
 include("sparql/update.jl")
 

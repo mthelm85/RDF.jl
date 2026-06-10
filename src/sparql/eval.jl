@@ -442,8 +442,9 @@ function _bt_left_join_bgp(bt::_BT, bgp::SpBGP, ctx::_SpEvalCtx)::_BT
     ext_cols = vcat(bt.cols, [rid_col])
     inner_bt = _BT(ext_vars, ext_idx, ext_cols, n)
 
-    # Inner join over all optional triples.
-    for tp in bgp.triples
+    # Inner join over all optional triples (most selective first; all of the
+    # input table's variables count as bound).
+    for tp in _sp_reorder_bgp(bgp.triples, ctx, Set(bt.vars))
         _bt_nrows(inner_bt) == 0 && break
         inner_bt = _bt_extend_tp(inner_bt, tp, ctx)
     end
@@ -1308,6 +1309,95 @@ function _sp_eval_tp_row(tp::SpTriple, ctx::_SpEvalCtx, μ::_SpSolution)::Vector
     results
 end
 
+# ── BGP join-order optimization ───────────────────────────────────────────────
+#
+# BGP join is commutative, so triple patterns can be evaluated in any order
+# without changing the result multiset.  Order matters enormously for cost:
+# evaluating an unselective pattern first materialises a huge intermediate
+# table, and evaluating two patterns that share no variables back-to-back
+# produces a Cartesian product.
+#
+# The hexastore gives the *exact* cardinality of any constant-bound pattern in
+# O(log n) (_count_ids), so no statistics are needed.  _sp_reorder_bgp runs a
+# greedy selection: repeatedly pick the cheapest remaining pattern, preferring
+# patterns connected (by a shared variable) to the already-bound variable set.
+
+# Variables of a triple pattern (subject/object SpVar, SpBNode, SpAnonBNode,
+# plus a variable predicate).  Inner variables of RDF-star triple terms are
+# ignored — conservative for connectivity, and such patterns are ranked as
+# uncountable anyway.
+function _sp_tp_vars(tp::SpTriple)::Vector{Symbol}
+    vars = Symbol[]
+    sv = _bt_var_sym(tp.subject)
+    sv !== nothing && push!(vars, sv)
+    pv = _bt_pred_var_sym(tp.predicate)
+    pv !== nothing && !(pv in vars) && push!(vars, pv)
+    ov = _bt_var_sym(tp.object)
+    ov !== nothing && !(ov in vars) && push!(vars, ov)
+    vars
+end
+
+# Estimated evaluation cost of one triple pattern: the exact hexastore count
+# over its constant positions, discounted ×1/16 for each variable position
+# already bound (a bound variable restricts the match like a constant, but its
+# value isn't known here, so a fixed discount is applied).  Complex property
+# paths and triple-term patterns can't be counted; they are ranked as
+# more-expensive-than-anything-countable so they run last, when the most
+# variables are bound.
+function _sp_tp_cost(tp::SpTriple, ctx::_SpEvalCtx, bound::Set{Symbol})::Float64
+    g = ctx.active_graph
+    base = if _bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp)
+        Float64(length(g)) * 16.0^3 + 1.0   # never beats a countable pattern
+    else
+        s_is_c, s_cid = _bt_const_id(tp.subject, ctx)
+        p_is_c, p_cid = _bt_pred_const_id(tp.predicate, ctx)
+        o_is_c, o_cid = _bt_const_id(tp.object, ctx)
+        # A constant absent from the registry means zero matches — cheapest
+        # possible pattern (it empties the table immediately).
+        ((s_is_c && s_cid == 0) || (p_is_c && p_cid == 0) || (o_is_c && o_cid == 0)) &&
+            return 0.0
+        Float64(_count_ids(g, s_is_c ? s_cid : nothing,
+                              p_is_c ? p_cid : nothing,
+                              o_is_c ? o_cid : nothing))
+    end
+    discount = 1.0
+    for v in _sp_tp_vars(tp)
+        v in bound && (discount *= 16.0)
+    end
+    base / discount
+end
+
+# Greedy join-order selection.  Returns a permutation of `triples`; `bound` is
+# the set of variables already bound before the BGP runs (e.g. by the input
+# solutions or an enclosing pattern).  Stable: ties keep source order.
+function _sp_reorder_bgp(triples::Vector{SpTriple}, ctx::_SpEvalCtx,
+                         bound::Set{Symbol})::Vector{SpTriple}
+    length(triples) <= 1 && return triples
+    bound     = copy(bound)
+    tvars     = [_sp_tp_vars(tp) for tp in triples]
+    remaining = collect(1:length(triples))
+    out       = Vector{SpTriple}(undef, 0)
+    sizehint!(out, length(triples))
+    while !isempty(remaining)
+        best_pos  = 1
+        best_key  = (typemax(Int), Inf)
+        for (pos, j) in enumerate(remaining)
+            # connected = shares a bound variable, or has no variables at all
+            connected = isempty(tvars[j]) || any(v -> v in bound, tvars[j])
+            key = (connected ? 0 : 1, _sp_tp_cost(triples[j], ctx, bound))
+            if key < best_key
+                best_key = key
+                best_pos = pos
+            end
+        end
+        j = remaining[best_pos]
+        deleteat!(remaining, best_pos)
+        push!(out, triples[j])
+        union!(bound, tvars[j])
+    end
+    out
+end
+
 # Evaluate a BGP against the active graph using a columnar BindingTable.
 #
 # Solutions are stored column-wise as parallel Vector{UInt32} arrays during
@@ -1317,7 +1407,7 @@ end
 function _sp_eval_bgp(bgp::SpBGP, ctx::_SpEvalCtx, input::Vector{_SpSolution})::Vector{_SpSolution}
     bt = _solutions_to_bt(input)
 
-    for tp in bgp.triples
+    for tp in _sp_reorder_bgp(bgp.triples, ctx, Set(bt.vars))
         _bt_nrows(bt) == 0 && break
 
         if _bt_is_complex_path(tp.predicate)
@@ -1346,6 +1436,57 @@ function _sp_eval_bgp(bgp::SpBGP, ctx::_SpEvalCtx, input::Vector{_SpSolution})::
     end
 
     _bt_to_solutions(bt)
+end
+
+# ── SERVICE evaluation (SPARQL 1.1 Federated Query) ───────────────────────────
+#
+# The inner pattern is rendered back to SPARQL text (all IRIs absolute, no
+# prologue needed), wrapped in `SELECT * WHERE { … }`, and sent to the remote
+# endpoint through the _remote_sparql transport hook (installed by the
+# RDFHTTPExt extension when HTTP.jl is loaded).  The returned solutions are
+# joined with the current solutions on their shared variables.
+#
+# SERVICE SILENT: any failure (no transport, network error, non-SELECT result,
+# variable endpoint) degrades to the join identity — input solutions pass
+# through unchanged with the service variables left unbound.
+function _sp_eval_service(svc::SpService, ctx::_SpEvalCtx,
+                          input::Vector{_SpSolution})::Vector{_SpSolution}
+    if !(svc.endpoint isa SpIRI)
+        svc.silent && return input
+        error("SERVICE with a variable endpoint is not supported; " *
+              "use an explicit IRI (or SERVICE SILENT to tolerate it)")
+    end
+    endpoint = (svc.endpoint::SpIRI).value
+    query    = "SELECT * WHERE " * _sp_render_pattern(svc.pattern)
+
+    result = try
+        _remote_sparql(endpoint, query)
+    catch
+        svc.silent && return input
+        rethrow()
+    end
+    if !(result isa SolutionSet)
+        svc.silent && return input
+        error("SERVICE endpoint <$endpoint> returned $(typeof(result)); " *
+              "expected SELECT solutions")
+    end
+
+    remote = _SpSolution[]
+    sizehint!(remote, length(result))
+    for row in result
+        μ = _SpSolution()
+        for v in (result::SolutionSet).variables
+            t = row[v]
+            t === nothing || (μ[v] = t)
+        end
+        push!(remote, μ)
+    end
+
+    out = _SpSolution[]
+    for μ1 in input, μ2 in remote
+        _sp_compatible(μ1, μ2) && push!(out, _sp_merge_sol(μ1, μ2))
+    end
+    out
 end
 
 # ── Property path evaluation ──────────────────────────────────────────────────
@@ -1837,7 +1978,7 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
                 push!(filters, elem)
 
             elseif elem isa SpBGP
-                for tp in (elem::SpBGP).triples
+                for tp in _sp_reorder_bgp((elem::SpBGP).triples, ctx, Set(bt.vars))
                     _bt_nrows(bt) == 0 && break
                     if _bt_is_complex_path(tp.predicate)
                         sols = _bt_to_solutions(bt)
@@ -1963,8 +2104,7 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
         end
 
     elseif pat isa SpService
-        # SERVICE: not fully implemented; return empty (graceful degradation)
-        return _SpSolution[]
+        return _sp_eval_service(pat, ctx, input)
 
     elseif pat isa SpBind
         results = _SpSolution[]
@@ -2204,9 +2344,10 @@ function _sp_eval_where_bt(pat::SpPat, ctx::_SpEvalCtx)::Union{_BT, Nothing}
     bt = _BT(Symbol[], Dict{Symbol,Int}(), Vector{UInt32}[], 1)
 
     if pat isa SpBGP
-        for tp in pat.triples
+        any(tp -> _bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp),
+            pat.triples) && return nothing
+        for tp in _sp_reorder_bgp(pat.triples, ctx, Set{Symbol}())
             _bt_nrows(bt) == 0 && return bt
-            (_bt_is_complex_path(tp.predicate) || _tp_needs_tt_matching(tp)) && return nothing
             bt = _bt_extend_tp(bt, tp, ctx)
         end
         return bt
@@ -2231,7 +2372,7 @@ function _sp_eval_where_bt(pat::SpPat, ctx::_SpEvalCtx)::Union{_BT, Nothing}
     for elem in pat.elements
         _bt_nrows(bt) == 0 && break
         if elem isa SpBGP
-            for tp in (elem::SpBGP).triples
+            for tp in _sp_reorder_bgp((elem::SpBGP).triples, ctx, Set(bt.vars))
                 _bt_nrows(bt) == 0 && break
                 bt = _bt_extend_tp(bt, tp, ctx)
             end

@@ -224,6 +224,24 @@ end
 Base.eltype(::Type{_IDTripleIterator}) = NTuple{3, UInt32}
 Base.IteratorSize(::Type{_IDTripleIterator}) = Base.SizeUnknown()
 
+# Exact number of triples matching an ID pattern, in O(log n).
+#
+# Every bound-position combination maps onto one of the six hexastore orders
+# with the bound positions forming a prefix (see _select_index), so the
+# matching rows are a contiguous range and two binary searches give the exact
+# cardinality.  UInt32(0) for any position means "term not in registry" → 0.
+# Used by the SPARQL BGP join-order optimizer.
+function _count_ids(g::Graph,
+                    s_id::Union{UInt32, Nothing},
+                    p_id::Union{UInt32, Nothing},
+                    o_id::Union{UInt32, Nothing})::Int
+    (s_id === UInt32(0) || p_id === UInt32(0) || o_id === UInt32(0)) && return 0
+    index, a, b, c, _ = _select_index(g.store, s_id, p_id, o_id)
+    isempty(index) && return 0
+    lo, hi = _range_bounds(a, b, c)
+    max(0, searchsortedlast(index, hi) - searchsortedfirst(index, lo) + 1)
+end
+
 # ── Dataset match ─────────────────────────────────────────────────────────────
 
 function match(ds::Dataset;

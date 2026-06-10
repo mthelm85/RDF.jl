@@ -267,6 +267,60 @@ sparql("https://my-endpoint.example/sparql", query;
        auth = "eyJhbGci...")
 ```
 
+### Federated queries — SERVICE
+
+With HTTP.jl loaded, the standard SPARQL 1.1 `SERVICE` clause works inside
+local queries: the inner pattern is sent to the remote endpoint and the
+remote solutions are joined with the local ones on their shared variables.
+
+```julia
+using RDF, HTTP
+
+# Join local data with Wikidata
+result = sparql(local_graph, """
+  PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+  PREFIX ex:  <http://example.org/>
+  SELECT ?city ?population WHERE {
+    ?city ex:officeLocation true .              # local
+    SERVICE <https://query.wikidata.org/sparql> {
+      ?city wdt:P1082 ?population               # remote
+    }
+  }
+""")
+```
+
+`SERVICE SILENT` tolerates failures: if the endpoint is unreachable (or
+HTTP.jl is not loaded), the outer solutions pass through unchanged with the
+service variables left unbound. Without `SILENT`, failures raise an error —
+never silently empty results.
+
+### RemoteGraph — endpoint-backed graph view
+
+```@docs
+RemoteGraph
+```
+
+[`RemoteGraph`](@ref) wraps an endpoint in the familiar Graph API, translating
+operations into SPARQL Protocol requests so the data never has to fit in local
+memory:
+
+```julia
+using RDF, HTTP
+
+wd = RemoteGraph("https://query.wikidata.org/sparql")
+
+douglas_adams = IRI("http://www.wikidata.org/entity/Q42")
+instance_of   = IRI("http://www.wikidata.org/prop/direct/P31")
+
+match(wd; subject=douglas_adams, predicate=instance_of)  # SELECT under the hood
+Triple(douglas_adams, instance_of, IRI("http://www.wikidata.org/entity/Q5")) in wd  # ASK
+sparql(wd, "SELECT ?s WHERE { ?s ?p ?o } LIMIT 5")       # direct forwarding
+```
+
+`RemoteGraph` is read-only; supported operations are `match`, `length`,
+`isempty`, `in`, iteration, and `sparql`. Keyword arguments given to the
+constructor (`auth`, `headers`, `timeout`, …) are forwarded with every request.
+
 ---
 
 ## SPARQL result format serialization
@@ -332,4 +386,15 @@ Header uses `?`-prefixed variable names; term values use N-Triples syntax
 | Built-in functions (str, lang, datatype, isIRI, isLiteral, …) | ✅ |
 | Numeric, string, date/time functions | ✅ |
 | Hash functions (MD5, SHA1, SHA256, SHA384, SHA512) | ✅ |
-| SERVICE (federated queries) | ❌ not yet |
+| SERVICE / SERVICE SILENT (federated queries) | ✅ requires HTTP.jl |
+
+## Query optimization
+
+The SPARQL engine reorders the triple patterns inside each basic graph pattern
+before evaluation, so the order you write patterns in does not affect
+performance (or results). The optimizer uses **exact** cardinalities — the
+hexastore answers "how many triples match this pattern?" in O(log n) with two
+binary searches — and greedily evaluates the most selective pattern first,
+preferring patterns that share a variable with the already-bound set so that
+Cartesian products are avoided. No statistics, configuration, or query hints
+are needed.

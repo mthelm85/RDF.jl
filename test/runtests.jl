@@ -24,6 +24,8 @@ using Test
     include("test_thread_safety.jl")
     include("test_sparql_results.jl")
     include("test_sparql_http.jl")
+    include("test_join_reorder.jl")
+    include("test_service_remote.jl")
     include("test_w3c_ntriples.jl")
     include("test_w3c_nquads.jl")
     include("test_w3c_isomorphism.jl")

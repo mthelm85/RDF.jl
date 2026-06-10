@@ -23,6 +23,13 @@ using RDF
 using HTTP
 using Base64
 
+# Install the HTTP transport for SERVICE federation and RemoteGraph.
+# RDF.sparql(endpoint::AbstractString, query; kwargs...) is defined below in
+# this extension; the hook simply makes it reachable from the core package.
+function __init__()
+    RDF._REMOTE_SPARQL[] = RDF.sparql
+end
+
 # ── Query-type detection ───────────────────────────────────────────────────────
 #
 # Scans past PREFIX/BASE declarations to find the first operative keyword.
