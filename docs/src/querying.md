@@ -298,6 +298,7 @@ never silently empty results.
 
 ```@docs
 RemoteGraph
+RemoteEndpointError
 ```
 
 [`RemoteGraph`](@ref) wraps an endpoint in the familiar Graph API, translating
