@@ -19,6 +19,7 @@ makedocs(;
         "Graphs & Datasets"       => "graphs.md",
         "Serialization"           => "serialization.md",
         "Querying"                => "querying.md",
+        "AI & GraphRAG"           => "ai.md",
         "Vocabulary API"          => "vocabulary.md",
         "Inference & Validation"  => "inference.md",
     ],

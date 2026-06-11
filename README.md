@@ -13,6 +13,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 - **Turtle 1.1** parser and serializer
 - **N-Triples / N-Quads** parser and serializer
 - **JSON-LD 1.1** parser and serializer — inline contexts, prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
+- **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), and render them as token-budgeted LLM context (`to_context`)
 - **Named graphs / Datasets** with full SPARQL dataset semantics
 - **RDFS inference** (forward-chaining closure, entailment check)
 - **Graph isomorphism** (blank-node bijection)
@@ -281,6 +282,30 @@ write(io, MIME"application/sparql-results+json"(), sparql(ds, "ASK { ?s ?p ?o }"
 infer_rdfs(g)    # returns a new graph with the RDFS closure
 infer_rdfs!(g)   # closes g in place
 entails(g, Triple(ex.alice, rdf.type, ex.Animal))
+```
+
+### AI / GraphRAG: annotated facts and prompt grounding
+
+Store LLM-extracted facts with their extraction metadata (RDF-star, RDF 1.2
+reification — round-trips through every serializer), then ground prompts in
+focused, token-budgeted subgraphs:
+
+```julia
+# Extraction side: a fact plus its metadata
+t = Triple(ex.alice, ex.employer, ex.acme)
+annotate!(g, t; confidence=0.92, source=ex.doc42, model=Literal("claude-fable-5"))
+
+# Guardrail: keep only high-confidence facts
+confs = annotations(g, t, anno.confidence)
+all(value(Float64, c) >= 0.9 for c in confs)   # true
+
+# Retrieval side: seeds → subgraph → token-budgeted prompt context
+sub = ego_graph(g, [ex.alice]; hops=2)         # k-hop neighbourhood
+ctx = to_context(sub; budget=2000,             # ≈ tokens; most-connected first
+                 prefixes=Dict("ex" => "http://example.org/"))
+
+profile = cbd(g, ex.alice)                      # everything about one entity,
+                                                # annotations included
 ```
 
 ### Graphs.jl integration

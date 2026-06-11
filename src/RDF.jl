@@ -40,6 +40,10 @@ include("remote.jl")
 # ── Vocabulary API ───────────────────────────────────────────────────────────
 include("vocabulary.jl")
 
+# ── AI / GraphRAG layer ───────────────────────────────────────────────────────
+include("annotations.jl")
+include("context.jl")
+
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")
 include("vocab/rdfs_vocab.jl")
@@ -104,6 +108,10 @@ export SolutionSet, SolutionRow, sparql_parse, sparql, sparql_update!, read_spar
 
 # Remote SPARQL endpoints (transport provided by the HTTP.jl extension)
 export RemoteGraph
+
+# RDF-star annotations + GraphRAG context extraction
+export annotate!, annotations, anno
+export cbd, ego_graph, to_context
 
 # Vocabulary API
 export Vocabulary, load_vocabulary, terms, label, comment
