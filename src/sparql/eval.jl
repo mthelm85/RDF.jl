@@ -17,6 +17,9 @@
 
 const _SpSolution = Dict{Symbol, RDFTerm}
 
+# Shared empty solution for constant-folding lookups (never mutated by readers).
+const _EMPTY_SP_SOLUTION = Dict{Symbol, RDFTerm}()
+
 # Create a copy of a solution
 _sp_copy_sol(μ::_SpSolution) = copy(μ)
 
@@ -173,22 +176,14 @@ end
         end
         return (true, get(_LITERAL_TO_ID, term, UInt32(0)))
     elseif expr isa SpTripleTerm
-        # Constant only when every inner position is itself constant
-        s_is_c, s_id = _bt_const_id(expr.subject,   ctx)
-        s_is_c || return (false, UInt32(0))
-        p_is_c, p_id = _bt_const_id(expr.predicate, ctx)
-        p_is_c || return (false, UInt32(0))
-        o_is_c, o_id = _bt_const_id(expr.object,    ctx)
-        o_is_c || return (false, UInt32(0))
-        # All constant — any missing from registry means no match possible
-        (s_id == 0 || p_id == 0 || o_id == 0) && return (true, UInt32(0))
-        s_term = _resolve(s_id)
-        p_term = _resolve(p_id)
-        o_term = _resolve(o_id)
-        p_term isa IRI || return (true, UInt32(0))
-        s_term isa SubjectTerm || return (true, UInt32(0))
-        tt = try TripleTerm(s_term, p_term::IRI, o_term) catch; return (true, UInt32(0)) end
-        return (true, get(_TRIPLE_TERM_TO_ID, tt, UInt32(0)))
+        # A triple term is a single interned term keyed by the whole structure;
+        # its inner components are NOT necessarily interned standalone (e.g. an
+        # IRI that only ever appears inside a triple term).  So build the term
+        # directly from the expression rather than round-tripping inner IDs,
+        # then look it up.  Returns not-constant if any inner slot is a variable.
+        tt = _sp_resolve_tp_term(expr, ctx, _EMPTY_SP_SOLUTION)
+        tt === nothing && return (false, UInt32(0))
+        return (true, get(_TRIPLE_TERM_TO_ID, tt::TripleTerm, UInt32(0)))
     end
     (false, UInt32(0))
 end
@@ -940,6 +935,18 @@ function _sp_eval_expr(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution, sols::Vec
 
     elseif expr isa SpAnonBNode
         return _mint_blank_node()
+
+    elseif expr isa SpTripleTerm
+        # SPARQL 1.2: triple term in expression position — evaluate the three
+        # components and build the TripleTerm (errors if the subject/predicate
+        # evaluate to terms outside their allowed kinds).
+        s = _sp_eval_expr(expr.subject,   ctx, μ, sols)
+        p = _sp_eval_expr(expr.predicate, ctx, μ, sols)
+        o = _sp_eval_expr(expr.object,    ctx, μ, sols)
+        (s isa IRI || s isa BlankNode) ||
+            error("Triple-term subject must be an IRI or blank node")
+        p isa IRI || error("Triple-term predicate must be an IRI")
+        return TripleTerm(s, p, o)
 
     elseif expr isa SpUnary
         arg = _sp_eval_expr(expr.arg, ctx, μ, sols)
@@ -2211,6 +2218,15 @@ function _sp_ast_to_term(expr::SpExpr, base::Union{String,Nothing}=nothing)::Uni
         catch; nothing
         end
     elseif expr isa SpBNode; return _mint_blank_node()
+    elseif expr isa SpAnonBNode; return _mint_blank_node()
+    elseif expr isa SpTripleTerm
+        # SPARQL 1.2 ground triple term (e.g. in a VALUES data block)
+        s = _sp_ast_to_term(expr.subject,   base)
+        p = _sp_ast_to_term(expr.predicate, base)
+        o = _sp_ast_to_term(expr.object,    base)
+        (s === nothing || p === nothing || o === nothing) && return nothing
+        (s isa SubjectTerm && p isa IRI) || return nothing
+        return try TripleTerm(s, p::IRI, o) catch; nothing end
     else; return nothing
     end
 end
@@ -2571,16 +2587,29 @@ function _sp_collect_all_vars(sols::Vector{_SpSolution})::Vector{Symbol}
     sort(collect(seen))
 end
 
+# Collect the user-visible variables of a term-position expression, descending
+# into RDF-star triple terms (whose inner positions may hold variables).
+function _sp_collect_term_vars!(expr::SpExpr, result::Set{Symbol})
+    if expr isa SpVar
+        push!(result, expr.name)
+    elseif expr isa SpTripleTerm
+        _sp_collect_term_vars!(expr.subject,   result)
+        _sp_collect_term_vars!(expr.predicate, result)
+        _sp_collect_term_vars!(expr.object,    result)
+    end
+    nothing
+end
+
 # Recursively collect all variables visible to SELECT * from a pattern tree.
 # Includes BGP triple-pattern variables, BIND variables, VALUES variables, GRAPH
 # name variables, OPTIONAL, UNION, etc.  Does NOT recurse into subqueries.
 function _sp_collect_bind_vars!(pat::SpPat, result::Set{Symbol})
     if pat isa SpBGP
         for tp in pat.triples
-            tp.subject   isa SpVar && push!(result, (tp.subject::SpVar).name)
+            _sp_collect_term_vars!(tp.subject,   result)
             # predicate is usually SpIRI or SpPath, but can be SpVar
             tp.predicate isa SpVar && push!(result, (tp.predicate::SpVar).name)
-            tp.object    isa SpVar && push!(result, (tp.object::SpVar).name)
+            _sp_collect_term_vars!(tp.object,    result)
             # Note: SpAnonBNode and SpBNode are internal variables, not user-visible
         end
     elseif pat isa SpBind
@@ -2835,6 +2864,15 @@ function _sp_instantiate_term(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution,
         # per (anon-node-instance, solution) pair so that list structure is preserved
         # within a solution but each solution gets its own nodes.
         return get!(anon_map, expr.id, _mint_blank_node())
+    elseif expr isa SpTripleTerm
+        # SPARQL 1.2: a triple term in a CONSTRUCT template (e.g. the object of
+        # an rdf:reifies triple produced by `<< s p o >>` reification).
+        s = _sp_instantiate_term(expr.subject,   ctx, μ, anon_map)
+        p = _sp_instantiate_term(expr.predicate, ctx, μ, anon_map)
+        o = _sp_instantiate_term(expr.object,    ctx, μ, anon_map)
+        (s === nothing || p === nothing || o === nothing) && return nothing
+        (s isa SubjectTerm && p isa IRI) || return nothing
+        return try TripleTerm(s, p::IRI, o) catch; nothing end
     else
         return nothing
     end

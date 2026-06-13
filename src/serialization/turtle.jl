@@ -5,6 +5,7 @@ const _TTL_RDF_FIRST = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#first")
 const _TTL_RDF_REST  = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest")
 const _TTL_RDF_NIL   = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
 const _TTL_RDF_TYPE  = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+const _TTL_RDF_REIFIES = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies")
 
 # ── IRI resolution (RFC 3986 §5.2) ───────────────────────────────────────────
 
@@ -491,10 +492,21 @@ function _ttl_unescape_char!(p::_TurtleParser, buf::IOBuffer)
     elseif e == '"';  write(buf, '"')
     elseif e == '\''; write(buf, '\'')
     elseif e == '\\'; write(buf, '\\')
-    elseif e == 'u';  write(buf, Char(_ttl_parse_hex_escape!(p, 4)))
-    elseif e == 'U';  write(buf, Char(_ttl_parse_hex_escape!(p, 8)))
+    elseif e == 'u';  write(buf, _ttl_checked_codepoint(p, _ttl_parse_hex_escape!(p, 4)))
+    elseif e == 'U';  write(buf, _ttl_checked_codepoint(p, _ttl_parse_hex_escape!(p, 8)))
     else   _ttl_error(p, "Unknown string escape '\\$e'")
     end
+end
+
+# Surrogate code points (U+D800–U+DFFF) are not Unicode scalar values and are
+# forbidden in \\u/\\U escapes — including "paired" surrogates (Turtle is not
+# UTF-16; supplementary characters use \\U or direct UTF-8).
+function _ttl_checked_codepoint(p::_TurtleParser, cp::UInt32)::Char
+    0xD800 <= cp <= 0xDFFF &&
+        _ttl_error(p, "Surrogate code point U+$(string(cp, base=16, pad=4)) is not allowed in string escapes")
+    cp > 0x10FFFF &&
+        _ttl_error(p, "Code point out of Unicode range in string escape")
+    Char(cp)
 end
 
 function _ttl_parse_short_string!(p::_TurtleParser, delim::Char)::String
@@ -564,7 +576,19 @@ function _ttl_parse_literal!(p::_TurtleParser)::Literal
         end
         tag = String(take!(buf))
         isempty(tag) && _ttl_error(p, "Empty language tag")
-        Literal(lexical; lang=tag)
+        # RDF 1.2 directional language tag: lang--dir, dir ∈ {ltr, rtl}
+        # (lowercase only, per the LANG_DIR production)
+        dd = findfirst("--", tag)
+        if dd !== nothing
+            lang = tag[1:first(dd)-1]
+            dir  = tag[last(dd)+1:end]
+            isempty(lang) && _ttl_error(p, "Empty language part in directional language tag")
+            dir in ("ltr", "rtl") ||
+                _ttl_error(p, "Base direction must be 'ltr' or 'rtl' (lowercase), got '$dir'")
+            Literal(lexical; lang=lang, dir=dir)
+        else
+            Literal(lexical; lang=tag)
+        end
     elseif c2 == '^' && _ttl_peek_at(p,1) == '^'
         _ttl_advance!(p); _ttl_advance!(p)
         _ttl_skip!(p)
@@ -695,7 +719,9 @@ function _ttl_parse_object_term!(p::_TurtleParser)::ObjectTerm
     c = _ttl_peek(p)
     if c == '<'
         if _ttl_peek_at(p, 1) == '<'
-            return _ttl_parse_triple_term!(p)
+            # '<<(' → triple term; '<<' → reified triple (RDF 1.2)
+            return _ttl_peek_at(p, 2) == '(' ?
+                _ttl_parse_triple_term!(p) : _ttl_parse_reified_triple!(p)
         end
         return _ttl_parse_iriref!(p)
     elseif c == '"' || c == '\''
@@ -750,7 +776,70 @@ function _ttl_parse_predicate!(p::_TurtleParser)::IRI
     end
 end
 
-# ── Triple term ──────────────────────────────────────────────────────────────
+# ── Triple term (RDF 1.2) ─────────────────────────────────────────────────────
+#
+# tripleTerm ::= '<<(' ttSubject verb ttObject ')>>'
+# ttSubject  ::= iri | BlankNode
+# ttObject   ::= iri | BlankNode | literal | tripleTerm
+
+# '[' WS* ']' — an anonymous blank node (ANON); non-empty property lists are
+# not allowed in triple-term / reified-triple positions.
+function _ttl_parse_anon_bnode!(p::_TurtleParser)::BlankNode
+    _ttl_expect_char!(p, '[')
+    _ttl_skip!(p)
+    _ttl_peek(p) == ']' ||
+        _ttl_error(p, "Only an empty blank node [] is allowed here (no property list)")
+    _ttl_advance!(p)
+    _mint_blank_node()
+end
+
+function _ttl_parse_tt_subject!(p::_TurtleParser)::SubjectTerm
+    c = _ttl_peek(p)
+    if c == '<'
+        _ttl_peek_at(p, 1) == '<' && _ttl_error(p,
+            "Only an IRI or blank node is allowed as a triple-term subject")
+        return _ttl_parse_iriref!(p)
+    elseif c == '_' && _ttl_peek_at(p, 1) == ':'
+        return _ttl_parse_blank_node_label!(p)
+    elseif c == '['
+        return _ttl_parse_anon_bnode!(p)
+    elseif c == '('
+        _ttl_error(p, "Only an IRI or blank node is allowed as a triple-term subject")
+    else
+        return _ttl_parse_prefixed_name!(p)
+    end
+end
+
+function _ttl_parse_tt_object!(p::_TurtleParser)::ObjectTerm
+    c = _ttl_peek(p)
+    if c == '<'
+        if _ttl_peek_at(p, 1) == '<'
+            _ttl_peek_at(p, 2) == '(' ||
+                _ttl_error(p, "Reified triples are not allowed inside triple terms")
+            return _ttl_parse_triple_term!(p)
+        end
+        return _ttl_parse_iriref!(p)
+    elseif c == '"' || c == '\''
+        return _ttl_parse_literal!(p)
+    elseif c == '_' && _ttl_peek_at(p, 1) == ':'
+        return _ttl_parse_blank_node_label!(p)
+    elseif c == '['
+        return _ttl_parse_anon_bnode!(p)
+    elseif c == '('
+        _ttl_error(p, "Collections are not allowed inside triple terms")
+    elseif c == 't' && _ttl_check_keyword(p, "true")
+        for _ in 1:4; _ttl_advance!(p); end
+        return Literal("true",  _XSD_BOOLEAN, "")
+    elseif c == 'f' && _ttl_check_keyword(p, "false")
+        for _ in 1:5; _ttl_advance!(p); end
+        return Literal("false", _XSD_BOOLEAN, "")
+    elseif c == '+' || c == '-' || isdigit(c) ||
+           (c == '.' && isdigit(_ttl_peek_at(p, 1)))
+        return _ttl_parse_numeric!(p)
+    else
+        return _ttl_parse_prefixed_name!(p)
+    end
+end
 
 function _ttl_parse_triple_term!(p::_TurtleParser)::TripleTerm
     # Consume '<<('
@@ -758,11 +847,11 @@ function _ttl_parse_triple_term!(p::_TurtleParser)::TripleTerm
     _ttl_expect_char!(p, '<')
     _ttl_expect_char!(p, '(')
     _ttl_skip!(p)
-    subj = _ttl_parse_subject!(p)
+    subj = _ttl_parse_tt_subject!(p)
     _ttl_skip!(p)
     pred = _ttl_parse_predicate!(p)
     _ttl_skip!(p)
-    obj  = _ttl_parse_object_term!(p)
+    obj  = _ttl_parse_tt_object!(p)
     _ttl_skip!(p)
     # Consume ')>>'
     _ttl_expect_char!(p, ')')
@@ -771,14 +860,169 @@ function _ttl_parse_triple_term!(p::_TurtleParser)::TripleTerm
     TripleTerm(subj, pred, obj)
 end
 
+# ── Reified triple (RDF 1.2) ──────────────────────────────────────────────────
+#
+# reifiedTriple ::= '<<' rtSubject verb rtObject reifier? '>>'
+# rtSubject     ::= iri | BlankNode | reifiedTriple
+# rtObject      ::= iri | BlankNode | literal | tripleTerm | reifiedTriple
+# reifier       ::= '~' (iri | BlankNode)?
+#
+# `<< s p o ~r >>` emits  r rdf:reifies <<( s p o )>>  and evaluates to r
+# (a fresh blank node when no explicit reifier is given).
+
+function _ttl_parse_rt_subject!(p::_TurtleParser)::SubjectTerm
+    c = _ttl_peek(p)
+    if c == '<'
+        if _ttl_peek_at(p, 1) == '<'
+            _ttl_peek_at(p, 2) == '(' && _ttl_error(p,
+                "Triple terms are not allowed as reified-triple subjects")
+            return _ttl_parse_reified_triple!(p)
+        end
+        return _ttl_parse_iriref!(p)
+    elseif c == '_' && _ttl_peek_at(p, 1) == ':'
+        return _ttl_parse_blank_node_label!(p)
+    elseif c == '['
+        return _ttl_parse_anon_bnode!(p)
+    elseif c == '('
+        _ttl_error(p, "Collections are not allowed in reified triples")
+    else
+        return _ttl_parse_prefixed_name!(p)
+    end
+end
+
+function _ttl_parse_rt_object!(p::_TurtleParser)::ObjectTerm
+    c = _ttl_peek(p)
+    if c == '<'
+        if _ttl_peek_at(p, 1) == '<'
+            return _ttl_peek_at(p, 2) == '(' ?
+                _ttl_parse_triple_term!(p) : _ttl_parse_reified_triple!(p)
+        end
+        return _ttl_parse_iriref!(p)
+    elseif c == '"' || c == '\''
+        return _ttl_parse_literal!(p)
+    elseif c == '_' && _ttl_peek_at(p, 1) == ':'
+        return _ttl_parse_blank_node_label!(p)
+    elseif c == '['
+        return _ttl_parse_anon_bnode!(p)
+    elseif c == '('
+        _ttl_error(p, "Collections are not allowed in reified triples")
+    elseif c == 't' && _ttl_check_keyword(p, "true")
+        for _ in 1:4; _ttl_advance!(p); end
+        return Literal("true",  _XSD_BOOLEAN, "")
+    elseif c == 'f' && _ttl_check_keyword(p, "false")
+        for _ in 1:5; _ttl_advance!(p); end
+        return Literal("false", _XSD_BOOLEAN, "")
+    elseif c == '+' || c == '-' || isdigit(c) ||
+           (c == '.' && isdigit(_ttl_peek_at(p, 1)))
+        return _ttl_parse_numeric!(p)
+    else
+        return _ttl_parse_prefixed_name!(p)
+    end
+end
+
+# Parse the optional node after '~'.  Returns a fresh blank node when the next
+# token cannot start an IRI or blank node (bare '~').
+function _ttl_parse_reifier_node!(p::_TurtleParser)::SubjectTerm
+    c = _ttl_peek(p)
+    if c == '<' && _ttl_peek_at(p, 1) != '<'
+        return _ttl_parse_iriref!(p)
+    elseif c == '_' && _ttl_peek_at(p, 1) == ':'
+        return _ttl_parse_blank_node_label!(p)
+    elseif c == '[' && begin
+            # '[]' (anon blank node) is allowed as a reifier
+            save = p.pos
+            _ttl_advance!(p); _ttl_skip!(p)
+            ok = _ttl_peek(p) == ']'
+            ok ? (_ttl_advance!(p); true) : (p.pos = save; false)
+        end
+        return _mint_blank_node()
+    elseif _is_pn_chars_base(c) || c == ':'
+        return _ttl_parse_prefixed_name!(p)
+    else
+        return _mint_blank_node()   # bare '~'
+    end
+end
+
+function _ttl_parse_reified_triple!(p::_TurtleParser)::SubjectTerm
+    # Consume '<<'  (caller guarantees the next char is not '(')
+    _ttl_expect_char!(p, '<')
+    _ttl_expect_char!(p, '<')
+    _ttl_skip!(p)
+    subj = _ttl_parse_rt_subject!(p)
+    _ttl_skip!(p)
+    pred = _ttl_parse_predicate!(p)
+    _ttl_skip!(p)
+    obj  = _ttl_parse_rt_object!(p)
+    _ttl_skip!(p)
+    reifier = if _ttl_peek(p) == '~'
+        _ttl_advance!(p); _ttl_skip!(p)
+        _ttl_parse_reifier_node!(p)
+    else
+        _mint_blank_node()
+    end
+    _ttl_skip!(p)
+    _ttl_expect_char!(p, '>')
+    _ttl_expect_char!(p, '>')
+    push!(p.triples, Triple(reifier, _TTL_RDF_REIFIES, TripleTerm(subj, pred, obj)))
+    reifier
+end
+
+# ── Annotation syntax (RDF 1.2) ───────────────────────────────────────────────
+#
+# annotation      ::= (reifier | annotationBlock)*
+# annotationBlock ::= '{|' predicateObjectList '|}'
+#
+# Appears after an object in an objectList.  Each '~r' emits
+# r rdf:reifies <<( s p o )>>; an annotation block attaches its
+# predicate-object list to the preceding reifier (or a fresh one).
+
+function _ttl_parse_annotation!(p::_TurtleParser, subj::SubjectTerm,
+                                pred::IRI, obj::ObjectTerm)
+    tt          = nothing            # built lazily, shared by all reifiers
+    cur_reifier = nothing            # set by '~', consumed by the next block
+    while true
+        _ttl_skip!(p)
+        c = _ttl_peek(p)
+        if c == '~'
+            _ttl_advance!(p); _ttl_skip!(p)
+            r = _ttl_parse_reifier_node!(p)
+            tt === nothing && (tt = TripleTerm(subj, pred, obj))
+            push!(p.triples, Triple(r, _TTL_RDF_REIFIES, tt))
+            cur_reifier = r
+        elseif c == '{' && _ttl_peek_at(p, 1) == '|'
+            _ttl_advance!(p); _ttl_advance!(p)
+            r = cur_reifier
+            if r === nothing
+                r = _mint_blank_node()
+                tt === nothing && (tt = TripleTerm(subj, pred, obj))
+                push!(p.triples, Triple(r, _TTL_RDF_REIFIES, tt))
+            end
+            _ttl_skip!(p)
+            _ttl_peek(p) == '|' && _ttl_peek_at(p, 1) == '}' &&
+                _ttl_error(p, "Annotation block must contain at least one predicate-object pair")
+            _ttl_parse_po_list!(p, r)
+            _ttl_skip!(p)
+            _ttl_expect_char!(p, '|')
+            _ttl_expect_char!(p, '}')
+            cur_reifier = nothing    # each further bare block gets a fresh reifier
+        else
+            break
+        end
+    end
+end
+
 # ── Subject ───────────────────────────────────────────────────────────────────
 
 function _ttl_parse_subject!(p::_TurtleParser)::SubjectTerm
     c = _ttl_peek(p)
     if c == '<'
-        # TripleTerm in subject position: <<( ... )>>
         if _ttl_peek_at(p, 1) == '<'
-            return _ttl_parse_triple_term!(p)
+            # RDF 1.2: '<<' starts a reified triple; '<<(' (a triple term) is
+            # not a legal subject.
+            _ttl_peek_at(p, 2) == '(' && _ttl_error(p,
+                "Triple terms are not allowed in subject position; " *
+                "use a reified triple << s p o >> instead")
+            return _ttl_parse_reified_triple!(p)
         end
         return _ttl_parse_iriref!(p)
     elseif c == '_' && _ttl_peek_at(p,1) == ':'
@@ -797,17 +1041,19 @@ function _ttl_parse_po_list!(p::_TurtleParser, subj::SubjectTerm)
         _ttl_skip!(p)
         obj = _ttl_parse_object_term!(p)
         push!(p.triples, Triple(subj, pred, obj))
+        _ttl_parse_annotation!(p, subj, pred, obj)   # RDF 1.2: ~r / {| … |}
         _ttl_skip!(p)
         while _ttl_peek(p) == ','
             _ttl_advance!(p); _ttl_skip!(p)
             obj = _ttl_parse_object_term!(p)
             push!(p.triples, Triple(subj, pred, obj))
+            _ttl_parse_annotation!(p, subj, pred, obj)
             _ttl_skip!(p)
         end
         _ttl_peek(p) == ';' || break
         while _ttl_peek(p) == ';'; _ttl_advance!(p); _ttl_skip!(p); end
         c = _ttl_peek(p)
-        (c == '.' || c == ']' || _ttl_eof(p)) && break
+        (c == '.' || c == ']' || c == '|' || _ttl_eof(p)) && break
     end
 end
 
@@ -835,9 +1081,27 @@ function _ttl_parse_at_directive!(p::_TurtleParser)
         p.base = _ttl_resolve(p.base, iri.value)
         _ttl_skip!(p)
         _ttl_expect_char!(p, '.')
+    elseif name == "version"
+        _ttl_skip!(p)
+        _ttl_parse_version_specifier!(p)
+        _ttl_skip!(p)
+        _ttl_expect_char!(p, '.')
     else
-        _ttl_error(p, "Unknown directive '@$name' (must be lowercase '@prefix' or '@base')")
+        _ttl_error(p, "Unknown directive '@$name' (must be lowercase '@prefix', '@base', or '@version')")
     end
+end
+
+# RDF 1.2: VersionSpecifier ::= STRING_LITERAL_QUOTE | STRING_LITERAL_SINGLE_QUOTE
+# The value is advisory; it is validated as a plain quoted string and discarded.
+function _ttl_parse_version_specifier!(p::_TurtleParser)
+    c = _ttl_peek(p)
+    (c == '"' || c == '\'') ||
+        _ttl_error(p, "Expected a quoted version string after version directive")
+    # Long strings (\"\"\"…\"\"\") are not allowed by the grammar
+    (_ttl_peek_at(p, 1) == c && _ttl_peek_at(p, 2) == c) &&
+        _ttl_error(p, "Version specifier must be a single-quoted or double-quoted string")
+    c == '"' ? _ttl_parse_short_string!(p, '"') : _ttl_parse_short_string!(p, '\'')
+    nothing
 end
 
 function _ttl_parse_sparql_directive!(p::_TurtleParser, name::String)
@@ -853,6 +1117,9 @@ function _ttl_parse_sparql_directive!(p::_TurtleParser, name::String)
         _ttl_skip!(p)
         iri = _ttl_parse_iriref!(p)
         p.base = _ttl_resolve(p.base, iri.value)
+    elseif uname == "VERSION"
+        _ttl_skip!(p)
+        _ttl_parse_version_specifier!(p)
     else
         _ttl_error(p, "Unknown SPARQL directive '$name'")
     end
@@ -875,10 +1142,15 @@ function _ttl_parse_statement!(p::_TurtleParser)
         _ttl_parse_po_list!(p, subj)
         _ttl_skip!(p)
     else
+        # RDF 1.2: a reified triple used as subject may stand alone
+        # (`<< s p o >> .`) — its predicateObjectList is optional.
+        is_reified = c == '<' && _ttl_peek_at(p, 1) == '<' && _ttl_peek_at(p, 2) != '('
         subj = _ttl_parse_subject!(p)
         _ttl_skip!(p)
-        _ttl_parse_po_list!(p, subj)
-        _ttl_skip!(p)
+        if !(is_reified && _ttl_peek(p) == '.')
+            _ttl_parse_po_list!(p, subj)
+            _ttl_skip!(p)
+        end
     end
     _ttl_expect_char!(p, '.')
 end
@@ -908,12 +1180,14 @@ function _ttl_parse_document!(p::_TurtleParser)
             lineno_save = p.lineno
             name = _ttl_read_name!(p)
             uname = uppercase(name)
-            # Treat as SPARQL directive if name is PREFIX/BASE and next (after ws) is < or letter/colon
-            if (uname == "PREFIX" || uname == "BASE") &&
+            # Treat as SPARQL directive if name is PREFIX/BASE/VERSION and the
+            # next character can start its argument
+            if (uname == "PREFIX" || uname == "BASE" || uname == "VERSION") &&
                (!_ttl_eof(p)) &&
                (_ttl_peek(p) == ' ' || _ttl_peek(p) == '\t' ||
                 _ttl_peek(p) == '\n' || _ttl_peek(p) == '\r' ||
-                _ttl_peek(p) == '<')
+                _ttl_peek(p) == '<' ||
+                (uname == "VERSION" && (_ttl_peek(p) == '"' || _ttl_peek(p) == '\'')))
                 _ttl_parse_sparql_directive!(p, name)
             else
                 p.pos    = pos_save

@@ -67,8 +67,18 @@ function _srj_write_term(io::IO, term::RDFTerm)
         print(io, "{\"type\":\"bnode\",\"value\":\"b", term.id, "\"}")
     elseif term isa Literal
         if !isempty(term.language_tag)
-            print(io, "{\"type\":\"literal\",\"xml:lang\":\"")
-            _srj_write_escaped(io, term.language_tag)
+            # SPARQL 1.2: a directional tag "lang--dir" splits into
+            # "xml:lang" and "its:dir" fields
+            dd = findfirst("--", term.language_tag)
+            if dd !== nothing
+                print(io, "{\"type\":\"literal\",\"xml:lang\":\"")
+                _srj_write_escaped(io, term.language_tag[1:first(dd)-1])
+                print(io, "\",\"its:dir\":\"")
+                _srj_write_escaped(io, term.language_tag[last(dd)+1:end])
+            else
+                print(io, "{\"type\":\"literal\",\"xml:lang\":\"")
+                _srj_write_escaped(io, term.language_tag)
+            end
             print(io, "\",\"value\":\"")
             _srj_write_escaped(io, term.lexical_form)
             print(io, "\"}")
@@ -79,6 +89,15 @@ function _srj_write_term(io::IO, term::RDFTerm)
             _srj_write_escaped(io, term.lexical_form)
             print(io, "\"}")
         end
+    elseif term isa TripleTerm
+        # SPARQL 1.2: triple-term binding
+        print(io, "{\"type\":\"triple\",\"value\":{\"subject\":")
+        _srj_write_term(io, term.subject::RDFTerm)
+        print(io, ",\"predicate\":")
+        _srj_write_term(io, term.predicate)
+        print(io, ",\"object\":")
+        _srj_write_term(io, term.object::RDFTerm)
+        print(io, "}}")
     end
 end
 
@@ -176,6 +195,15 @@ function _srx_write_term(io::IO, term::RDFTerm)
             _srx_write_escaped(io, term.lexical_form)
             print(io, "</literal>")
         end
+    elseif term isa TripleTerm
+        # SPARQL 1.2 XML results: <triple><subject>…</subject>…</triple>
+        print(io, "<triple><subject>")
+        _srx_write_term(io, term.subject::RDFTerm)
+        print(io, "</subject><predicate>")
+        _srx_write_term(io, term.predicate)
+        print(io, "</predicate><object>")
+        _srx_write_term(io, term.object::RDFTerm)
+        print(io, "</object></triple>")
     end
 end
 
@@ -334,19 +362,29 @@ end
 # Convert a single SPARQL/JSON binding object to an RDFTerm.
 function _srj_read_term(t)::RDFTerm
     type = String(t[:type])
-    val  = String(t[:value])
     if type == "uri"
-        return IRI(val)
+        return IRI(String(t[:value]))
     elseif type == "bnode"
         # Blank node IDs from remote endpoints are string labels (e.g. "b0").
         # We hash the label to a UInt64 so that the same remote label consistently
         # maps to the same local BlankNode within a single result document.
-        return BlankNode(hash(val, UInt(0x424e4f44)))  # seed avoids collision with mint counter
+        return BlankNode(hash(String(t[:value]), UInt(0x424e4f44)))  # seed avoids collision with mint counter
+    elseif type == "triple"
+        # SPARQL 1.2: triple-term binding — value is a nested s/p/o object
+        v = t[:value]
+        return TripleTerm(_srj_read_term(v[:subject]),
+                          _srj_read_term(v[:predicate]),
+                          _srj_read_term(v[:object]))
     else  # "literal" (and any unrecognised type → literal fallback)
+        val = String(t[:value])
         # "xml:lang" contains a colon — access via the Symbol form
         lang_key = Symbol("xml:lang")
         if haskey(t, lang_key)
             lang = String(t[lang_key])
+            dir_key = Symbol("its:dir")   # SPARQL 1.2 base direction
+            if haskey(t, dir_key)
+                return Literal(val; lang=lang, dir=String(t[dir_key]))
+            end
             return Literal(val; lang=lang)
         elseif haskey(t, :datatype)
             dt = String(t[:datatype])

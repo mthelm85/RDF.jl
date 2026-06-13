@@ -1,13 +1,12 @@
 # W3C N-Triples and N-Quads conformance tests (RDF 1.1 and RDF 1.2).
 #
-# Activated by setting RDF_W3C_FIXTURES=1 in the environment.
-# Test files live under test/w3c/fixtures/:
+# The fixtures are vendored in the repository, so these run unconditionally —
+# like every other test.  Test files live under test/w3c/fixtures/:
 #   ntriples/   — RDF 1.1 N-Triples  (https://www.w3.org/2013/N-TriplesTests/)
 #   nquads/     — RDF 1.1 N-Quads    (https://www.w3.org/2013/N-QuadsTests/)
 #   ntriples12/ — RDF 1.2 N-Triples  (https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-n-triples/)
 #   nquads12/   — RDF 1.2 N-Quads    (https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-n-quads/)
 
-const W3C_FIXTURES = get(ENV, "RDF_W3C_FIXTURES", "0") == "1"
 const FIXTURES_DIR = joinpath(@__DIR__, "fixtures")
 
 function _w3c_pos(dir, ext)
@@ -22,7 +21,7 @@ function _w3c_neg(dir, ext)
     filter(f -> endswith(f, ext) && contains(basename(f), "bad"), readdir(d; join=true))
 end
 
-if W3C_FIXTURES
+if isdir(FIXTURES_DIR)
     @testset "W3C RDF 1.1 N-Triples positive syntax" begin
         for f in _w3c_pos("ntriples", ".nt")
             @testset "$(basename(f))" begin

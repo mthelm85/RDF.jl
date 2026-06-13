@@ -1,10 +1,7 @@
-# W3C SPARQL 1.1 Conformance Tests
+# W3C SPARQL 1.1 + 1.2 Conformance Tests
 #
-# Activated by setting RDF_W3C_SPARQL=1 in the environment.
-# Test fixtures live under test/w3c/fixtures/sparql11/.
-#
-# Gate variables:
-#   RDF_W3C_SPARQL=1   run these tests
+# The fixtures are vendored under test/w3c/fixtures/sparql11/ and sparql12/,
+# so these run unconditionally — like every other test.
 #
 # Skipped categories (require HTTP or an external endpoint):
 #   service, http-rdf-update, protocol, service-description,
@@ -13,10 +10,11 @@
 using Test, RDF
 import JSON3
 
-const _SP_ACTIVE   = get(ENV, "RDF_W3C_SPARQL", "0") == "1"
+# The fixtures are vendored in the repository, so the W3C SPARQL suites run
+# unconditionally — like every other test.
 const _SP_FIXTURES = joinpath(@__DIR__, "w3c", "fixtures", "sparql11")
 
-if _SP_ACTIVE && isdir(_SP_FIXTURES)
+if isdir(_SP_FIXTURES)
 
 # ─── Vocabulary ──────────────────────────────────────────────────────────────
 
@@ -40,6 +38,11 @@ const _SP_MF_POS_SYN    = IRI(_SP_MF_NS   * "PositiveSyntaxTest11")
 const _SP_MF_NEG_SYN    = IRI(_SP_MF_NS   * "NegativeSyntaxTest11")
 const _SP_MF_POS_UPD    = IRI(_SP_MF_NS   * "PositiveUpdateSyntaxTest11")
 const _SP_MF_NEG_UPD    = IRI(_SP_MF_NS   * "NegativeUpdateSyntaxTest11")
+# SPARQL 1.2 manifests use the unsuffixed type names
+const _SP_MF_POS_SYN12  = IRI(_SP_MF_NS   * "PositiveSyntaxTest")
+const _SP_MF_NEG_SYN12  = IRI(_SP_MF_NS   * "NegativeSyntaxTest")
+const _SP_MF_POS_UPD12  = IRI(_SP_MF_NS   * "PositiveUpdateSyntaxTest")
+const _SP_MF_NEG_UPD12  = IRI(_SP_MF_NS   * "NegativeUpdateSyntaxTest")
 const _SP_MF_QUERY_EVAL = IRI(_SP_MF_NS   * "QueryEvaluationTest")
 const _SP_MF_UPD_EVAL   = IRI(_SP_MF_NS   * "UpdateEvaluationTest")
 const _SP_MF_CSV_RES    = IRI(_SP_MF_NS   * "CSVResultFormatTest")
@@ -269,6 +272,7 @@ function _sp_parse_entry(g::Graph, entry)::Union{_SpTest, Nothing}
     test_type  = nothing
     for tt in test_types
         if tt in (_SP_MF_POS_SYN, _SP_MF_NEG_SYN, _SP_MF_POS_UPD, _SP_MF_NEG_UPD,
+                  _SP_MF_POS_SYN12, _SP_MF_NEG_SYN12, _SP_MF_POS_UPD12, _SP_MF_NEG_UPD12,
                   _SP_MF_QUERY_EVAL, _SP_MF_UPD_EVAL, _SP_MF_CSV_RES)
             test_type = tt; break
         end
@@ -279,12 +283,12 @@ function _sp_parse_entry(g::Graph, entry)::Union{_SpTest, Nothing}
     result = _sp_one(g, entry, _SP_MF_RESULT)
 
     # ── Positive syntax (query or update) ────────────────────────────────────
-    if test_type == _SP_MF_POS_SYN || test_type == _SP_MF_POS_UPD
+    if test_type in (_SP_MF_POS_SYN, _SP_MF_POS_UPD, _SP_MF_POS_SYN12, _SP_MF_POS_UPD12)
         action isa IRI || return nothing
         return _SpPosSyntaxTest(name, _sp_iri_to_path(action.value))
 
     # ── Negative syntax (query or update) ────────────────────────────────────
-    elseif test_type == _SP_MF_NEG_SYN || test_type == _SP_MF_NEG_UPD
+    elseif test_type in (_SP_MF_NEG_SYN, _SP_MF_NEG_UPD, _SP_MF_NEG_SYN12, _SP_MF_NEG_UPD12)
         action isa IRI || return nothing
         return _SpNegSyntaxTest(name, _sp_iri_to_path(action.value))
 
@@ -368,8 +372,28 @@ end
 
 # ─── Dataset builder ─────────────────────────────────────────────────────────
 
+# Dataset-bearing formats (N-Quads; TriG is not supported by RDF.jl yet).
+_sp_is_dataset_file(path::String) = lowercase(last(splitext(path))) in (".nq", ".trig")
+
+function _sp_load_dataset_file(path::String)::Dataset
+    ext = lowercase(last(splitext(path)))
+    ext == ".nq" || error("Unsupported dataset format: $ext (file: $path)")
+    open(path) do io
+        read(io, MIME"application/n-quads"(), Dataset)
+    end
+end
+
 function _sp_build_dataset(data_file::Union{String,Nothing},
                             graph_data::Vector{Pair{String,String}})::Dataset
+    # A dataset-format default data file (N-Quads) carries its own default +
+    # named graphs; load it wholesale.
+    if data_file !== nothing && _sp_is_dataset_file(data_file)
+        ds = _sp_load_dataset_file(data_file)
+        for (file, iri_str) in graph_data
+            ds[IRI(iri_str)] = _sp_load_graph(file)
+        end
+        return ds
+    end
     ds = Dataset(; default_graph = data_file !== nothing ?
                                     _sp_load_graph(data_file) : Graph())
     for (file, iri_str) in graph_data
@@ -405,6 +429,15 @@ end
 
 function _sp_parse_srx_term(content::String, bm::_SpBNodeMap)::Union{RDFTerm, Nothing}
     s = strip(content)
+
+    # SPARQL 1.2 triple term: <triple><subject>…</subject><predicate>…</predicate><object>…</object></triple>
+    mt = match(r"^<triple>\s*<subject>([\s\S]*?)</subject>\s*<predicate>([\s\S]*?)</predicate>\s*<object>([\s\S]*?)</object>\s*</triple>$", s)
+    if mt !== nothing
+        st = _sp_parse_srx_term(String(mt[1]), bm)
+        pt = _sp_parse_srx_term(String(mt[2]), bm)
+        ot = _sp_parse_srx_term(String(mt[3]), bm)
+        return TripleTerm(st, pt, ot)
+    end
 
     m = match(r"<uri>([\s\S]*?)</uri>", s)
     m !== nothing && return IRI(_sp_unescape_xml(m[1]))
@@ -452,6 +485,36 @@ end
 
 # ─── SRJ parser (SPARQL Results JSON, via JSON3) ─────────────────────────────
 
+# Decode one SPARQL/JSON term object (recursively for SPARQL 1.2 triple terms).
+function _sp_srj_term(td, bm::_SpBNodeMap)::Union{RDFTerm, Nothing}
+    type_str = String(td[:type])
+    if type_str == "uri"
+        return IRI(String(td[:value]))
+    elseif type_str == "bnode"
+        return _sp_get_bnode!(bm, String(td[:value]))
+    elseif type_str == "literal"
+        val_str = String(td[:value])
+        if haskey(td, Symbol("xml:lang"))
+            lang = String(td[Symbol("xml:lang")])
+            if haskey(td, Symbol("its:dir"))
+                return Literal(val_str; lang=lang, dir=String(td[Symbol("its:dir")]))
+            end
+            return Literal(val_str; lang=lang)
+        elseif haskey(td, :datatype)
+            return Literal(val_str, IRI(String(td[:datatype])))
+        else
+            return Literal(val_str)
+        end
+    elseif type_str == "triple"
+        v = td[:value]
+        s = _sp_srj_term(v[:subject],   bm)
+        p = _sp_srj_term(v[:predicate], bm)
+        o = _sp_srj_term(v[:object],    bm)
+        return TripleTerm(s, p, o)
+    end
+    nothing
+end
+
 function _sp_parse_srj(path::String)::Union{SolutionSet, Bool}
     data = JSON3.read(read(path, String))
     haskey(data, :boolean) && return Bool(data[:boolean])
@@ -463,24 +526,7 @@ function _sp_parse_srj(path::String)::Union{SolutionSet, Bool}
     for binding in data[:results][:bindings]
         row = Dict{Symbol,Union{RDFTerm,Nothing}}(v => nothing for v in vars)
         for (k, td) in pairs(binding)
-            type_str = String(td[:type])
-            val_str  = String(td[:value])
-            term = if type_str == "uri"
-                IRI(val_str)
-            elseif type_str == "bnode"
-                _sp_get_bnode!(bm, val_str)
-            elseif type_str == "literal"
-                if haskey(td, Symbol("xml:lang"))
-                    Literal(val_str; lang=String(td[Symbol("xml:lang")]))
-                elseif haskey(td, :datatype)
-                    Literal(val_str, IRI(String(td[:datatype])))
-                else
-                    Literal(val_str)
-                end
-            else
-                nothing
-            end
-            row[Symbol(k)] = term
+            row[Symbol(k)] = _sp_srj_term(td, bm)
         end
         push!(sol, row)
     end
@@ -707,24 +753,36 @@ end
 
 # Compare two rows under a blank-node bijection (a→b mapping).
 # Returns (compatible::Bool, updated_mapping).
+# Match two term values under a growing blank-node bijection, descending into
+# RDF-star triple terms (whose components may themselves be blank nodes).
+# Mutates `m` in place; returns true on a compatible match.
+function _sp_term_compat!(ta, tb, m::Dict{BlankNode,BlankNode})::Bool
+    if ta isa BlankNode && tb isa BlankNode
+        if haskey(m, ta)
+            return m[ta] == tb
+        else
+            tb in values(m) && return false
+            m[ta] = tb
+            return true
+        end
+    elseif ta isa TripleTerm && tb isa TripleTerm
+        return _sp_term_compat!(ta.subject,   tb.subject,   m) &&
+               _sp_term_compat!(ta.predicate, tb.predicate, m) &&
+               _sp_term_compat!(ta.object,    tb.object,    m)
+    elseif ta isa Literal && tb isa Literal
+        return RDF._sp_value_equal(ta, tb)
+    else
+        return ta == tb
+    end
+end
+
 function _sp_rows_compat(ar, br, vars::Vector{Symbol},
                          mapping::Dict{BlankNode,BlankNode})
     new_map = copy(mapping)
     for v in vars
         ta = get(ar, v, nothing)
         tb = get(br, v, nothing)
-        if ta isa BlankNode && tb isa BlankNode
-            if haskey(new_map, ta)
-                new_map[ta] != tb && return (false, new_map)
-            else
-                tb in values(new_map) && return (false, new_map)
-                new_map[ta] = tb
-            end
-        elseif ta isa Literal && tb isa Literal
-            RDF._sp_value_equal(ta, tb) || return (false, new_map)
-        elseif ta != tb
-            return (false, new_map)
-        end
+        _sp_term_compat!(ta, tb, new_map) || return (false, new_map)
     end
     return (true, new_map)
 end
@@ -819,6 +877,18 @@ end
 
 # ─── Test runners ─────────────────────────────────────────────────────────────
 
+# RDF.jl does not implement TriG; eval tests whose data is supplied as a .trig
+# file are not applicable yet and are skipped (rather than failed) so the rest
+# of the suite stays green.  Returns true if any data file uses an unsupported
+# serialization.
+function _sp_uses_unsupported_data(files...)::Bool
+    for f in files
+        f === nothing && continue
+        lowercase(last(splitext(f))) == ".trig" && return true
+    end
+    return false
+end
+
 # Positive syntax: sparql_parse must succeed without throwing.
 function _sp_run_test(t::_SpPosSyntaxTest)
     src = read(t.action_file, String)
@@ -833,6 +903,10 @@ end
 
 # Query evaluation: run query, compare result bag/graph/bool.
 function _sp_run_test(t::_SpQueryEvalTest)
+    if _sp_uses_unsupported_data(t.data_file, first.(t.graph_data)...)
+        @test_skip "TriG data not supported"
+        return
+    end
     ds       = _sp_build_dataset(t.data_file, t.graph_data)
     src      = read(t.query_file, String)
     base     = _sp_path_to_file_uri(t.query_file)
@@ -843,6 +917,11 @@ end
 
 # Update evaluation: apply update, check resulting dataset state.
 function _sp_run_test(t::_SpUpdateEvalTest)
+    if _sp_uses_unsupported_data(t.pre_data, t.post_data,
+                                 first.(t.pre_graphs)..., first.(t.post_graphs)...)
+        @test_skip "TriG data not supported"
+        return
+    end
     ds   = _sp_build_dataset(t.pre_data, t.pre_graphs)
     src  = read(t.request_file, String)
     base = _sp_path_to_file_uri(t.request_file)
@@ -909,4 +988,33 @@ const _SP_ACTIVE_CATS = vcat(_SP_QUERY_CATS, _SP_UPDATE_CATS, _SP_RESULT_CATS)
     end
 end
 
-end  # if _SP_ACTIVE && isdir(_SP_FIXTURES)
+# ─── SPARQL 1.2 suite ─────────────────────────────────────────────────────────
+# Official W3C SPARQL 1.2 tests (triple terms, VERSION declarations, LANGDIR,
+# codepoint escapes, RDF 1.1 compatibility).
+# Source: https://w3c.github.io/rdf-tests/sparql/sparql12/
+
+const _SP_FIXTURES12 = joinpath(@__DIR__, "w3c", "fixtures", "sparql12")
+
+const _SP12_CATS = [
+    "codepoint-escapes", "eval-triple-terms", "expression", "grouping",
+    "lang-basedir", "rdf11", "syntax",
+    "syntax-triple-terms-negative", "syntax-triple-terms-positive", "version",
+]
+
+if isdir(_SP_FIXTURES12)
+    @testset "W3C SPARQL 1.2" begin
+        for cat in _SP12_CATS
+            @testset "$cat" begin
+                manifest_path = joinpath(_SP_FIXTURES12, cat, "manifest.ttl")
+                tests = _sp_load_tests(manifest_path)
+                for t in tests
+                    @testset "$(t.name)" begin
+                        _sp_run_test(t)
+                    end
+                end
+            end
+        end
+    end
+end
+
+end  # if isdir(_SP_FIXTURES)

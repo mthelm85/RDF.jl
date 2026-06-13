@@ -67,6 +67,13 @@
     # RDF-star (embedded triple terms)
     SP_TOK_TT_OPEN   # <<(  — start of an embedded triple term
     SP_TOK_TT_CLOSE  # )>>  — end of an embedded triple term
+
+    # SPARQL 1.2 (reified triples, reifiers, annotation blocks)
+    SP_TOK_RT_OPEN   # <<  — start of a reified triple
+    SP_TOK_RT_CLOSE  # >>  — end of a reified triple
+    SP_TOK_TILDE     # ~   — reifier
+    SP_TOK_ANN_OPEN  # {|  — start of an annotation block
+    SP_TOK_ANN_CLOSE # |}  — end of an annotation block
 end
 
 # ── Token struct ──────────────────────────────────────────────────────────────
@@ -164,7 +171,7 @@ const _SP_KEYWORDS = Set{String}([
     "filter", "bind", "values", "service", "silent", "in", "not", "exists",
     "true", "false", "insert", "delete", "data", "modify", "clear", "drop",
     "create", "load", "move", "copy", "add", "into", "default", "all", "with",
-    "using", "to", "undef",
+    "using", "to", "undef", "version",
 ])
 
 # ── PN_CHARS helpers (SPARQL grammar) ─────────────────────────────────────────
@@ -287,6 +294,22 @@ end
 
 # ── Read IRI reference <...> ──────────────────────────────────────────────────
 
+@inline function _sp_hex_val(lex::SpLexer, sline::Int, scol::Int, c::Char)::UInt32
+    c >= '0' && c <= '9' && return UInt32(c) - UInt32('0')
+    c >= 'a' && c <= 'f' && return UInt32(c) - UInt32('a') + 0x0a
+    c >= 'A' && c <= 'F' && return UInt32(c) - UInt32('A') + 0x0a
+    _sp_error_at(sline, scol, "Invalid hex digit '$c' in escape")
+end
+
+# Surrogate code points (U+D800–U+DFFF) are not Unicode scalar values and are
+# forbidden in IRI \\u/\\U escapes.
+@inline function _sp_check_iri_codepoint(lex::SpLexer, sline::Int, scol::Int, cp::Integer)
+    0xD800 <= cp <= 0xDFFF &&
+        _sp_error_at(sline, scol,
+            "Surrogate code point U+$(uppercase(string(cp, base=16, pad=4))) is not allowed in an IRI escape")
+    nothing
+end
+
 function _read_iriref!(lex::SpLexer, sline::Int, scol::Int)::SpToken
     # '<' already consumed by caller
     buf = IOBuffer()
@@ -304,17 +327,23 @@ function _read_iriref!(lex::SpLexer, sline::Int, scol::Int)::SpToken
             if esc == 'u'
                 write(buf, '\\')
                 write(buf, _sp_advance!(lex))  # 'u'
+                cp = UInt32(0)
                 for _ in 1:4
                     _sp_at_end(lex) && _sp_error_at(sline, scol, "Unterminated \\u escape in IRI")
-                    write(buf, _sp_advance!(lex))
+                    hc = _sp_advance!(lex); write(buf, hc)
+                    cp = cp * 16 + _sp_hex_val(lex, sline, scol, hc)
                 end
+                _sp_check_iri_codepoint(lex, sline, scol, cp)
             elseif esc == 'U'
                 write(buf, '\\')
                 write(buf, _sp_advance!(lex))  # 'U'
+                cp = UInt32(0)
                 for _ in 1:8
                     _sp_at_end(lex) && _sp_error_at(sline, scol, "Unterminated \\U escape in IRI")
-                    write(buf, _sp_advance!(lex))
+                    hc = _sp_advance!(lex); write(buf, hc)
+                    cp = cp * 16 + _sp_hex_val(lex, sline, scol, hc)
                 end
+                _sp_check_iri_codepoint(lex, sline, scol, cp)
             else
                 _sp_error_at(sline, scol, "Invalid escape '\\$(esc)' inside IRI reference")
             end
@@ -643,8 +672,9 @@ function _sp_scan!(lex::SpLexer)::SpToken
                 _sp_advance!(lex)  # consume '('
                 return SpToken(SP_TOK_TT_OPEN, "<<(", sline, scol)
             end
-            # Bare '<<' — return first '<' as LT
-            return SpToken(SP_TOK_LT, "<", sline, scol)
+            # '<<' — SPARQL 1.2 reified triple opening
+            _sp_advance!(lex)  # consume second '<'
+            return SpToken(SP_TOK_RT_OPEN, "<<", sline, scol)
         else
             # Everything else: treat as start of an IRI reference
             return _read_iriref!(lex, sline, scol)
@@ -673,6 +703,10 @@ function _sp_scan!(lex::SpLexer)::SpToken
         if _sp_peek_char(lex) == '='
             _sp_advance!(lex)
             return SpToken(SP_TOK_GE, ">=", sline, scol)
+        elseif _sp_peek_char(lex) == '>'
+            # '>>' — SPARQL 1.2 reified triple closing
+            _sp_advance!(lex)
+            return SpToken(SP_TOK_RT_CLOSE, ">>", sline, scol)
         end
         return SpToken(SP_TOK_GT, ">", sline, scol)
 
@@ -689,6 +723,10 @@ function _sp_scan!(lex::SpLexer)::SpToken
         if _sp_peek_char(lex) == '|'
             _sp_advance!(lex)
             return SpToken(SP_TOK_OR, "||", sline, scol)
+        elseif _sp_peek_char(lex) == '}'
+            # '|}' — SPARQL 1.2 annotation block closing
+            _sp_advance!(lex)
+            return SpToken(SP_TOK_ANN_CLOSE, "|}", sline, scol)
         end
         return SpToken(SP_TOK_PIPE, "|", sline, scol)
 
@@ -698,7 +736,15 @@ function _sp_scan!(lex::SpLexer)::SpToken
 
     # ── Punctuation ────────────────────────────────────────────────────────────
     elseif c == '{'
-        _sp_advance!(lex); return SpToken(SP_TOK_LBRACE, "{", sline, scol)
+        _sp_advance!(lex)
+        if _sp_peek_char(lex) == '|'
+            # '{|' — SPARQL 1.2 annotation block opening
+            _sp_advance!(lex)
+            return SpToken(SP_TOK_ANN_OPEN, "{|", sline, scol)
+        end
+        return SpToken(SP_TOK_LBRACE, "{", sline, scol)
+    elseif c == '~'
+        _sp_advance!(lex); return SpToken(SP_TOK_TILDE, "~", sline, scol)
     elseif c == '}'
         _sp_advance!(lex); return SpToken(SP_TOK_RBRACE, "}", sline, scol)
     elseif c == ')'
@@ -848,6 +894,19 @@ function _sp_scan!(lex::SpLexer)::SpToken
                 end
             else
                 break
+            end
+        end
+        # RDF 1.2 base direction: '--' [a-z]+  (lowercase only, per LANG_DIR)
+        if !_sp_at_end(lex) && _sp_peek_char(lex) == '-' && _sp_peek_char(lex, 1) == '-'
+            dc = _sp_peek_char(lex, 2)
+            if dc >= 'a' && dc <= 'z'
+                write(buf, _sp_advance!(lex))   # '-'
+                write(buf, _sp_advance!(lex))   # '-'
+                while !_sp_at_end(lex)
+                    dc2 = _sp_peek_char(lex)
+                    (dc2 >= 'a' && dc2 <= 'z') || break
+                    write(buf, _sp_advance!(lex))
+                end
             end
         end
         return SpToken(SP_TOK_LANGTAG, String(take!(buf)), sline, scol)

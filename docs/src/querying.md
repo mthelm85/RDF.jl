@@ -44,11 +44,17 @@ df = DataFrame(match(g; predicate=rdf.type))
 
 ---
 
-## SPARQL 1.1
+## SPARQL 1.1 and 1.2
 
 SPARQL is the W3C standard query language for RDF. RDF.jl implements the full
 SPARQL 1.1 query and update specification with 100% W3C test suite conformance
-(657/657 tests passing).
+(657/657 tests passing), plus SPARQL 1.2 / RDF-star — triple terms
+(`<<( s p o )>>`), reified triples (`<< s p o >>`), reifiers (`~`), annotation
+blocks (`{| … |}`), the triple-term builtins (`TRIPLE`, `isTRIPLE`, `SUBJECT`,
+`PREDICATE`, `OBJECT`), and directional language tags
+(`LANGDIR`/`hasLANG`/`hasLANGDIR`/`STRLANGDIR`) — passing 263/263 of the
+applicable W3C SPARQL 1.2 tests (the remainder require TriG input, which is
+not yet supported).
 
 ```@docs
 sparql
@@ -367,7 +373,7 @@ Header uses `?`-prefixed variable names; term values use N-Triples syntax
 
 ---
 
-## Supported SPARQL 1.1 features
+## Supported SPARQL 1.1 / 1.2 features
 
 | Feature | Supported |
 |---|---|
@@ -388,6 +394,11 @@ Header uses `?`-prefixed variable names; term values use N-Triples syntax
 | Numeric, string, date/time functions | ✅ |
 | Hash functions (MD5, SHA1, SHA256, SHA384, SHA512) | ✅ |
 | SERVICE / SERVICE SILENT (federated queries) | ✅ requires HTTP.jl |
+| **SPARQL 1.2**: triple terms `<<( s p o )>>` (patterns, VALUES, expressions) | ✅ |
+| **SPARQL 1.2**: reified triples `<< s p o >>`, reifiers `~`, annotation blocks `{\| … \|}` | ✅ |
+| **SPARQL 1.2**: `TRIPLE`, `isTRIPLE`, `SUBJECT`, `PREDICATE`, `OBJECT` | ✅ |
+| **SPARQL 1.2**: directional language tags, `LANGDIR`, `hasLANG`, `hasLANGDIR`, `STRLANGDIR` | ✅ |
+| **SPARQL 1.2**: `VERSION` declaration | ✅ |
 
 ## Query optimization
 

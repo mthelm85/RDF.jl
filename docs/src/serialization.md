@@ -12,10 +12,16 @@ dispatch between formats. All parsers and serializers work with `IO` streams;
 
 | Format | MIME type | Extension | Read | Write |
 |---|---|---|---|---|
-| N-Triples | `application/n-triples` | `.nt` | ✅ | ✅ |
-| N-Quads | `application/n-quads` | `.nq` | ✅ | ✅ |
-| Turtle 1.1 | `text/turtle` | `.ttl` | ✅ | ✅ |
+| N-Triples 1.2 | `application/n-triples` | `.nt` | ✅ | ✅ |
+| N-Quads 1.2 | `application/n-quads` | `.nq` | ✅ | ✅ |
+| Turtle 1.2 | `text/turtle` | `.ttl` | ✅ | ✅ |
 | JSON-LD 1.1 | `application/ld+json` | `.jsonld` | ✅ | ✅ |
+
+The N-Triples, N-Quads, and Turtle parsers support RDF 1.2 / RDF-star: triple
+terms `<<( s p o )>>`, reified triples `<< s p o >>` with optional reifiers
+(`~`), annotation blocks (`{| … |}`, Turtle), directional language tags
+(`"x"@en--ltr`), and the `@version` / `VERSION` directive. All RDF 1.2 W3C
+N-Triples, N-Quads, and Turtle test suites pass.
 
 ## N-Triples
 

@@ -257,33 +257,9 @@ using Test
 
     end
 
-    # ----------------------------------------------------------------
-    # Optional: run against vendored fixture files
-    # ----------------------------------------------------------------
-
-    if get(ENV, "RDF_W3C_FIXTURES", "0") == "1"
-        fixture_dir = joinpath(@__DIR__, "fixtures", "nquads")
-        if isdir(fixture_dir)
-            @testset "W3C Fixture Files — Positive" begin
-                for f in readdir(fixture_dir, join=true)
-                    endswith(f, ".nq") || continue
-                    @testset "$(basename(f))" begin
-                        @test_nowarn parse_nq(read(f, String))
-                    end
-                end
-            end
-
-            @testset "W3C Fixture Files — Negative" begin
-                neg_dir = joinpath(fixture_dir, "negative")
-                isdir(neg_dir) || return
-                for f in readdir(neg_dir, join=true)
-                    endswith(f, ".nq") || continue
-                    @testset "$(basename(f))" begin
-                        @test_throws ParseError parse_nq(read(f, String))
-                    end
-                end
-            end
-        end
-    end
+    # NOTE: the vendored W3C N-Quads fixture files are exercised
+    # unconditionally by test/w3c/w3c_tests.jl (positive + negative syntax,
+    # RDF 1.1 and 1.2).  A previous env-gated block here pointed at a fixture
+    # path that never existed and silently ran zero tests; it was removed.
 
 end

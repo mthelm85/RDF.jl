@@ -6,11 +6,9 @@ using Test
 #
 # Test cases are embedded directly as strings to keep the suite
 # self-contained and runnable without network access. The test strings
-# are taken verbatim from the official W3C test suite.
-#
-# To run against the full official fixture files, place them in
-# test/w3c/fixtures/ntriples/ and set the environment variable
-# RDF_W3C_FIXTURES=1.
+# are taken verbatim from the official W3C test suite.  The full official
+# fixture files are vendored under test/w3c/fixtures/ and run unconditionally
+# via test/w3c/w3c_tests.jl.
 
 @testset "W3C N-Triples Test Suite" begin
 
@@ -344,34 +342,9 @@ using Test
 
     end
 
-    # ----------------------------------------------------------------
-    # Optional: run against vendored W3C fixture files
-    # ----------------------------------------------------------------
-
-    if get(ENV, "RDF_W3C_FIXTURES", "0") == "1"
-        fixture_dir = joinpath(@__DIR__, "fixtures", "ntriples")
-        if isdir(fixture_dir)
-            @testset "W3C Fixture Files — Positive" begin
-                for f in readdir(fixture_dir, join=true)
-                    endswith(f, ".nt") || continue
-                    basename(f) in ["manifest.ttl"] && continue
-                    @testset "$(basename(f))" begin
-                        @test_nowarn parse_nt(read(f, String))
-                    end
-                end
-            end
-
-            @testset "W3C Fixture Files — Negative" begin
-                neg_dir = joinpath(fixture_dir, "negative")
-                isdir(neg_dir) || return
-                for f in readdir(neg_dir, join=true)
-                    endswith(f, ".nt") || continue
-                    @testset "$(basename(f))" begin
-                        @test_throws ParseError parse_nt(read(f, String))
-                    end
-                end
-            end
-        end
-    end
+    # NOTE: the vendored W3C N-Triples fixture files are exercised
+    # unconditionally by test/w3c/w3c_tests.jl (positive + negative syntax,
+    # RDF 1.1 and 1.2).  A previous env-gated block here pointed at a fixture
+    # path that never existed and silently ran zero tests; it was removed.
 
 end

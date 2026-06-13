@@ -34,8 +34,9 @@ const _SP_XSD_UNSIGNED_BYTE  = _SP_XSD * "unsignedByte"
 const _SP_XSD_UNSIGNED_SHORT = _SP_XSD * "unsignedShort"
 const _SP_XSD_UNSIGNED_INT   = _SP_XSD * "unsignedInt"
 const _SP_XSD_UNSIGNED_LONG  = _SP_XSD * "unsignedLong"
-const _SP_RDF_LANGSTRING = _SP_RDF * "langString"
-const _SP_RDF_TYPE       = _SP_RDF * "type"
+const _SP_RDF_LANGSTRING    = _SP_RDF * "langString"
+const _SP_RDF_DIRLANGSTRING = _SP_RDF * "dirLangString"
+const _SP_RDF_TYPE          = _SP_RDF * "type"
 
 # Integer subtypes — all treated as xsd:integer for arithmetic
 const _SP_INTEGER_TYPES = Set{String}([
@@ -66,7 +67,9 @@ function _sp_is_plain_literal(t::RDFTerm)
 end
 
 function _sp_is_string_literal(t::RDFTerm)
-    t isa Literal && (t.datatype.value == _SP_XSD_STRING || t.datatype.value == _SP_RDF_LANGSTRING)
+    t isa Literal && (t.datatype.value == _SP_XSD_STRING ||
+                      t.datatype.value == _SP_RDF_LANGSTRING ||
+                      t.datatype.value == _SP_RDF_DIRLANGSTRING)
 end
 
 # ── Numeric coercion ──────────────────────────────────────────────────────────
@@ -240,7 +243,9 @@ function _sp_to_bool(v::RDFTerm)::Bool
     elseif _sp_is_numeric(dt)
         n = _sp_to_float(v)
         return !isnan(n) && n != 0.0
-    elseif dt == _SP_XSD_STRING || dt == _SP_RDF_LANGSTRING
+    elseif dt == _SP_XSD_STRING
+        # Only xsd:string / simple literals have an EBV (SPARQL §17.2.2);
+        # language-tagged and directional strings are a type error.
         return !isempty(v.lexical_form)
     else
         error("Cannot coerce $dt to boolean")
@@ -265,9 +270,16 @@ function _sp_compare(a::RDFTerm, b::RDFTerm)::Int
     if a isa Literal && b isa Literal
         return _sp_compare_literals(a, b)
     end
-    # Incomparable types: IRI, BlankNode, Literal in different categories
-    # SPARQL ordering: BlankNode < IRI < Literal (for ORDER BY)
-    rank(t) = t isa BlankNode ? 0 : (t isa IRI ? 1 : 2)
+    # SPARQL 1.2: triple terms are ordered component-wise (subject, predicate,
+    # then object), recursing through _sp_compare.
+    if a isa TripleTerm && b isa TripleTerm
+        c = _sp_compare(a.subject::RDFTerm, b.subject::RDFTerm); c != 0 && return c
+        c = _sp_compare(a.predicate, b.predicate);               c != 0 && return c
+        return _sp_compare(a.object::RDFTerm, b.object::RDFTerm)
+    end
+    # Incomparable categories — SPARQL ordering:
+    # BlankNode < IRI < Literal < TripleTerm
+    rank(t) = t isa BlankNode ? 0 : t isa IRI ? 1 : t isa Literal ? 2 : 3
     cmp(rank(a), rank(b))
 end
 
@@ -333,6 +345,14 @@ end
 
 function _sp_value_equal(a::RDFTerm, b::RDFTerm)::Bool
     a isa Literal && b isa Literal && return _sp_literal_value_equal(a, b)
+    # SPARQL 1.2: triple terms compare by value, component-wise — so
+    # <<( :a :b 123 )>> = <<( :a :b 123.0 )>> is true even though the terms
+    # are not sameTerm.
+    if a isa TripleTerm && b isa TripleTerm
+        return _sp_value_equal(a.subject::RDFTerm, b.subject::RDFTerm) &&
+               _sp_value_equal(a.predicate, b.predicate) &&
+               _sp_value_equal(a.object::RDFTerm, b.object::RDFTerm)
+    end
     return a == b  # IRI/IRI or BNode/BNode identity
 end
 
@@ -364,9 +384,76 @@ function _sp_str(t::RDFTerm)::Literal
     error("STR requires an IRI or Literal, got $(typeof(t))")
 end
 
+# Split a stored language tag "lang--dir" into (lang, dir); ("lang", "") when
+# no base direction is present.
+function _sp_split_langdir(tag::String)::Tuple{String,String}
+    dd = findfirst("--", tag)
+    dd === nothing && return (tag, "")
+    (tag[1:first(dd)-1], tag[last(dd)+1:end])
+end
+
 function _sp_lang(t::RDFTerm)::Literal
     t isa Literal || error("LANG requires a Literal")
-    Literal(t.language_tag, IRI(_SP_XSD_STRING), "")
+    # SPARQL 1.2: LANG of a directional language-tagged string returns the
+    # language tag without the base direction.
+    lang, _ = _sp_split_langdir(t.language_tag)
+    Literal(lang, IRI(_SP_XSD_STRING), "")
+end
+
+# ── SPARQL 1.2: base-direction and triple-term builtins ───────────────────────
+
+function _sp_langdir(t::RDFTerm)::Literal
+    t isa Literal || error("LANGDIR requires a Literal")
+    _, dir = _sp_split_langdir(t.language_tag)
+    Literal(dir, IRI(_SP_XSD_STRING), "")
+end
+
+# hasLANG / hasLANGDIR are total predicates over all RDF terms: a non-literal
+# (or a literal without the relevant tag) yields false rather than a type error.
+function _sp_haslang(t::RDFTerm)::Literal
+    _sp_bool_literal(t isa Literal &&
+        (t.datatype.value == _SP_RDF_LANGSTRING ||
+         t.datatype.value == _SP_RDF_DIRLANGSTRING))
+end
+
+function _sp_haslangdir(t::RDFTerm)::Literal
+    _sp_bool_literal(t isa Literal && t.datatype.value == _SP_RDF_DIRLANGSTRING)
+end
+
+function _sp_strlangdir(lex::RDFTerm, lang::RDFTerm, dir::RDFTerm)::Literal
+    (lex isa Literal && lang isa Literal && dir isa Literal) ||
+        error("STRLANGDIR(str, lang, dir): need three literals")
+    !isempty(lex.language_tag) &&
+        error("STRLANGDIR: language-tagged literal is not a simple literal")
+    lex.datatype.value == _SP_XSD_STRING ||
+        error("STRLANGDIR: first argument must be a simple literal (xsd:string)")
+    l = lowercase(lang.lexical_form)
+    isempty(l) && error("STRLANGDIR: language tag must not be empty")
+    d = dir.lexical_form
+    d in ("ltr", "rtl") || error("STRLANGDIR: direction must be 'ltr' or 'rtl', got '$d'")
+    Literal(lex.lexical_form, IRI(_SP_RDF_DIRLANGSTRING), l * "--" * d)
+end
+
+function _sp_triple_fn(s::RDFTerm, p::RDFTerm, o::RDFTerm)::TripleTerm
+    (s isa IRI || s isa BlankNode) ||
+        error("TRIPLE: subject must be an IRI or blank node, got $(typeof(s))")
+    p isa IRI || error("TRIPLE: predicate must be an IRI, got $(typeof(p))")
+    TripleTerm(s, p, o)
+end
+
+function _sp_tt_subject(t::RDFTerm)::RDFTerm
+    t isa TripleTerm || error("SUBJECT requires a triple term")
+    t.subject::RDFTerm
+end
+
+function _sp_tt_predicate(t::RDFTerm)::RDFTerm
+    t isa TripleTerm || error("PREDICATE requires a triple term")
+    t.predicate
+end
+
+function _sp_tt_object(t::RDFTerm)::RDFTerm
+    t isa TripleTerm || error("OBJECT requires a triple term")
+    t.object::RDFTerm
 end
 
 function _sp_datatype(t::RDFTerm)::IRI
@@ -476,10 +563,11 @@ function _sp_strafter(t::RDFTerm, pattern::RDFTerm)::Literal
     Literal(result, t_lit.datatype, t_lit.language_tag)
 end
 
-# True if the literal is a string type (xsd:string or rdf:langString)
+# True if the literal is a string type (xsd:string, rdf:langString, or
+# rdf:dirLangString).
 function _sp_is_string_literal(lit::Literal)::Bool
     dt = lit.datatype.value
-    dt == _SP_XSD_STRING || dt == _SP_RDF_LANGSTRING
+    dt == _SP_XSD_STRING || dt == _SP_RDF_LANGSTRING || dt == _SP_RDF_DIRLANGSTRING
 end
 
 # True if the literal is a plain string (xsd:string, no lang tag)
@@ -498,15 +586,19 @@ function _sp_concat(args::Vector{RDFTerm})::Literal
         push!(parts, a.lexical_form)
     end
     result = join(parts)
-    # Type determination: if all have same non-empty lang → preserve lang
-    # otherwise → plain xsd:string
+    # Type determination: the result keeps a language tag (and base direction)
+    # only when every argument carries the *identical* tag — the stored
+    # language_tag embeds the direction as "lang--dir", so a plain string
+    # comparison captures both.  Otherwise the result is a plain xsd:string.
     if length(args) == 1
         a1 = args[1]::Literal
         return Literal(result, a1.datatype, a1.language_tag)
     end
     first_lang = (args[1]::Literal).language_tag
     if !isempty(first_lang) && all(a -> (a::Literal).language_tag == first_lang, args)
-        return Literal(result, IRI(_SP_RDF_LANGSTRING), first_lang)
+        # dirLangString when the tag carries a base direction ("lang--dir")
+        dt = occursin("--", first_lang) ? _SP_RDF_DIRLANGSTRING : _SP_RDF_LANGSTRING
+        return Literal(result, IRI(dt), first_lang)
     end
     return Literal(result, IRI(_SP_XSD_STRING), "")
 end
@@ -952,6 +1044,33 @@ function _sp_call_builtin(name::String, args::Vector{RDFTerm}, base::Union{Strin
     elseif name == "lang"
         n == 1 || error("LANG takes 1 argument")
         return _sp_lang(args[1])
+    elseif name == "langdir"
+        n == 1 || error("LANGDIR takes 1 argument")
+        return _sp_langdir(args[1])
+    elseif name == "haslang"
+        n == 1 || error("hasLANG takes 1 argument")
+        return _sp_haslang(args[1])
+    elseif name == "haslangdir"
+        n == 1 || error("hasLANGDIR takes 1 argument")
+        return _sp_haslangdir(args[1])
+    elseif name == "strlangdir"
+        n == 3 || error("STRLANGDIR takes 3 arguments")
+        return _sp_strlangdir(args[1], args[2], args[3])
+    elseif name == "triple"
+        n == 3 || error("TRIPLE takes 3 arguments")
+        return _sp_triple_fn(args[1], args[2], args[3])
+    elseif name == "subject"
+        n == 1 || error("SUBJECT takes 1 argument")
+        return _sp_tt_subject(args[1])
+    elseif name == "predicate"
+        n == 1 || error("PREDICATE takes 1 argument")
+        return _sp_tt_predicate(args[1])
+    elseif name == "object"
+        n == 1 || error("OBJECT takes 1 argument")
+        return _sp_tt_object(args[1])
+    elseif name == "istriple"
+        n == 1 || error("isTRIPLE takes 1 argument")
+        return _sp_bool_literal(args[1] isa TripleTerm)
     elseif name == "datatype"
         n == 1 || error("DATATYPE takes 1 argument")
         return _sp_datatype(args[1])

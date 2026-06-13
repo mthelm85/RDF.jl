@@ -396,6 +396,13 @@ function _sp_parse_prologue!(p::SpParser)::Vector{SpPrefixDecl}
             expanded = _sp_expand_iriref(p, iri_tok)
             p.prefixes[prefix_label] = expanded
             push!(decls, SpPrefixDecl(prefix_label, expanded))
+        elseif tok.kind == SP_TOK_KW && tok.value == "version"
+            # SPARQL 1.2: VERSION "1.2" — advisory; validated and discarded
+            _sp_next!(p)  # consume "version"
+            v_tok = sp_peek_token(p.lex)
+            v_tok.kind in (SP_TOK_STR1, SP_TOK_STR2) ||
+                _sp_parse_error(p, v_tok, "Expected a quoted version string after VERSION")
+            _sp_next!(p)
         else
             break
         end
@@ -452,7 +459,19 @@ function _sp_parse_rdf_literal(p::SpParser)::SpLiteral
         return SpLiteral(lexval, dt_iri, "")
     elseif next.kind == SP_TOK_LANGTAG
         _sp_next!(p)  # consume lang tag
-        lang = lowercase(next.value)
+        tag = next.value
+        dd  = findfirst("--", tag)
+        if dd !== nothing
+            # RDF 1.2 directional language tag: lang--dir, dir ∈ {ltr, rtl}
+            lang = lowercase(tag[1:first(dd)-1])
+            dir  = tag[last(dd)+1:end]
+            dir in ("ltr", "rtl") || _sp_parse_error(p, next,
+                "Base direction must be 'ltr' or 'rtl', got '$dir'")
+            return SpLiteral(lexval,
+                "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString",
+                lang * "--" * dir)
+        end
+        lang = lowercase(tag)
         return SpLiteral(lexval, "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString", lang)
     else
         return SpLiteral(lexval, "http://www.w3.org/2001/XMLSchema#string", "")
@@ -642,28 +661,199 @@ function _sp_next_is_var_or_term(p::SpParser)::Bool
     k == SP_TOK_TT_OPEN       # RDF-star embedded triple term
 end
 
-# Parse an embedded triple term <<( subject predicate object )>>
-# Caller must have already peeked SP_TOK_TT_OPEN but NOT consumed it.
-function _sp_parse_triple_term_expr(p::SpParser)::SpTripleTerm
-    _sp_expect!(p, SP_TOK_TT_OPEN)   # consume '<<('
-    s = _sp_parse_var_or_term(p)
-    # Predicate inside an embedded triple: only IRI, 'a', or variable (no paths)
+# Predicate inside a triple term / reified triple: IRI, 'a', or variable
+function _sp_parse_tt_verb(p::SpParser)::SpExpr
     pred_tok = sp_peek_token(p.lex)
-    pred = if pred_tok.kind == SP_TOK_A
+    if pred_tok.kind == SP_TOK_A
         _sp_next!(p)
-        SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+        return SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
     elseif pred_tok.kind == SP_TOK_VAR
         _sp_next!(p)
-        SpVar(Symbol(pred_tok.value))
+        return SpVar(Symbol(pred_tok.value))
     elseif _sp_next_is_iri(p)
-        _sp_parse_iri_node(p)
+        return _sp_parse_iri_node(p)
     else
         _sp_parse_error(p, pred_tok,
-            "Expected IRI, 'a', or variable as predicate in embedded triple term")
+            "Expected IRI, 'a', or variable as predicate in triple term")
     end
-    o = _sp_parse_var_or_term(p)
+end
+
+# Common simple node forms shared by every triple-term / reified-triple slot:
+# Var, IRI, blank node label, '[]' anon.  Blank nodes are rejected in
+# expression context (BIND), where fresh blank nodes are not permitted.
+# Returns nothing if the next token is none of these (caller handles the rest).
+function _sp_parse_tt_simple_node(p::SpParser, in_expr::Bool)::Union{SpExpr, Nothing}
+    tok = sp_peek_token(p.lex)
+    if tok.kind == SP_TOK_VAR
+        _sp_next!(p)
+        return SpVar(Symbol(tok.value))
+    elseif _sp_next_is_iri(p)
+        return _sp_parse_iri_node(p)
+    elseif tok.kind == SP_TOK_BLANK_LABEL
+        in_expr && _sp_parse_error(p, tok,
+            "Blank nodes are not allowed in a triple term used in an expression")
+        _sp_next!(p)
+        return SpBNode(tok.value)
+    elseif tok.kind == SP_TOK_ANON
+        in_expr && _sp_parse_error(p, tok,
+            "Blank nodes are not allowed in a triple term used in an expression")
+        _sp_next!(p)
+        return SpAnonBNode()
+    end
+    return nothing
+end
+
+# ttSubject ::= Var | iri | BlankNode | TripleTerm   (no reified triple, no literal)
+# In expression / data-block (VALUES) context a nested triple term is NOT
+# allowed as the subject (only as the object).
+function _sp_parse_tt_subject(p::SpParser; in_expr::Bool=false)::SpExpr
+    if _sp_peek_kind(p) == SP_TOK_TT_OPEN
+        in_expr && _sp_parse_error(p, sp_peek_token(p.lex),
+            "A triple term is not allowed as the subject of a triple term in " *
+            "an expression or VALUES clause")
+        return _sp_parse_triple_term_expr(p; in_expr=in_expr)
+    end
+    n = _sp_parse_tt_simple_node(p, in_expr)
+    n !== nothing && return n
+    _sp_parse_error(p, sp_peek_token(p.lex),
+        "Expected variable, IRI, blank node, or triple term as triple-term subject")
+end
+
+# ttObject ::= ttSubject forms ∪ { RDFLiteral | NumericLiteral | BooleanLiteral }
+function _sp_parse_tt_object(p::SpParser; in_expr::Bool=false)::SpExpr
+    if _sp_peek_kind(p) == SP_TOK_TT_OPEN
+        return _sp_parse_triple_term_expr(p; in_expr=in_expr)
+    end
+    n = _sp_parse_tt_simple_node(p, in_expr)
+    n !== nothing && return n
+    if _sp_next_is_literal(p);  return _sp_parse_rdf_literal(p);     end
+    if _sp_next_is_numeric(p);  return _sp_parse_numeric_literal(p); end
+    if _sp_next_is_boolean(p);  return _sp_parse_boolean_literal(p); end
+    _sp_parse_error(p, sp_peek_token(p.lex),
+        "Expected term as triple-term object")
+end
+
+# Parse an embedded triple term <<( ttSubject verb ttObject )>>
+# Caller must have already peeked SP_TOK_TT_OPEN but NOT consumed it.
+function _sp_parse_triple_term_expr(p::SpParser; in_expr::Bool=false)::SpTripleTerm
+    _sp_expect!(p, SP_TOK_TT_OPEN)   # consume '<<('
+    s    = _sp_parse_tt_subject(p; in_expr=in_expr)
+    pred = _sp_parse_tt_verb(p)
+    o    = _sp_parse_tt_object(p; in_expr=in_expr)
     _sp_expect!(p, SP_TOK_TT_CLOSE)  # consume ')>>'
     SpTripleTerm(s, pred, o)
+end
+
+# ── SPARQL 1.2 reified triples and annotations ────────────────────────────────
+
+const _SP_RDF_REIFIES_IRI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies"
+
+# rtSubject ::= Var | iri | BlankNode | ReifiedTriple | TripleTerm  (no literal)
+function _sp_parse_rt_subject(p::SpParser, triples::Vector{SpTriple})::SpExpr
+    k = _sp_peek_kind(p)
+    k == SP_TOK_TT_OPEN && return _sp_parse_triple_term_expr(p)
+    k == SP_TOK_RT_OPEN && return _sp_parse_reified_triple!(p, triples)
+    n = _sp_parse_tt_simple_node(p, false)
+    n !== nothing && return n
+    _sp_parse_error(p, sp_peek_token(p.lex),
+        "Expected variable, IRI, blank node, reified triple, or triple term as reified-triple subject")
+end
+
+# rtObject ::= rtSubject forms ∪ { literal }   (note: NIL '()' is NOT allowed)
+function _sp_parse_rt_object(p::SpParser, triples::Vector{SpTriple})::SpExpr
+    k = _sp_peek_kind(p)
+    k == SP_TOK_TT_OPEN && return _sp_parse_triple_term_expr(p)
+    k == SP_TOK_RT_OPEN && return _sp_parse_reified_triple!(p, triples)
+    n = _sp_parse_tt_simple_node(p, false)
+    n !== nothing && return n
+    if _sp_next_is_literal(p);  return _sp_parse_rdf_literal(p);     end
+    if _sp_next_is_numeric(p);  return _sp_parse_numeric_literal(p); end
+    if _sp_next_is_boolean(p);  return _sp_parse_boolean_literal(p); end
+    _sp_parse_error(p, sp_peek_token(p.lex),
+        "Expected term as reified-triple object")
+end
+
+# Parse the optional node after '~' (the '~' is already consumed):
+# Var | iri | BlankNode, or a fresh anonymous blank node for a bare '~'.
+function _sp_parse_reifier_node(p::SpParser)::SpExpr
+    tok = sp_peek_token(p.lex)
+    if tok.kind == SP_TOK_VAR
+        _sp_next!(p)
+        return SpVar(Symbol(tok.value))
+    elseif _sp_next_is_iri(p)
+        return _sp_parse_iri_node(p)
+    elseif tok.kind == SP_TOK_BLANK_LABEL
+        _sp_next!(p)
+        return SpBNode(tok.value)
+    elseif tok.kind == SP_TOK_ANON
+        _sp_next!(p)
+        return SpAnonBNode()
+    else
+        return SpAnonBNode()   # bare '~'
+    end
+end
+
+# reifiedTriple ::= '<<' rtSubject verb rtObject reifier? '>>'
+# Emits the pattern triple  reifier rdf:reifies <<( s p o )>>  into `triples`
+# and returns the reifier expression (the value of the reified triple).
+function _sp_parse_reified_triple!(p::SpParser, triples::Vector{SpTriple})::SpExpr
+    _sp_expect!(p, SP_TOK_RT_OPEN)   # consume '<<'
+    s    = _sp_parse_rt_subject(p, triples)
+    pred = _sp_parse_tt_verb(p)
+    o    = _sp_parse_rt_object(p, triples)
+    reifier = if _sp_peek_kind(p) == SP_TOK_TILDE
+        _sp_next!(p)
+        _sp_parse_reifier_node(p)
+    else
+        SpAnonBNode()
+    end
+    _sp_expect!(p, SP_TOK_RT_CLOSE)  # consume '>>'
+    push!(triples, SpTriple(reifier, SpIRI(_SP_RDF_REIFIES_IRI), SpTripleTerm(s, pred, o)))
+    reifier
+end
+
+# Convert the verb of an annotated object back to a plain predicate expression.
+# Only a simple IRI ('a' included) or variable verb can be annotated.
+function _sp_annotation_pred(p::SpParser, verb::Union{SpExpr, SpPath})::SpExpr
+    verb isa SpPathIRI && return SpIRI(verb.value)
+    verb isa SpPathA   && return SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+    verb isa SpVar     && return verb
+    verb isa SpIRI     && return verb
+    _sp_parse_error_here(p, "Annotations cannot be attached to property-path predicates")
+end
+
+# annotation ::= (reifier | annotationBlock)*       (SPARQL 1.2)
+# Parsed after an object in an object list; appends the reifier and annotation
+# pattern triples to `triples`.
+function _sp_parse_annotation!(p::SpParser, subject::SpExpr,
+                               verb::Union{SpExpr, SpPath},
+                               obj::SpExpr, triples::Vector{SpTriple})
+    cur_reifier = nothing
+    while true
+        k = _sp_peek_kind(p)
+        if k == SP_TOK_TILDE
+            _sp_next!(p)
+            r = _sp_parse_reifier_node(p)
+            pred = _sp_annotation_pred(p, verb)
+            push!(triples, SpTriple(r, SpIRI(_SP_RDF_REIFIES_IRI),
+                                    SpTripleTerm(subject, pred, obj)))
+            cur_reifier = r
+        elseif k == SP_TOK_ANN_OPEN
+            _sp_next!(p)
+            r = cur_reifier
+            if r === nothing
+                r = SpAnonBNode()
+                pred = _sp_annotation_pred(p, verb)
+                push!(triples, SpTriple(r, SpIRI(_SP_RDF_REIFIES_IRI),
+                                        SpTripleTerm(subject, pred, obj)))
+            end
+            _sp_parse_property_list_path_not_empty!(p, r, triples)
+            _sp_expect!(p, SP_TOK_ANN_CLOSE)
+            cur_reifier = nothing
+        else
+            break
+        end
+    end
 end
 
 # Parse a VarOrTerm (used in triple subject/object contexts)
@@ -774,17 +964,26 @@ function _sp_parse_graph_node_path!(
             _sp_parse_property_list_path_not_empty!(p, bnode, triples)
         end
         _sp_expect!(p, SP_TOK_RBRACKET)
+        _sp_parse_annotation!(p, subject, verb, bnode, triples)
     elseif tok.kind == SP_TOK_LPAREN
         # Collection path
         obj = _sp_parse_collection_path!(p, triples)
         push!(triples, SpTriple(subject, verb, obj))
+        _sp_parse_annotation!(p, subject, verb, obj, triples)
     elseif tok.kind == SP_TOK_NIL
         _sp_next!(p)
         obj = SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
         push!(triples, SpTriple(subject, verb, obj))
+        _sp_parse_annotation!(p, subject, verb, obj, triples)
+    elseif tok.kind == SP_TOK_RT_OPEN
+        # SPARQL 1.2: reified triple as object — its value is the reifier
+        obj = _sp_parse_reified_triple!(p, triples)
+        push!(triples, SpTriple(subject, verb, obj))
+        _sp_parse_annotation!(p, subject, verb, obj, triples)
     else
         obj = _sp_parse_var_or_term(p)
         push!(triples, SpTriple(subject, verb, obj))
+        _sp_parse_annotation!(p, subject, verb, obj, triples)
     end
 end
 
@@ -815,6 +1014,9 @@ function _sp_parse_collection_path!(p::SpParser, triples::Vector{SpTriple})::SpE
         elseif tok.kind == SP_TOK_NIL
             _sp_next!(p)
             rdf_nil
+        elseif tok.kind == SP_TOK_RT_OPEN
+            # SPARQL 1.2: reified triple as a collection item
+            _sp_parse_reified_triple!(p, triples)
         else
             _sp_parse_var_or_term(p)
         end
@@ -861,6 +1063,17 @@ function _sp_parse_triples_same_subject_path(p::SpParser)::Vector{SpTriple}
         if _sp_next_is_verb(p)
             _sp_parse_property_list_path_not_empty!(p, subject, triples)
         end
+    elseif tok.kind == SP_TOK_RT_OPEN
+        # SPARQL 1.2: reified triple as subject (property list optional —
+        # the reified triple already contributes its rdf:reifies pattern)
+        subject = _sp_parse_reified_triple!(p, triples)
+        if _sp_next_is_verb(p)
+            _sp_parse_property_list_path_not_empty!(p, subject, triples)
+        end
+    elseif tok.kind == SP_TOK_TT_OPEN
+        # SPARQL 1.2: triple term as subject
+        subject = _sp_parse_triple_term_expr(p)
+        _sp_parse_property_list_path_not_empty!(p, subject, triples)
     else
         subject = _sp_parse_var_or_term(p)
         _sp_parse_property_list_path_not_empty!(p, subject, triples)
@@ -879,7 +1092,8 @@ function _sp_next_starts_triples(p::SpParser)::Bool
     k == SP_TOK_STR1 || k == SP_TOK_STR2 || k == SP_TOK_STR_LONG1 || k == SP_TOK_STR_LONG2 ||
     k == SP_TOK_INTEGER || k == SP_TOK_DECIMAL || k == SP_TOK_DOUBLE ||
     k == SP_TOK_LBRACKET || k == SP_TOK_LPAREN ||
-    k == SP_TOK_TT_OPEN ||   # RDF-star: <<( ... )>> as subject
+    k == SP_TOK_TT_OPEN ||   # rejected later with a clear error (not a legal subject)
+    k == SP_TOK_RT_OPEN ||   # SPARQL 1.2: reified triple as subject
     (k == SP_TOK_KW && (sp_peek_token(p.lex).value == "true" || sp_peek_token(p.lex).value == "false"))
 end
 
@@ -1057,8 +1271,9 @@ end
 function _sp_parse_unary(p::SpParser)::SpExpr
     tok = sp_peek_token(p.lex)
     if tok.kind == SP_TOK_BANG
+        # SPARQL 1.2 allows '!' to stack (e.g. !!?v); recurse into UnaryExpression.
         _sp_next!(p)
-        arg = _sp_parse_primary(p)
+        arg = _sp_parse_unary(p)
         return SpUnary(:not, arg)
     elseif tok.kind == SP_TOK_PLUS
         _sp_next!(p)
@@ -1079,6 +1294,9 @@ const _SP_BUILTINS_1 = Set{String}([
     "round", "strlen", "ucase", "lcase", "encode_for_uri", "year", "month",
     "day", "hours", "minutes", "seconds", "timezone", "tz", "md5", "sha1",
     "sha256", "sha384", "sha512", "uuid", "struuid", "rand", "now",
+    # SPARQL 1.2
+    "langdir", "haslang", "haslangdir", "istriple", "subject", "predicate",
+    "object",
 ])
 
 const _SP_BUILTINS_2 = Set{String}([
@@ -1093,10 +1311,18 @@ const _SP_BUILTINS_VARIADIC = Set{String}([
 
 const _SP_BUILTINS_3 = Set{String}([
     "regex", "substr", "replace", "if",
+    # SPARQL 1.2
+    "triple", "strlangdir",
 ])
 
 function _sp_parse_primary(p::SpParser)::SpExpr
     tok = sp_peek_token(p.lex)
+
+    # SPARQL 1.2: triple term in expression position — <<( s p o )>>
+    # (blank nodes are not allowed here)
+    if tok.kind == SP_TOK_TT_OPEN
+        return _sp_parse_triple_term_expr(p; in_expr=true)
+    end
 
     # Bracketed expression
     if tok.kind == SP_TOK_LPAREN
@@ -1263,11 +1489,13 @@ function _sp_parse_aggregate(p::SpParser)::SpAggregate
             return SpAggregate(:count, distinct, nothing, nothing)
         else
             arg = _sp_parse_expression(p)
+            _sp_reject_nested_aggregate(p, arg)
             _sp_expect!(p, SP_TOK_RPAREN)
             return SpAggregate(:count, distinct, arg, nothing)
         end
     elseif func_sym == :group_concat
         arg = _sp_parse_expression(p)
+        _sp_reject_nested_aggregate(p, arg)
         sep::Union{String,Nothing} = nothing
         if _sp_peek_kind(p) == SP_TOK_SEMI
             _sp_next!(p)
@@ -1282,9 +1510,29 @@ function _sp_parse_aggregate(p::SpParser)::SpAggregate
         return SpAggregate(:group_concat, distinct, arg, sep)
     else
         arg = _sp_parse_expression(p)
+        _sp_reject_nested_aggregate(p, arg)
         _sp_expect!(p, SP_TOK_RPAREN)
         return SpAggregate(func_sym, distinct, arg, nothing)
     end
+end
+
+# An aggregate's argument expression may not itself contain an aggregate
+# (e.g. COUNT(SUM(?x)) is a static error).
+function _sp_contains_aggregate(e::SpExpr)::Bool
+    e isa SpAggregate && return true
+    e isa SpUnary     && return _sp_contains_aggregate(e.arg)
+    e isa SpBinary    && return _sp_contains_aggregate(e.left) || _sp_contains_aggregate(e.right)
+    (e isa SpCall || e isa SpCoalesce) && return any(_sp_contains_aggregate, e.args)
+    e isa SpIn        && return _sp_contains_aggregate(e.expr) || any(_sp_contains_aggregate, e.list)
+    e isa SpIf        && return _sp_contains_aggregate(e.cond) ||
+                                _sp_contains_aggregate(e.then_) || _sp_contains_aggregate(e.else_)
+    return false
+end
+
+function _sp_reject_nested_aggregate(p::SpParser, arg::SpExpr)
+    _sp_contains_aggregate(arg) &&
+        _sp_parse_error_here(p, "Aggregate functions may not be nested")
+    nothing
 end
 
 # ── Graph pattern helpers ─────────────────────────────────────────────────────
@@ -1313,8 +1561,11 @@ function _sp_parse_data_block_value(p::SpParser)::Union{SpExpr, Nothing}
         return _sp_parse_numeric_literal(p)
     elseif _sp_next_is_boolean(p)
         return _sp_parse_boolean_literal(p)
+    elseif tok.kind == SP_TOK_TT_OPEN
+        # SPARQL 1.2: ground triple term as a data-block value (no blank nodes)
+        return _sp_parse_triple_term_expr(p; in_expr=true)
     else
-        _sp_parse_error(p, tok, "Expected data block value (IRI, literal, or UNDEF)")
+        _sp_parse_error(p, tok, "Expected data block value (IRI, literal, triple term, or UNDEF)")
     end
 end
 
@@ -1352,8 +1603,14 @@ function _sp_parse_inline_data(p::SpParser)::SpValues
         # InlineDataFull: '(' Var* ')' '{' ... '}'
         _sp_next!(p)  # consume '('
         vars = SpVar[]
+        seen_vars = Set{Symbol}()
         while _sp_peek_kind(p) == SP_TOK_VAR
-            push!(vars, _sp_parse_var(p))
+            vtok = sp_peek_token(p.lex)
+            v = _sp_parse_var(p)
+            v.name in seen_vars &&
+                _sp_parse_error(p, vtok, "Duplicate variable '?$(v.name)' in VALUES clause")
+            push!(seen_vars, v.name)
+            push!(vars, v)
         end
         _sp_expect!(p, SP_TOK_RPAREN)
         _sp_expect!(p, SP_TOK_LBRACE)
@@ -1866,6 +2123,13 @@ function _sp_parse_select_query(p::SpParser)::SpSelectQuery
         end
         for col in columns
             _sp_check_grouped_column(p, col, gb_vars)
+            # A SELECT (expr AS ?v) must introduce a fresh variable: ?v may not
+            # already be a GROUP BY key / alias that is in scope.
+            if col.as_var !== nothing && col.as_var.name in gb_vars
+                _sp_parse_error_here(p,
+                    "Variable '?$(col.as_var.name)' is already in scope from " *
+                    "GROUP BY; cannot rebind it with AS")
+            end
         end
     end
 

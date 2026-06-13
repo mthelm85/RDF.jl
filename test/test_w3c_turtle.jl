@@ -1,14 +1,13 @@
 # W3C Turtle conformance tests
 #
-# Activated by setting RDF_W3C_FIXTURES=1 in the environment.
-# Test files live under test/w3c/fixtures/turtle/
+# The fixtures are vendored in the repository, so these run unconditionally —
+# like every other test.  Test files live under test/w3c/fixtures/turtle/
 #
 # Test categories:
 #   Eval tests:      .ttl + matching .nt → parse .ttl, compare with .nt (isomorphic)
 #   Positive syntax: .ttl with no .nt and no "bad"/"negative" → must parse without error
 #   Negative syntax: .ttl with "bad" in name → must throw
 
-const _W3C_TTL_ACTIVE   = get(ENV, "RDF_W3C_FIXTURES", "0") == "1"
 const _TTL_FIXTURES_DIR = joinpath(@__DIR__, "w3c", "fixtures", "turtle")
 
 # W3C base URI for the turtle test suite
@@ -28,7 +27,7 @@ function _parse_nt_file(path::AbstractString)::Graph
     end
 end
 
-if _W3C_TTL_ACTIVE && isdir(_TTL_FIXTURES_DIR)
+if isdir(_TTL_FIXTURES_DIR)
 
     all_names = readdir(_TTL_FIXTURES_DIR; join=false)
     nt_stems  = Set(n[1:end-3] for n in all_names if endswith(n, ".nt"))
@@ -84,7 +83,70 @@ if _W3C_TTL_ACTIVE && isdir(_TTL_FIXTURES_DIR)
     end
 
 else
-    @testset "W3C Turtle (skipped – set RDF_W3C_FIXTURES=1 to enable)" begin
-        @test true
+    error("W3C Turtle fixtures missing at $_TTL_FIXTURES_DIR — they are " *
+          "vendored in the repository and must be present")
+end
+
+# ── RDF 1.2 Turtle suite ───────────────────────────────────────────────────────
+# Official W3C RDF 1.2 Turtle tests (triple terms, reifiers, annotation blocks,
+# directional language tags).
+# Source: https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-turtle/
+# Layout: syntax/  — positive unless "bad" in the file name
+#         eval/    — .ttl with paired .nt (RDF 1.2 N-Triples), isomorphism check
+
+const _TTL12_FIXTURES_DIR = joinpath(@__DIR__, "w3c", "fixtures", "turtle12")
+const _TTL12_BASE_URI     = "https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-turtle/"
+
+function _parse_ttl12_file(path::AbstractString, subdir::String)::Graph
+    base = _TTL12_BASE_URI * subdir * "/" * basename(path)
+    open(path, "r") do io
+        read(io, MIME"text/turtle"(), Graph, base)
     end
+end
+
+if isdir(_TTL12_FIXTURES_DIR)
+
+    @testset "W3C RDF 1.2 Turtle" begin
+        # ── Syntax tests ──────────────────────────────────────────────────────
+        syn_dir   = joinpath(_TTL12_FIXTURES_DIR, "syntax")
+        syn_names = sort(filter(n -> endswith(n, ".ttl") && n != "manifest.ttl",
+                                readdir(syn_dir)))
+
+        @testset "positive syntax" begin
+            for name in syn_names
+                contains(name, "bad") && continue
+                @testset "$name" begin
+                    @test_nowarn _parse_ttl12_file(joinpath(syn_dir, name), "syntax")
+                end
+            end
+        end
+
+        @testset "negative syntax" begin
+            for name in syn_names
+                contains(name, "bad") || continue
+                @testset "$name" begin
+                    @test_throws Exception _parse_ttl12_file(joinpath(syn_dir, name), "syntax")
+                end
+            end
+        end
+
+        # ── Eval tests (.ttl ≅ paired .nt) ────────────────────────────────────
+        eval_dir   = joinpath(_TTL12_FIXTURES_DIR, "eval")
+        eval_names = sort(filter(n -> endswith(n, ".ttl") && n != "manifest.ttl",
+                                 readdir(eval_dir)))
+
+        @testset "eval" begin
+            for name in eval_names
+                nt_file = joinpath(eval_dir, name[1:end-4] * ".nt")
+                isfile(nt_file) || continue
+                @testset "$name" begin
+                    g_ttl = _parse_ttl12_file(joinpath(eval_dir, name), "eval")
+                    g_nt  = open(io -> read(io, MIME"application/n-triples"(), Graph),
+                                 nt_file)
+                    @test g_ttl ≅ g_nt
+                end
+            end
+        end
+    end
+
 end

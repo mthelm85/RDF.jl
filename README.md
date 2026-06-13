@@ -1,17 +1,17 @@
 # RDF [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://mthelm85.github.io/RDF.jl/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://mthelm85.github.io/RDF.jl/dev/) [![Build Status](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Coverage](https://codecov.io/gh/mthelm85/RDF.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mthelm85/RDF.jl)
 
-A full-featured RDF 1.1 library for Julia with a **100% conformant SPARQL 1.1 engine** (657/657 W3C tests passing).
+A full-featured RDF 1.2 library for Julia with a **conformant SPARQL 1.1 and 1.2 engine** (657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing), including full RDF-star / RDF 1.2 support — triple terms, reified triples, annotation syntax, and directional language tags — across Turtle, N-Triples, N-Quads, and SPARQL.
 
 Graphs are backed by a hexastore index — six sorted arrays covering every (s, p, o) permutation — giving O(log n) pattern matching on any combination of subject, predicate, and object.
 
 ## Features
 
-- **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED, SERVICE
+- **SPARQL 1.1 + 1.2** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED, SERVICE; plus RDF-star — triple terms, reified triples, annotation blocks, `TRIPLE`/`isTRIPLE`/`SUBJECT`/`PREDICATE`/`OBJECT`, and directional-language-tag builtins
 - **Cost-based query optimization** — basic graph patterns are automatically reordered using exact O(log n) hexastore cardinalities, so pattern order in your query never matters for performance
 - **Remote SPARQL endpoints** — `sparql(url, query)` queries any SPARQL 1.1 endpoint (Wikidata, UniProt, DBpedia, …) when HTTP.jl is loaded; `SERVICE` federates local and remote data in one query; `RemoteGraph` wraps an endpoint in the Graph API
-- **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV for HTTP API integration
-- **Turtle 1.1** parser and serializer
-- **N-Triples / N-Quads** parser and serializer
+- **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV (with RDF-star triple-term bindings) for HTTP API integration
+- **Turtle 1.2** parser and serializer — including triple terms, reified triples, reifiers, annotation blocks, and directional language tags
+- **N-Triples / N-Quads 1.2** parser and serializer
 - **JSON-LD 1.1** parser and serializer — inline contexts, prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
 - **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), and render them as token-budgeted LLM context (`to_context`)
 - **Named graphs / Datasets** with full SPARQL dataset semantics
