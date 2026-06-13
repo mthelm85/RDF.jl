@@ -162,18 +162,6 @@ function _sp_skip_ws!(lex::SpLexer)
     end
 end
 
-# ── SPARQL keyword set (lowercase) ───────────────────────────────────────────
-
-const _SP_KEYWORDS = Set{String}([
-    "base", "prefix", "select", "distinct", "reduced", "as", "construct",
-    "where", "describe", "ask", "from", "named", "order", "by", "asc", "desc",
-    "limit", "offset", "group", "having", "union", "optional", "minus", "graph",
-    "filter", "bind", "values", "service", "silent", "in", "not", "exists",
-    "true", "false", "insert", "delete", "data", "modify", "clear", "drop",
-    "create", "load", "move", "copy", "add", "into", "default", "all", "with",
-    "using", "to", "undef", "version",
-])
-
 # ── PN_CHARS helpers (SPARQL grammar) ─────────────────────────────────────────
 
 # Returns true if c can start a PN_CHARS_BASE (letter / non-ASCII code point)

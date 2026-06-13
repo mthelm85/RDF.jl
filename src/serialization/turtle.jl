@@ -670,10 +670,6 @@ function _ttl_parse_prefixed_name!(p::_TurtleParser)::IRI
     IRI(p.prefixes[pname] * local_part)
 end
 
-function _ttl_parse_iri_or_prefixed!(p::_TurtleParser)::IRI
-    _ttl_peek(p) == '<' ? _ttl_parse_iriref!(p) : _ttl_parse_prefixed_name!(p)
-end
-
 # ── Blank node property list ──────────────────────────────────────────────────
 
 function _ttl_parse_bnode_proplist!(p::_TurtleParser)::BlankNode

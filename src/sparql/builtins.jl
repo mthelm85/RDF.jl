@@ -20,8 +20,6 @@ const _SP_XSD_FLOAT    = _SP_XSD * "float"
 const _SP_XSD_BOOLEAN  = _SP_XSD * "boolean"
 const _SP_XSD_DATE     = _SP_XSD * "date"
 const _SP_XSD_DATETIME = _SP_XSD * "dateTime"
-const _SP_XSD_TIME     = _SP_XSD * "time"
-const _SP_XSD_DURATION = _SP_XSD * "duration"
 const _SP_XSD_INT      = _SP_XSD * "int"
 const _SP_XSD_LONG     = _SP_XSD * "long"
 const _SP_XSD_SHORT    = _SP_XSD * "short"
@@ -62,15 +60,6 @@ function _sp_is_numeric_literal(t::RDFTerm)
     t isa Literal && _sp_is_numeric(t.datatype.value)
 end
 
-function _sp_is_plain_literal(t::RDFTerm)
-    t isa Literal && (t.datatype.value == _SP_XSD_STRING || !isempty(t.language_tag))
-end
-
-function _sp_is_string_literal(t::RDFTerm)
-    t isa Literal && (t.datatype.value == _SP_XSD_STRING ||
-                      t.datatype.value == _SP_RDF_LANGSTRING ||
-                      t.datatype.value == _SP_RDF_DIRLANGSTRING)
-end
 
 # ── Numeric coercion ──────────────────────────────────────────────────────────
 
@@ -83,10 +72,6 @@ function _sp_to_float(lit::Literal)::Float64
     s == "NaN"            && return NaN
     Parsers.parse(Float64, s)
 end
-
-# Fast path: use pre-cached numeric value when we have a term ID
-# Returns NaN for non-numeric terms (which correctly fails numeric comparisons)
-@inline _sp_to_float_id(id::UInt32)::Float64 = _numeric_float(id)
 
 # Parse a decimal lexical form (e.g. "3.14", "+33.33") to an exact Rational{BigInt}
 function _sp_parse_decimal_rational(s::String)::Rational{BigInt}

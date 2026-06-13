@@ -21,10 +21,7 @@ const _JRDF_NIL          = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil"
 const _JXSD_STRING_S     = "http://www.w3.org/2001/XMLSchema#string"
 const _JXSD_INTEGER_S    = "http://www.w3.org/2001/XMLSchema#integer"
 const _JXSD_DOUBLE_S     = "http://www.w3.org/2001/XMLSchema#double"
-const _JXSD_DECIMAL_S    = "http://www.w3.org/2001/XMLSchema#decimal"
 const _JXSD_BOOLEAN_S    = "http://www.w3.org/2001/XMLSchema#boolean"
-const _JRDF_LANGSTRING_S = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
-const _JRDF_DIR_LANGSTRING_S = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString"
 
 # JSON-LD keywords (all start with @)
 const _JSONLD_KEYWORDS = Set{String}([

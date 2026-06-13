@@ -20,9 +20,6 @@ const _SpSolution = Dict{Symbol, RDFTerm}
 # Shared empty solution for constant-folding lookups (never mutated by readers).
 const _EMPTY_SP_SOLUTION = Dict{Symbol, RDFTerm}()
 
-# Create a copy of a solution
-_sp_copy_sol(μ::_SpSolution) = copy(μ)
-
 # Merge two compatible solutions (no conflict check here)
 function _sp_merge_sol(μ1::_SpSolution, μ2::_SpSolution)::_SpSolution
     result = copy(μ1)
@@ -869,41 +866,6 @@ function _bt_apply_filter(bt::_BT, filt::SpFilter, ctx::_SpEvalCtx)::_BT
     _BT(bt.vars, bt.var_idx, out_cols, out_nrows)
 end
 
-# ── Term materialisation (AST node → RDFTerm) ─────────────────────────────────
-
-# Convert a SpExpr (that is a "constant" term, not variable) to an RDFTerm.
-# Returns nothing if cannot be resolved.
-function _sp_term_to_rdf(node::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution)::Union{RDFTerm, Nothing}
-    if node isa SpVar
-        get(μ, node.name, nothing)
-    elseif node isa SpIRI
-        iri_str = node.value
-        if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", iri_str)
-            iri_str = _sp_resolve_iri(ctx.base, iri_str)
-        end
-        IRI(iri_str)
-    elseif node isa SpLiteral
-        try
-            if !isempty(node.lang)
-                Literal(node.lexical, IRI(node.datatype), node.lang)
-            else
-                Literal(node.lexical, IRI(node.datatype), "")
-            end
-        catch
-            nothing
-        end
-    elseif node isa SpBNode
-        # Blank nodes in query patterns are scoped per basic graph pattern
-        get!(ctx.blank_node_scope, node.label, _mint_blank_node())
-    elseif node isa SpAnonBNode
-        # Look up any existing binding for this anonymous blank node
-        sym = Symbol("_sp_anon_", node.id)
-        get(μ, sym, nothing)
-    else
-        nothing
-    end
-end
-
 # ── Expression evaluation ─────────────────────────────────────────────────────
 
 # Evaluate a SpExpr in the context of a solution.
@@ -1561,32 +1523,6 @@ function _graph_bfs_from(g::SimpleDiGraph, src::Int, vtx_to_id::Vector{UInt32},
     while qi <= length(queue)
         u = queue[qi]; qi += 1
         for w in outneighbors(g, u)
-            if !visited[w]
-                visited[w] = true
-                push!(queue, w)
-                push!(results, _resolve(vtx_to_id[w]))
-            end
-        end
-    end
-    if include_src
-        push!(results, _resolve(vtx_to_id[src]))
-    end
-    results
-end
-
-# BFS reachability in reverse (using inneighbors)
-function _graph_bfs_reverse(g::SimpleDiGraph, src::Int, vtx_to_id::Vector{UInt32},
-                             include_src::Bool)::Set{RDFTerm}
-    results = Set{RDFTerm}()
-    nv_g = nv(g)
-    nv_g == 0 && return results
-    visited = falses(nv_g)
-    visited[src] = true
-    queue = Int[src]
-    qi = 1
-    while qi <= length(queue)
-        u = queue[qi]; qi += 1
-        for w in inneighbors(g, u)
             if !visited[w]
                 visited[w] = true
                 push!(queue, w)

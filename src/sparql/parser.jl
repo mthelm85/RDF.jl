@@ -46,11 +46,6 @@ end
     sp_peek_token(p.lex).kind
 end
 
-# Peek at next token
-@inline function _sp_peek(p::SpParser)::SpToken
-    sp_peek_token(p.lex)
-end
-
 # Consume and return the next token
 @inline function _sp_next!(p::SpParser)::SpToken
     sp_next_token!(p.lex)
@@ -647,19 +642,6 @@ function _sp_parse_path(p::SpParser)::SpPath
 end
 
 # ── Triple pattern term helpers ────────────────────────────────────────────────
-
-# Returns true if next token can start a VarOrTerm
-function _sp_next_is_var_or_term(p::SpParser)::Bool
-    k = _sp_peek_kind(p)
-    k == SP_TOK_VAR ||
-    k == SP_TOK_IRIREF || k == SP_TOK_PNAME_LN || k == SP_TOK_PNAME_NS ||
-    k == SP_TOK_BLANK_LABEL || k == SP_TOK_ANON || k == SP_TOK_NIL ||
-    k == SP_TOK_STR1 || k == SP_TOK_STR2 || k == SP_TOK_STR_LONG1 || k == SP_TOK_STR_LONG2 ||
-    k == SP_TOK_INTEGER || k == SP_TOK_DECIMAL || k == SP_TOK_DOUBLE ||
-    (k == SP_TOK_KW && (sp_peek_token(p.lex).value == "true" || sp_peek_token(p.lex).value == "false")) ||
-    k == SP_TOK_LBRACKET ||  # start of blank node property list
-    k == SP_TOK_TT_OPEN       # RDF-star embedded triple term
-end
 
 # Predicate inside a triple term / reified triple: IRI, 'a', or variable
 function _sp_parse_tt_verb(p::SpParser)::SpExpr
@@ -1303,10 +1285,6 @@ const _SP_BUILTINS_2 = Set{String}([
     "langmatches", "contains", "strstarts", "strends", "strbefore", "strafter",
     "strlang", "strdt", "sameterm", "isiri", "isuri", "isblank", "isliteral",
     "isnumeric", "bound",
-])
-
-const _SP_BUILTINS_VARIADIC = Set{String}([
-    "concat", "coalesce",
 ])
 
 const _SP_BUILTINS_3 = Set{String}([

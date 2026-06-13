@@ -7,11 +7,6 @@
 
 # ── Graph resolution helpers ──────────────────────────────────────────────────
 
-# Get or create the default graph of the dataset
-function _sp_upd_default_graph(ctx::_SpEvalCtx)::Graph
-    ctx.dataset.default_graph
-end
-
 # Get or create a named graph by IRI
 function _sp_upd_get_or_create_named(ctx::_SpEvalCtx, iri::String)::Graph
     key = IRI(iri)
@@ -19,28 +14,6 @@ function _sp_upd_get_or_create_named(ctx::_SpEvalCtx, iri::String)::Graph
         ctx.dataset[key] = Graph()
     end
     ctx.dataset[key]
-end
-
-# Resolve a SpGraphRef to a Graph (returns nothing for SpGraphRefAll/Named,
-# which apply to multiple graphs)
-function _sp_upd_resolve_ref(ctx::_SpEvalCtx, ref::SpGraphRef)::Union{Graph, Nothing}
-    if ref isa SpGraphRefDefault
-        return ctx.dataset.default_graph
-    elseif ref isa SpGraphRefIRI
-        return _sp_upd_get_or_create_named(ctx, ref.iri)
-    else
-        return nothing  # All / Named — handled by caller
-    end
-end
-
-# All graphs in dataset (default + named)
-function _sp_upd_all_graphs(ctx::_SpEvalCtx)::Vector{Pair{Union{IRI, Nothing}, Graph}}
-    result = Pair{Union{IRI, Nothing}, Graph}[]
-    push!(result, nothing => ctx.dataset.default_graph)
-    for (k, g) in ctx.dataset.named_graphs
-        push!(result, k => g)
-    end
-    result
 end
 
 # ── Quad block materialisation ────────────────────────────────────────────────

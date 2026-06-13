@@ -31,18 +31,6 @@ function Base.write(io::IO, ::_MIME_NQ, ds::Dataset)
     end
 end
 
-function _write_quad(io::IO, t::Triple, graph::GraphName)
-    _write_subject(io, t.subject)
-    print(io, ' ')
-    _write_iri(io, t.predicate)
-    print(io, ' ')
-    _write_object(io, t.object)
-    print(io, ' ')
-    _write_subject(io, graph)          # graph name: IRI or blank
-    println(io, " .")
-end
-
-
 # ── Read ──────────────────────────────────────────────────────────────────────
 
 function Base.read(io::IO, ::_MIME_NQ, ::Type{Dataset})::Dataset

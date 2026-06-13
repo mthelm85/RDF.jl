@@ -111,9 +111,6 @@ function ego_graph(g::Graph, seeds; hops::Int=1, through_types::Bool=false)::Gra
     out
 end
 
-# Approximate token count for LLM budgeting: ~4 UTF-8 bytes per token.
-_estimate_tokens(s::AbstractString)::Int = cld(ncodeunits(s), 4)
-
 # Render a set of triples as Turtle text with the given prefixes.
 function _ctx_render(triples::Vector{Triple},
                      prefixes::Dict{String,String})::String

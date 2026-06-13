@@ -21,15 +21,6 @@ function Base.write(io::IO, ::_MIME_NT, g::Graph)
     return nothing
 end
 
-function _write_triple(io::IO, t::Triple)
-    _write_subject(io, t.subject)
-    print(io, ' ')
-    _write_iri(io, t.predicate)
-    print(io, ' ')
-    _write_object(io, t.object)
-    println(io, " .")
-end
-
 _write_subject(io, iri::IRI)       = _write_iri(io, iri)
 _write_subject(io, bn::BlankNode)  = _write_blank(io, bn)
 _write_subject(io, tt::TripleTerm) = _write_triple_term(io, tt)
@@ -703,8 +694,3 @@ Base.read(path::AbstractString, ::Type{Graph}) =
 Base.read(path::AbstractString, ::Type{Dataset}) =
     open(io -> Base.read(io, MIME"application/n-quads"(), Dataset), path)
 
-function _read_by_extension(path::AbstractString)
-    endswith(path, ".nt") && return Base.read(path, Graph)
-    endswith(path, ".nq") && return Base.read(path, Dataset)
-    open(io -> Base.read(io), path)
-end
