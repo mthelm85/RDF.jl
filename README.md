@@ -13,7 +13,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 - **Turtle 1.2** parser and serializer — including triple terms, reified triples, reifiers, annotation blocks, and directional language tags
 - **N-Triples / N-Quads 1.2** parser and serializer
 - **JSON-LD 1.1** parser and serializer — inline contexts, prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
-- **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), and render them as token-budgeted LLM context (`to_context`)
+- **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), render them as token-budgeted LLM context (`to_context`), and summarize a graph's schema for text-to-SPARQL prompting (`describe_schema`/`to_prompt`)
 - **Named graphs / Datasets** with full SPARQL dataset semantics
 - **RDFS inference** (forward-chaining closure, entailment check)
 - **Graph isomorphism** (blank-node bijection)

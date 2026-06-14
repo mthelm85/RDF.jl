@@ -28,6 +28,7 @@ using Test
     include("test_service_remote.jl")
     include("test_annotations.jl")
     include("test_ai_context.jl")
+    include("test_schema.jl")
     include("test_w3c_ntriples.jl")
     include("test_w3c_nquads.jl")
     include("test_w3c_isomorphism.jl")

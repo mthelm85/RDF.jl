@@ -109,17 +109,61 @@ println(to_context(profile))
 
 ## Schema introspection for text-to-SPARQL
 
-LLMs write good SPARQL when handed the schema.  The pieces you need are
-already in the box:
+LLMs write good SPARQL when handed the schema. [`describe_schema`](@ref)
+introspects a graph's *actual* shape from the data — no ontology required, which
+matters for the partially-typed graphs that extraction produces — and
+[`to_prompt`](@ref) renders it as compact, token-budgeted text:
 
-```julia
-# Compact schema summary for a prompt
-classes    = Set(t.object    for t in match(g; predicate=rdf.type))
-properties = predicates(g)
-
-# Validate LLM-written SPARQL before executing (ParseError on failure)
-sparql_parse(llm_generated_query)
+```@docs
+describe_schema
+to_prompt
+SchemaSummary
+ClassInfo
+PredicateInfo
 ```
 
-A dedicated `describe_schema` helper (usage counts, datatype ranges, example
-values) is on the roadmap.
+```julia
+using RDF
+
+s = describe_schema(g)            # classes, predicates, domains/ranges, examples
+
+schema_text = to_prompt(s; budget=1500,
+    prefixes=Dict("ex" => "http://example.org/",
+                  "foaf" => "http://xmlns.com/foaf/0.1/"))
+
+prompt = """
+You are a SPARQL expert. Given this schema, write a query for the question.
+
+$schema_text
+
+Question: How old is the oldest person who works at Acme?
+"""
+
+# The model returns a query; validate it before running (ParseError on failure),
+# and feed the error message back for self-correction if it fails.
+query = call_your_llm(prompt)
+try
+    result = sparql(g, query)
+catch e
+    e isa ParseError && (query = call_your_llm(prompt * "\n\nThat query failed: $e"))
+end
+```
+
+`to_prompt` output looks like:
+
+```
+# Classes
+foaf:Person (3) — Person
+ex:Organization (1)
+
+# Properties
+foaf:name (3): foaf:Person → xsd:string  e.g. "Alice", "Bob"
+ex:age (3): foaf:Person → xsd:integer  [age in years]  e.g. 30, 25
+foaf:knows (2, multi): foaf:Person → foaf:Person  e.g. ex:p2, ex:p3
+ex:worksAt (1): foaf:Person → ex:Organization  e.g. ex:acme
+```
+
+Each property line shows its usage count, whether it is multi-valued, its
+domain (subject classes) → range (object classes and/or literal datatypes),
+any `rdfs:label`, and example values — everything a model needs to author a
+correct query.

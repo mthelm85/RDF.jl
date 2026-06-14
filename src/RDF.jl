@@ -43,6 +43,7 @@ include("vocabulary.jl")
 # ── AI / GraphRAG layer ───────────────────────────────────────────────────────
 include("annotations.jl")
 include("context.jl")
+include("schema.jl")
 
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")
@@ -113,6 +114,9 @@ export RemoteGraph
 export annotate!, annotations, anno
 export cbd, ego_graph, to_context
 
+# Schema introspection (text-to-SPARQL)
+export describe_schema, to_prompt, SchemaSummary, ClassInfo, PredicateInfo
+
 # Vocabulary API
 export Vocabulary, load_vocabulary, terms, label, comment
 
@@ -169,6 +173,12 @@ using PrecompileTools: @setup_workload, @compile_workload
         sparql_update!(ds, "INSERT DATA { <http://precompile.invalid/u> <http://precompile.invalid/p> 1 }")
         sol = sparql(ds, "SELECT ?s WHERE { ?s ?p ?o } LIMIT 2")
         write(buf, MIME"application/sparql-results+json"(), sol)
+
+        # AI / GraphRAG layer
+        annotate!(g, Triple(_pc.s1, _pc.name, Literal("precompile")); confidence=0.9)
+        ego_graph(g, _pc.s1; hops=2)
+        to_context(g; prefixes=Dict("pc" => "http://precompile.invalid/"))
+        to_prompt(describe_schema(g); prefixes=Dict("pc" => "http://precompile.invalid/"))
     end
 end
 
