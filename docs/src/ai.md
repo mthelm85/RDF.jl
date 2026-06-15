@@ -167,3 +167,55 @@ Each property line shows its usage count, whether it is multi-valued, its
 domain (subject classes) → range (object classes and/or literal datatypes),
 any `rdfs:label`, and example values — everything a model needs to author a
 correct query.
+
+## Guardrailing extracted data — SHACL
+
+[SHACL](https://www.w3.org/TR/shacl/) is the W3C standard for validating RDF
+against shapes. RDF.jl ships a SHACL Core engine, which doubles as a guardrail
+for LLM-extracted triples: validate before committing, and feed the report back
+to the model for self-correction.
+
+```@docs
+validate_shapes
+conforms
+conforming
+ValidationReport
+ValidationResult
+```
+
+```julia
+using RDF
+
+# Shapes are themselves RDF (author them in Turtle, or build them in code)
+shapes = read(IOBuffer("""
+  @prefix sh:  <http://www.w3.org/ns/shacl#> .
+  @prefix ex:  <http://example.org/> .
+  @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+  ex:PersonShape a sh:NodeShape ;
+    sh:targetClass ex:Person ;
+    sh:property [ sh:path ex:age ; sh:datatype xsd:integer ; sh:minCount 1 ] .
+"""), MIME"text/turtle"(), Graph)
+
+report = validate_shapes(extracted, shapes)
+if !report.conforms
+    # Feed the violations back to the model and retry
+    fixed = call_your_llm(prompt * "\n\nFix these problems:\n" * to_prompt(report))
+end
+
+# Or simply keep only the facts that pass and drop the rest
+trusted = conforming(extracted, shapes)
+```
+
+`to_prompt(::ValidationReport)` renders the violations as terse, model-readable
+text (focus node, path, offending value, reason); `conforming` returns a copy
+of the data with every non-conforming focus node removed.
+
+The engine implements SHACL Core: node and property shapes; the `targetNode`,
+`targetClass` (subclass-aware), `targetSubjectsOf`, `targetObjectsOf`, and
+implicit-class targets; predicate / inverse / sequence / alternative /
+zeroOrMore / oneOrMore / zeroOrOne paths; and the core constraint components
+(value type, cardinality, value range, string, property-pair, logical,
+shape-based, `sh:closed`, `sh:hasValue`, `sh:in`, `sh:qualifiedValueShape`).
+It passes 178 of the W3C SHACL Core tests; the remainder require XSD facet
+validation, cross-timezone `xsd:dateTime` ordering, qualified-shape sibling
+disjointness, or the SPARQL-based extension (out of scope).

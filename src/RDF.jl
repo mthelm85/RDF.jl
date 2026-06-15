@@ -44,6 +44,7 @@ include("vocabulary.jl")
 include("annotations.jl")
 include("context.jl")
 include("schema.jl")
+include("shacl.jl")
 
 # ── Vocabulary modules ────────────────────────────────────────────────────────
 include("vocab/rdf_vocab.jl")
@@ -117,6 +118,9 @@ export cbd, ego_graph, to_context
 # Schema introspection (text-to-SPARQL)
 export describe_schema, to_prompt, SchemaSummary, ClassInfo, PredicateInfo
 
+# SHACL validation
+export validate_shapes, conforms, conforming, ValidationReport, ValidationResult
+
 # Vocabulary API
 export Vocabulary, load_vocabulary, terms, label, comment
 
@@ -179,6 +183,17 @@ using PrecompileTools: @setup_workload, @compile_workload
         ego_graph(g, _pc.s1; hops=2)
         to_context(g; prefixes=Dict("pc" => "http://precompile.invalid/"))
         to_prompt(describe_schema(g); prefixes=Dict("pc" => "http://precompile.invalid/"))
+
+        # SHACL
+        shg = Graph()
+        push!(shg, Triple(_pc.Sh, rdf.type, _sh("NodeShape")))
+        push!(shg, Triple(_pc.Sh, _sh("targetClass"), _pc.C))
+        psh = blank!(shg)
+        push!(shg, Triple(_pc.Sh, _sh("property"), psh))
+        push!(shg, Triple(psh, _sh("path"), _pc.age))
+        push!(shg, Triple(psh, _sh("datatype"), IRI("http://www.w3.org/2001/XMLSchema#integer")))
+        to_prompt(validate_shapes(g, shg))
+        conforming(g, shg)
     end
 end
 
