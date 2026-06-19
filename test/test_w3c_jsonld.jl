@@ -96,17 +96,19 @@ if isdir(_JLD_DIR)
             base = opt !== nothing && _jget(opt, "base") !== nothing ?
                    String(_jget(opt, "base")) : iri
             types = _jget(entry, "@type", String[])
-            negative = "jld:NegativeEvaluationTest" in types
-            if negative
-                @test_throws Exception open(io -> read(io, MIME"application/ld+json"(),
-                                       Dataset; base=base, contexts=_jld_loader), inpath)
+            parse() = open(io -> read(io, MIME"application/ld+json"(),
+                                      Dataset; base=base, contexts=_jld_loader), inpath)
+            if ("jld:NegativeEvaluationTest" in types) || ("jld:NegativeSyntaxTest" in types)
+                # Must raise an error.
+                @test_throws Exception parse()
+            elseif "jld:PositiveSyntaxTest" in types
+                # No expected output — the input must merely parse without error.
+                @test (parse(); true)
             else
                 expect = String(_jget(entry, "expect"))
                 exppath = _jld_local(_JLD_BASE * expect)
                 expected = open(io -> read(io, MIME"application/n-quads"(), Dataset), exppath)
-                actual = open(io -> read(io, MIME"application/ld+json"(),
-                                         Dataset; base=base, contexts=_jld_loader), inpath)
-                @test _jld_ds_iso(actual, expected)
+                @test _jld_ds_iso(parse(), expected)
             end
         end
     end
