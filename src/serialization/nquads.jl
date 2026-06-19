@@ -198,12 +198,14 @@ function _parse_nq_line(line::AbstractString, lineno::Int,
     obj, pos  = _parse_nt_object(line, pos, lineno, blank_map, lex_buf)
     pos = _skip_ws(line, pos)
 
-    # Optional graph name
+    # Optional graph name.  Blank-node labels are document-scoped: a label used
+    # as a graph name denotes the same blank node as the same label in subject/
+    # object position, so it must share `blank_map` (not a separate map).
     if pos > lastindex(line)
         return Quad(subj, pred, obj, nothing)
     end
 
-    graph_name, pos = _parse_graph_name(line, pos, lineno, gbm)
+    graph_name, pos = _parse_graph_name(line, pos, lineno, blank_map)
     pos = _skip_ws(line, pos)
     pos <= lastindex(line) && throw(ParseError("Unexpected content after graph name", lineno, pos, _MIME_NQ()))
     Quad(subj, pred, obj, graph_name)
