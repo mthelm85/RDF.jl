@@ -504,6 +504,22 @@ end
 function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     node = Dict{String,Any}()
 
+    # Type-scoped contexts: a node's @type values may name terms whose term
+    # definition carries a scoped @context.  Apply them — in lexicographic order
+    # of the type values — to the active context before expanding properties.
+    if haskey(d, "@type")
+        tvals = d["@type"]
+        tvals_arr = tvals isa AbstractArray ?
+            sort!(String[String(t) for t in tvals if t isa AbstractString]) :
+            (tvals isa AbstractString ? String[String(tvals)] : String[])
+        for tv in tvals_arr
+            td = get(ctx.terms, tv, nothing)
+            if td isa AbstractDict && haskey(td, "@context")
+                ctx = _process_context(ctx, td["@context"])
+            end
+        end
+    end
+
     # @id
     if haskey(d, "@id")
         raw_id = d["@id"]
