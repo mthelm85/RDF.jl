@@ -310,9 +310,21 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
                 expanded = _expand_iri(result, sk; vocab=true, base=false)
                 td["@id"] = (expanded !== nothing) ? expanded : sk
             end
-            haskey(v, "@type")      && (td["@type"]      = String(v["@type"]))
-            haskey(v, "@container") && (td["@container"] = String(v["@container"]))
-            haskey(v, "@reverse")   && (td["@reverse"]   = String(v["@reverse"]))
+            if haskey(v, "@type")
+                tv = v["@type"]
+                td["@type"] = tv isa AbstractString ? String(tv) : tv
+            end
+            if haskey(v, "@container")
+                # @container may be a single keyword or an array of keywords
+                # (e.g. ["@language", "@set"]) in JSON-LD 1.1.
+                cv = v["@container"]
+                td["@container"] = cv isa AbstractString ? String(cv) :
+                                   cv isa AbstractArray  ? String[String(x) for x in cv] : cv
+            end
+            if haskey(v, "@reverse")
+                rv = v["@reverse"]
+                td["@reverse"] = rv isa AbstractString ? String(rv) : rv
+            end
             if haskey(v, "@language")
                 lv = v["@language"]
                 td["@language"] = lv === nothing ? nothing : lowercase(String(lv))
@@ -380,6 +392,18 @@ function _expand_value(doc, ctx::_JsonLDContext)
         ctx = _process_context(ctx, d["@context"])
     end
 
+    # Resolve keyword aliases: a term whose definition is a keyword (e.g.
+    # "uri": "@id") makes that term an alias for the keyword.  Rename such keys
+    # so the keyword-based handling below sees them.
+    if any(k -> (kw = _kw_alias(ctx, k); kw !== nothing && kw != k), keys(d))
+        nd = Dict{String,Any}()
+        for (k, v) in d
+            kw = _kw_alias(ctx, k)
+            nd[kw === nothing ? k : kw] = v
+        end
+        d = nd
+    end
+
     # Value object
     haskey(d, "@value") && return _expand_value_object(d, ctx)
 
@@ -395,8 +419,27 @@ function _expand_value(doc, ctx::_JsonLDContext)
     _expand_node(d, ctx)
 end
 
+# The keyword a key denotes, accounting for aliases (term → keyword); nothing
+# if the key is an ordinary term/IRI.
+function _kw_alias(ctx::_JsonLDContext, key::AbstractString)
+    (startswith(key, "@") && key in _JSONLD_KEYWORDS) && return String(key)
+    td = get(ctx.terms, String(key), nothing)
+    td isa AbstractString && startswith(td, "@") && td in _JSONLD_KEYWORDS && return String(td)
+    nothing
+end
+
+# The @container keywords declared for a term definition, as a vector.
+function _container_of(td)::Vector{String}
+    (td isa AbstractDict && haskey(td, "@container")) || return String[]
+    c = td["@container"]
+    c isa AbstractString ? String[String(c)] :
+    c isa AbstractArray  ? String[String(x) for x in c] : String[]
+end
+
 function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     val = d["@value"]
+    # A null @value expands to nothing (the value is dropped entirely).
+    val === nothing && return nothing
     result = Dict{String,Any}("@value" => val)
     if haskey(d, "@type")
         dt = String(d["@type"])
@@ -489,8 +532,19 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         !occursin(':', expanded_pred) && continue
 
         expanded_vals = _expand_property_values(v, expanded_pred, ctx)
-        isempty(expanded_vals) && continue
 
+        # @container coercion (driven by the *term*, not the IRI).
+        container = _container_of(get(ctx.terms, k, nothing))
+        if "@list" in container
+            # Values under a @list-container term form a single list — unless
+            # they are already list objects (avoid double-wrapping).
+            if !any(x -> x isa AbstractDict && haskey(x, "@list"), expanded_vals)
+                expanded_vals = Any[Dict{String,Any}("@list" => expanded_vals)]
+            end
+        end
+        # "@set" container: values stay a plain array (the default) — no-op.
+
+        isempty(expanded_vals) && continue
         if haskey(node, expanded_pred)
             append!(node[expanded_pred]::Vector{Any}, expanded_vals)
         else
@@ -838,8 +892,9 @@ end
 Parse a JSON-LD document from `io` and return all triples as a single Graph
 (named graphs are merged into the default graph).
 """
-function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph})::Graph
-    ds = Base.read(io, _MIME_JSONLD(), Dataset)
+function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
+                   base::Union{AbstractString,Nothing}=nothing)::Graph
+    ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base)
     g = ds.default_graph
     for (_, ng) in ds.named_graphs
         for t in ng
@@ -854,7 +909,8 @@ end
 
 Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs).
 """
-function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset})::Dataset
+function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
+                   base::Union{AbstractString,Nothing}=nothing)::Dataset
     text = String(Base.read(io))
     doc  = try
         JSON3.read(text)
@@ -862,6 +918,7 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset})::Dataset
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
     ctx      = _JsonLDContext()
+    base !== nothing && (ctx.base = String(base))
     expanded = _expand_document(doc, ctx)
     _jsonld_to_rdf(expanded, ctx.base)
 end
