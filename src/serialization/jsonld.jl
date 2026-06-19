@@ -571,6 +571,32 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 end
             end
             out
+        elseif "@graph" in container
+            # Graph container: each value is wrapped in a graph object. With
+            # @id/@index the value is a map keyed by graph id / index.
+            _wrapg(node) = (node isa AbstractDict && haskey(node, "@graph")) ?
+                           node : Dict{String,Any}("@graph" => Any[node])
+            out = Any[]
+            if ("@id" in container || "@index" in container) && v isa AbstractDict
+                for (key, sub) in v
+                    for node in _expand_property_values(sub, expanded_pred, ctx)
+                        go = _wrapg(node)
+                        if "@id" in container && String(key) != "@none"
+                            eid = _expand_iri(ctx, String(key); vocab=false, base=true)
+                            if eid !== nothing
+                                go = Dict{String,Any}(go)   # copy before tagging
+                                go["@id"] = eid
+                            end
+                        end
+                        push!(out, go)
+                    end
+                end
+            else
+                for node in _expand_property_values(v, expanded_pred, ctx)
+                    push!(out, _wrapg(node))
+                end
+            end
+            out
         elseif ("@index" in container) && v isa AbstractDict
             # Index map: { index => value(s) } → values expanded, index dropped.
             out = Any[]
@@ -828,6 +854,17 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
         items = d["@list"]
         items isa AbstractArray || (items = Any[items])
         return _build_rdf_list(items, graph, ds, blank_map)
+    end
+
+    # Graph object (e.g. from an @container: @graph term): emit its contents
+    # into a named graph and return the graph name (the @id if given, else a
+    # fresh blank node).
+    if haskey(d, "@graph")
+        gname = haskey(d, "@id") ? _id_to_term(String(d["@id"]), blank_map) : nothing
+        gname === nothing && (gname = _mint_blank_node())
+        ng = get!(() -> Graph(), ds.named_graphs, gname)
+        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        return gname
     end
 
     # @id reference (IRI or blank node)
