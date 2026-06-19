@@ -547,6 +547,12 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         node["@graph"] = _expand_document(d["@graph"], ctx)
     end
 
+    # @included: independent node objects emitted alongside this node.
+    if haskey(d, "@included")
+        inc = _expand_document(d["@included"], ctx)
+        isempty(inc) || (node["@included"] = inc)
+    end
+
     # @reverse
     if haskey(d, "@reverse")
         rev = d["@reverse"]
@@ -565,11 +571,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         end
     end
 
-    # Other properties
-    for (k, v) in d
-        k in ("@context", "@id", "@type", "@graph", "@reverse") && continue
-        startswith(k, "@") && continue
-
+    # Other properties (with @nest contents hoisted into this node).
+    for (k, v) in _gather_props(d, ctx)
         expanded_pred = _expand_iri(ctx, k; vocab=true, base=false)
         expanded_pred === nothing && continue
         expanded_pred in _JSONLD_KEYWORDS && continue
@@ -695,6 +698,24 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     # Return nothing for empty expansion (no @id, no properties, no @graph)
     isempty(node) && return nothing
     node
+end
+
+# Collect a node's ordinary (non-keyword) property pairs, recursively hoisting
+# the contents of @nest properties (and @nest aliases) into the parent node.
+function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{String,Any}}
+    pairs = Tuple{String,Any}[]
+    for (k0, v) in d
+        k = String(k0)
+        kw = _kw_alias(ctx, k)
+        if kw == "@nest"
+            for nv in (v isa AbstractArray ? collect(v) : Any[v])
+                nv isa AbstractDict && append!(pairs, _gather_props(nv, ctx))
+            end
+        elseif kw === nothing && !startswith(k, "@")
+            push!(pairs, (k, v))
+        end
+    end
+    pairs
 end
 
 # Expand the value(s) of an @id-/@type-map entry into node objects.  A bare
@@ -913,6 +934,11 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset, blank_map
     if haskey(d, "@graph")
         ng = get!(() -> Graph(), ds.named_graphs, subj)
         _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+    end
+
+    # @included nodes are emitted as independent nodes in the same graph.
+    if haskey(d, "@included")
+        _process_graph_contents!(graph, d["@included"], ds, blank_map)
     end
 
     return subj
