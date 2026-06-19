@@ -727,39 +727,23 @@ function _id_to_term(id_str::String, blank_map::Dict{String,BlankNode})::Union{I
     end
 end
 
+# Emit a node's triples into `graph`, returning the subject term (or nothing
+# if the node has an unusable @id).  Handles @type, properties, @reverse, and
+# @graph (named graphs).
 function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset, blank_map::Dict{String,BlankNode})
     d = Dict{String,Any}(String(k) => v for (k, v) in node)
 
-    # Handle @graph → named graph
-    if haskey(d, "@graph")
-        graph_name = if haskey(d, "@id")
-            _id_to_term(String(d["@id"]), blank_map)
-        else
-            nothing
-        end
-
-        subgraph = Graph()
-        sub_nodes = d["@graph"]
-        sub_nodes isa AbstractArray || (sub_nodes = Any[sub_nodes])
-        for sn in sub_nodes
-            sn isa AbstractDict || continue
-            _process_node!(subgraph, sn, ds, blank_map)
-        end
-
-        if graph_name !== nothing
-            ds[graph_name] = subgraph
-        else
-            for t in subgraph
-                push!(graph, t)
-            end
-        end
-        return
+    # A bare graph wrapper (only @graph, e.g. the top-level document object):
+    # its contents belong to the current graph, not a fresh named graph.
+    if haskey(d, "@graph") && length(d) == 1
+        _process_graph_contents!(graph, d["@graph"], ds, blank_map)
+        return nothing
     end
 
     # Determine subject
     subj = if haskey(d, "@id")
         s = _id_to_term(String(d["@id"]), blank_map)
-        s === nothing && return
+        s === nothing && return nothing
         s
     else
         _mint_blank_node()
@@ -797,26 +781,41 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset, blank_map
         end
     end
 
-    # @reverse
+    # @reverse — each value is itself a node; emit its own triples, then link
+    # it back to `subj` via the (inverted) reverse predicate.
     if haskey(d, "@reverse")
         rev = d["@reverse"]
-        rev isa AbstractDict || return
-        for (pred_str, values) in rev
-            occursin(':', pred_str) || continue
-            pred_iri = try IRI(pred_str) catch; continue end
-            values isa AbstractArray || (values = Any[values])
-            for vo in values
-                vo isa AbstractDict || continue
-                vo_d = Dict{String,Any}(String(k) => v for (k, v) in vo)
-                rev_subj = if haskey(vo_d, "@id")
-                    _id_to_term(String(vo_d["@id"]), blank_map)
-                else
-                    nothing
+        if rev isa AbstractDict
+            for (pred_str, values) in rev
+                occursin(':', pred_str) || continue
+                pred_iri = try IRI(pred_str) catch; continue end
+                values isa AbstractArray || (values = Any[values])
+                for vo in values
+                    vo isa AbstractDict || continue
+                    rev_subj = _process_node!(graph, vo, ds, blank_map)
+                    rev_subj isa Union{IRI,BlankNode} || continue
+                    push!(graph, Triple(rev_subj, pred_iri, subj))
                 end
-                rev_subj isa Union{IRI,BlankNode} || continue
-                push!(graph, Triple(rev_subj, pred_iri, subj))
             end
         end
+    end
+
+    # @graph on a node that is itself a node (has an @id or other content):
+    # the contents form a named graph keyed by this node's subject.
+    if haskey(d, "@graph")
+        ng = get!(() -> Graph(), ds.named_graphs, subj)
+        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+    end
+
+    return subj
+end
+
+# Process the value of an @graph key (a node object or array of node objects)
+# into the given graph.
+function _process_graph_contents!(graph::Graph, contents, ds::Dataset, blank_map::Dict{String,BlankNode})
+    nodes = contents isa AbstractArray ? contents : Any[contents]
+    for sn in nodes
+        sn isa AbstractDict && _process_node!(graph, sn, ds, blank_map)
     end
 end
 
