@@ -354,6 +354,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
                 lv = v["@language"]
                 td["@language"] = lv === nothing ? nothing : lowercase(String(lv))
             end
+            # A property-scoped @context is stored raw and applied when this
+            # term's values are expanded.
+            haskey(v, "@context") && (td["@context"] = v["@context"])
             result.terms[sk] = td
         end
     end
@@ -560,6 +563,13 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         tdk = get(ctx.terms, k, nothing)
         container = _container_of(tdk)
 
+        # A property-scoped @context applies while expanding this term's values
+        # (and propagates into nested nodes).
+        pctx = ctx
+        if tdk isa AbstractDict && haskey(tdk, "@context")
+            pctx = _process_context(ctx, tdk["@context"])
+        end
+
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
             # @json coercion: the entire value is a single JSON literal.
             Any[Dict{String,Any}("@value" => v, "@type" => "@json")]
@@ -584,10 +594,10 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             out = Any[]
             if ("@id" in container || "@index" in container) && v isa AbstractDict
                 for (key, sub) in v
-                    for node in _expand_property_values(sub, expanded_pred, ctx)
+                    for node in _expand_property_values(sub, expanded_pred, pctx)
                         go = _wrapg(node)
                         if "@id" in container && String(key) != "@none"
-                            eid = _expand_iri(ctx, String(key); vocab=false, base=true)
+                            eid = _expand_iri(pctx, String(key); vocab=false, base=true)
                             if eid !== nothing
                                 go = Dict{String,Any}(go)   # copy before tagging
                                 go["@id"] = eid
@@ -597,7 +607,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                     end
                 end
             else
-                for node in _expand_property_values(v, expanded_pred, ctx)
+                for node in _expand_property_values(v, expanded_pred, pctx)
                     push!(out, _wrapg(node))
                 end
             end
@@ -606,11 +616,11 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             # Index map: { index => value(s) } → values expanded, index dropped.
             out = Any[]
             for (_, iv) in v
-                append!(out, _expand_property_values(iv, expanded_pred, ctx))
+                append!(out, _expand_property_values(iv, expanded_pred, pctx))
             end
             out
         else
-            _expand_property_values(v, expanded_pred, ctx)
+            _expand_property_values(v, expanded_pred, pctx)
         end
 
         if "@list" in container
