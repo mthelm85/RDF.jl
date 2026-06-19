@@ -562,7 +562,13 @@ function _expand_property_values(v, pred::String, ctx::_JsonLDContext)::Vector{A
     out = Any[]
     for val in vals
         expanded = _expand_property_value(val, pred, ctx)
-        expanded !== nothing && push!(out, expanded)
+        # A value may expand to an array (e.g. a @set, or a nested array) — those
+        # are flattened into the property's value list rather than nested.
+        if expanded isa AbstractArray
+            append!(out, expanded)
+        elseif expanded !== nothing
+            push!(out, expanded)
+        end
     end
     out
 end
@@ -911,9 +917,12 @@ Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs
 """
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
                    base::Union{AbstractString,Nothing}=nothing)::Dataset
-    text = String(Base.read(io))
+    # Parse from the raw bytes, not a String: JSON3.read(::String) treats a
+    # short/path-like string as a filename and stats it (which aborts on some
+    # high-Unicode content via libuv on Windows).
+    bytes = Base.read(io)
     doc  = try
-        JSON3.read(text)
+        JSON3.read(bytes)
     catch e
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
