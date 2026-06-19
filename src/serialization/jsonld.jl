@@ -18,6 +18,7 @@ const _JRDF_TYPE         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 const _JRDF_FIRST        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first"
 const _JRDF_REST         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest"
 const _JRDF_NIL          = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil"
+const _JRDF_JSON         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON"
 const _JXSD_STRING_S     = "http://www.w3.org/2001/XMLSchema#string"
 const _JXSD_INTEGER_S    = "http://www.w3.org/2001/XMLSchema#integer"
 const _JXSD_DOUBLE_S     = "http://www.w3.org/2001/XMLSchema#double"
@@ -531,10 +532,37 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         expanded_pred in _JSONLD_KEYWORDS && continue
         !occursin(':', expanded_pred) && continue
 
-        expanded_vals = _expand_property_values(v, expanded_pred, ctx)
-
         # @container coercion (driven by the *term*, not the IRI).
-        container = _container_of(get(ctx.terms, k, nothing))
+        tdk = get(ctx.terms, k, nothing)
+        container = _container_of(tdk)
+
+        expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
+            # @json coercion: the entire value is a single JSON literal.
+            Any[Dict{String,Any}("@value" => v, "@type" => "@json")]
+        elseif "@language" in container && v isa AbstractDict
+            # Language map: { lang => value(s) } → language-tagged literals.
+            out = Any[]
+            for (lang, lv) in v
+                ls = lowercase(String(lang))
+                for item in (lv isa AbstractArray ? collect(lv) : Any[lv])
+                    item === nothing && continue
+                    vo = Dict{String,Any}("@value" => String(item))
+                    ls == "@none" || (vo["@language"] = ls)
+                    push!(out, vo)
+                end
+            end
+            out
+        elseif ("@index" in container) && v isa AbstractDict
+            # Index map: { index => value(s) } → values expanded, index dropped.
+            out = Any[]
+            for (_, iv) in v
+                append!(out, _expand_property_values(iv, expanded_pred, ctx))
+            end
+            out
+        else
+            _expand_property_values(v, expanded_pred, ctx)
+        end
+
         if "@list" in container
             # Values under a @list-container term form a single list — unless
             # they are already list objects (avoid double-wrapping).
@@ -814,7 +842,11 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
             return Literal(string(raw_val); lang=lang_s)
         end
 
-        if dtype !== nothing && dtype != "@json"
+        if dtype == "@json"
+            return Literal(_json_canonical(raw_val), IRI(_JRDF_JSON))
+        end
+
+        if dtype !== nothing
             dt_s = String(dtype)
             lex  = _jsonld_raw_to_lexical(raw_val, dt_s)
             dt_iri = try IRI(dt_s) catch; return nothing end
@@ -848,6 +880,27 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
     end
 
     nothing
+end
+
+# Canonical JSON (RFC 8785 / JCS subset) for rdf:JSON literals: object keys
+# sorted by code point, no insignificant whitespace, JSON-escaped strings.
+function _json_canonical(v)::String
+    v === nothing && return "null"
+    v isa Bool    && return v ? "true" : "false"
+    v isa Integer && return string(v)
+    if v isa Real
+        f = Float64(v)
+        return isinteger(f) ? string(Integer(f)) : string(f)
+    end
+    v isa AbstractString && return JSON3.write(String(v))
+    if v isa AbstractArray
+        return "[" * join((_json_canonical(x) for x in v), ",") * "]"
+    end
+    if v isa AbstractDict || v isa JSON3.Object
+        ks = sort!(String[String(k) for k in keys(v)])
+        return "{" * join((JSON3.write(k) * ":" * _json_canonical(v[Symbol(k)]) for k in ks), ",") * "}"
+    end
+    "null"
 end
 
 function _jsonld_raw_to_lexical(raw, dtype::String)::String
