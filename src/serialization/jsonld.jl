@@ -61,7 +61,10 @@ Expand a potentially compact IRI or term name to a full absolute IRI.
 """
 function _expand_iri(ctx::_JsonLDContext, value::String;
                      vocab::Bool=false, base::Bool=false)::Union{String,Nothing}
-    isempty(value) && return nothing
+    # An empty string expands to the base IRI when base resolution applies
+    # (e.g. {"@id": ""} denotes the document/base IRI); otherwise it drops.
+    isempty(value) && return (base && ctx.base !== nothing) ?
+                              _resolve_iri(ctx.base, "") : nothing
 
     # Keywords pass through unchanged
     value in _JSONLD_KEYWORDS && return value
@@ -130,58 +133,59 @@ function _term_def_id(td)::Union{String,Nothing}
     nothing
 end
 
-# Minimal RFC 3986 §5.2 IRI resolution: resolve ref against base
-function _resolve_iri(base::String, ref::String)::String
-    isempty(ref) && return base
+# Parse an IRI into (scheme, authority, path, query, fragment) per RFC 3986
+# Appendix B.  `authority` and the optional components are `nothing` when
+# absent ("" means present-but-empty, e.g. file:///).
+const _IRI_PARTS_RE = r"^(?:([^:/?#]+):)?(?://([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$"s
 
-    # If ref has a scheme, it is absolute
-    occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", ref) && return ref
-
-    # Handle // authority-relative
-    if startswith(ref, "//")
-        m = match(r"^([A-Za-z][A-Za-z0-9+\-.]*):", base)
-        m !== nothing && return String(m.captures[1]) * ":" * ref
-        return ref
-    end
-
-    # Fragment-only
-    if startswith(ref, "#")
-        hash_i = findfirst('#', base)
-        base_no_frag = hash_i !== nothing ? base[1:hash_i-1] : base
-        return base_no_frag * ref
-    end
-
-    # Query-relative
-    if startswith(ref, "?")
-        qm_i = findfirst('?', base)
-        frag_i = findfirst('#', base)
-        cut = length(base)
-        qm_i !== nothing && (cut = min(cut, qm_i - 1))
-        frag_i !== nothing && (cut = min(cut, frag_i - 1))
-        return base[1:cut] * ref
-    end
-
-    # Path-absolute
-    if startswith(ref, "/")
-        m = match(r"^([A-Za-z][A-Za-z0-9+\-.]*://[^/]*)", base)
-        authority = m !== nothing ? String(m.captures[1]) : ""
-        return _jsonld_remove_dot_segments(authority * ref)
-    end
-
-    # Relative path — merge with base directory
-    qm_i = findfirst('?', base)
-    frag_i = findfirst('#', base)
-    cut = length(base)
-    qm_i !== nothing && (cut = min(cut, qm_i - 1))
-    frag_i !== nothing && (cut = min(cut, frag_i - 1))
-    base_path = base[1:cut]
-    last_slash = findlast('/', base_path)
-    base_dir = last_slash !== nothing ? base_path[1:last_slash] : ""
-    _jsonld_remove_dot_segments(base_dir * ref)
+function _parse_iri(iri::String)
+    m = match(_IRI_PARTS_RE, iri)
+    m === nothing && return (nothing, nothing, iri, nothing, nothing)
+    path = m.captures[3] === nothing ? "" : String(m.captures[3])
+    (m.captures[1] === nothing ? nothing : String(m.captures[1]),
+     m.captures[2] === nothing ? nothing : String(m.captures[2]),
+     path,
+     m.captures[4] === nothing ? nothing : String(m.captures[4]),
+     m.captures[5] === nothing ? nothing : String(m.captures[5]))
 end
 
+function _recompose_iri(scheme, authority, path, query, fragment)::String
+    s = scheme === nothing ? "" : scheme * ":"
+    authority === nothing || (s *= "//" * authority)
+    s *= path
+    query === nothing || (s *= "?" * query)
+    fragment === nothing || (s *= "#" * fragment)
+    s
+end
+
+# RFC 3986 §5.2.3 merge: combine the base path with a relative reference path.
+function _merge_paths(bauth, bpath::String, refpath::String)::String
+    (bauth !== nothing && isempty(bpath)) && return "/" * refpath
+    i = findlast('/', bpath)
+    i === nothing ? refpath : bpath[1:i] * refpath
+end
+
+# RFC 3986 §5.3 reference transformation: resolve `ref` against `base`.
+function _resolve_iri(base::String, ref::String)::String
+    rs, ra, rp, rq, rf = _parse_iri(ref)
+    bs, ba, bp, bq, _  = _parse_iri(base)
+
+    if rs !== nothing
+        return _recompose_iri(rs, ra, _jsonld_remove_dot_segments(rp), rq, rf)
+    end
+    if ra !== nothing
+        return _recompose_iri(bs, ra, _jsonld_remove_dot_segments(rp), rq, rf)
+    end
+    if isempty(rp)
+        return _recompose_iri(bs, ba, bp, rq !== nothing ? rq : bq, rf)
+    end
+    tp = startswith(rp, "/") ? _jsonld_remove_dot_segments(rp) :
+         _jsonld_remove_dot_segments(_merge_paths(ba, bp, rp))
+    _recompose_iri(bs, ba, tp, rq, rf)
+end
+
+# RFC 3986 §5.2.4 remove_dot_segments, operating on a path component only.
 function _jsonld_remove_dot_segments(path::String)::String
-    # RFC 3986 §5.2.4
     input = path
     output = ""
     while !isempty(input)
@@ -195,20 +199,21 @@ function _jsonld_remove_dot_segments(path::String)::String
             input = "/"
         elseif startswith(input, "/../")
             input = "/" * input[5:end]
-            slash = findlast('/', output)
-            output = slash !== nothing ? output[1:slash-1] : ""
+            j = findlast('/', output); output = j === nothing ? "" : output[1:j-1]
         elseif input == "/.."
             input = "/"
-            slash = findlast('/', output)
-            output = slash !== nothing ? output[1:slash-1] : ""
+            j = findlast('/', output); output = j === nothing ? "" : output[1:j-1]
         elseif input == "." || input == ".."
             input = ""
         else
-            seg_start = startswith(input, "/") ? 2 : 1
-            next_slash = findnext('/', input, seg_start)
-            seg_end = next_slash !== nothing ? next_slash - 1 : length(input)
-            output *= input[1:seg_end]
-            input = input[seg_end+1:end]
+            nxt = startswith(input, "/") ? findnext('/', input, 2) : findfirst('/', input)
+            if nxt === nothing
+                output *= input
+                input = ""
+            else
+                output *= input[1:prevind(input, nxt)]
+                input = input[nxt:end]
+            end
         end
     end
     output
