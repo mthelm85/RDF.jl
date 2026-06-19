@@ -628,6 +628,42 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 end
             end
             out
+        elseif "@id" in container && v isa AbstractDict
+            # Id map: { id => node }. The key supplies each node's @id (unless
+            # the node already has one, or the key is @none).
+            out = Any[]
+            for (key, sub) in v
+                for node in _expand_map_nodes(sub, pctx)
+                    if node isa AbstractDict && !haskey(node, "@id") && String(key) != "@none"
+                        eid = _expand_iri(pctx, String(key); vocab=false, base=true)
+                        eid !== nothing && (node["@id"] = eid)
+                    end
+                    push!(out, node)
+                end
+            end
+            out
+        elseif "@type" in container && v isa AbstractDict
+            # Type map: { type => node }. The key is prepended to each node's
+            # @type, and the key term's type-scoped @context applies to the node.
+            out = Any[]
+            for (key, sub) in v
+                ekey = String(key) == "@none" ? nothing :
+                       _expand_iri(pctx, String(key); vocab=true, base=false)
+                kctx = pctx
+                kt = get(pctx.terms, String(key), nothing)
+                if kt isa AbstractDict && haskey(kt, "@context")
+                    kctx = _process_context(pctx, kt["@context"])
+                end
+                for node in _expand_map_nodes(sub, kctx)
+                    if node isa AbstractDict && ekey !== nothing
+                        ex = get(node, "@type", nothing)
+                        node["@type"] = ex === nothing ? String[ekey] :
+                            String[ekey, (ex isa AbstractArray ? ex : Any[ex])...]
+                    end
+                    push!(out, node)
+                end
+            end
+            out
         elseif ("@index" in container) && v isa AbstractDict
             # Index map: { index => value(s) } → values expanded, index dropped.
             out = Any[]
@@ -659,6 +695,21 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     # Return nothing for empty expansion (no @id, no properties, no @graph)
     isempty(node) && return nothing
     node
+end
+
+# Expand the value(s) of an @id-/@type-map entry into node objects.  A bare
+# string is treated as a node reference ({"@id": string}).
+function _expand_map_nodes(sub, ctx::_JsonLDContext)::Vector{Any}
+    items = sub isa AbstractArray ? collect(sub) : Any[sub]
+    out = Any[]
+    for it in items
+        ev = it isa AbstractString ?
+             _expand_value(Dict{String,Any}("@id" => String(it)), ctx) :
+             _expand_value(it, ctx)
+        ev === nothing && continue
+        ev isa AbstractArray ? append!(out, ev) : push!(out, ev)
+    end
+    out
 end
 
 function _expand_property_values(v, pred::String, ctx::_JsonLDContext)::Vector{Any}
