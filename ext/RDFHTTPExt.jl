@@ -22,12 +22,29 @@ module RDFHTTPExt
 using RDF
 using HTTP
 using Base64
+import JSON3
 
 # Install the HTTP transport for SERVICE federation and RemoteGraph.
 # RDF.sparql(endpoint::AbstractString, query; kwargs...) is defined below in
 # this extension; the hook simply makes it reachable from the core package.
 function __init__()
     RDF._REMOTE_SPARQL[] = RDF.sparql
+    RDF._JSONLD_REMOTE_LOADER[] = _fetch_jsonld_context
+end
+
+# Fetch a remote JSON-LD context document over HTTP and return its top-level
+# `@context` value (or the whole document if it has no `@context` key — some
+# contexts are served as a bare object).  Used by JSON-LD parsing when the
+# caller opts in with `load_remote_contexts=true`.
+function _fetch_jsonld_context(iri::AbstractString)
+    resp = HTTP.get(String(iri);
+                    headers = ["Accept" => "application/ld+json, application/json"],
+                    redirect = true, retry = false)
+    doc = JSON3.read(resp.body)
+    if doc isa JSON3.Object && haskey(doc, Symbol("@context"))
+        return doc[Symbol("@context")]
+    end
+    doc
 end
 
 # ── Query-type detection ───────────────────────────────────────────────────────

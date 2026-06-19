@@ -99,13 +99,13 @@ if isdir(_JLD_DIR)
             negative = "jld:NegativeEvaluationTest" in types
             if negative
                 @test_throws Exception open(io -> read(io, MIME"application/ld+json"(),
-                                                       Dataset; base=base), inpath)
+                                       Dataset; base=base, contexts=_jld_loader), inpath)
             else
                 expect = String(_jget(entry, "expect"))
                 exppath = _jld_local(_JLD_BASE * expect)
                 expected = open(io -> read(io, MIME"application/n-quads"(), Dataset), exppath)
                 actual = open(io -> read(io, MIME"application/ld+json"(),
-                                         Dataset; base=base), inpath)
+                                         Dataset; base=base, contexts=_jld_loader), inpath)
                 @test _jld_ds_iso(actual, expected)
             end
         end

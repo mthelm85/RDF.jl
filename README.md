@@ -12,7 +12,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 - **SPARQL result formats** — serialize `SolutionSet` to SPARQL/JSON, SPARQL/XML, CSV, or TSV (with RDF-star triple-term bindings) for HTTP API integration
 - **Turtle 1.2** parser and serializer — including triple terms, reified triples, reifiers, annotation blocks, and directional language tags
 - **N-Triples / N-Quads 1.2** parser and serializer
-- **JSON-LD 1.1** parser and serializer — inline contexts, prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
+- **JSON-LD 1.1** parser and serializer — inline and remote contexts (caller-supplied `contexts=` map, or `load_remote_contexts=true` to fetch over HTTP), prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
 - **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), render them as token-budgeted LLM context (`to_context`), and summarize a graph's schema for text-to-SPARQL prompting (`describe_schema`/`to_prompt`)
 - **SHACL Core validation** — validate a data graph against shapes (`validate_shapes`/`conforms`); doubles as an LLM-extraction guardrail (`conforming` keeps only valid facts; `to_prompt(report)` renders violations for model self-correction)
 - **Named graphs / Datasets** with full SPARQL dataset semantics
@@ -487,7 +487,7 @@ julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |
 | W3C RDF graph isomorphism | ✓ |
-| W3C JSON-LD 1.1 (toRdf) | **161 / 459** (in progress) |
+| W3C JSON-LD 1.1 (toRdf) | **164 / 459** (in progress) |
 
 ## Citing
 

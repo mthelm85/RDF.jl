@@ -41,12 +41,15 @@ mutable struct _JsonLDContext
     language::Union{String,Nothing}
     # term name → term definition (String shorthand or Dict with @id etc.)
     terms::Dict{String,Any}
+    # resolves a (resolved, absolute) context IRI → context value, or nothing.
+    # Preserved across context resets so nested/remote contexts can be loaded.
+    loader::Any
 end
 
-_JsonLDContext() = _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}())
+_JsonLDContext(loader=nothing) = _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader)
 
 function _copy_ctx(ctx::_JsonLDContext)::_JsonLDContext
-    _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms))
+    _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms), ctx.loader)
 end
 
 # ── IRI expansion ─────────────────────────────────────────────────────────────
@@ -220,7 +223,9 @@ Process a raw JSON-LD @context value (null, string, object, or array) and
 return an updated context. Throws ParseError for remote context references.
 """
 function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
-    raw_ctx === nothing && return _JsonLDContext()
+    # @context: null resets the context but keeps the document base and loader.
+    raw_ctx === nothing && return _JsonLDContext(ctx.base, nothing, nothing,
+                                                 Dict{String,Any}(), ctx.loader)
 
     if raw_ctx isa AbstractArray
         result = _copy_ctx(ctx)
@@ -231,10 +236,24 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
     end
 
     if raw_ctx isa AbstractString
-        throw(ParseError(
-            "Remote JSON-LD contexts are not supported (\"$raw_ctx\"); use inline contexts only",
-            0, 0, _MIME_JSONLD()
-        ))
+        # A string @context is a reference to a remote context document.
+        # Resolve it relative to the document base, then load it via the loader.
+        sref = String(raw_ctx)
+        iri = occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sref) ? sref :
+              (ctx.base !== nothing ? _resolve_iri(ctx.base, sref) : sref)
+        loaded = ctx.loader === nothing ? nothing : ctx.loader(iri)
+        if loaded === nothing
+            throw(ParseError(
+                "Remote JSON-LD context \"$iri\" could not be resolved; pass " *
+                "contexts=Dict(iri => context) or load_remote_contexts=true",
+                0, 0, _MIME_JSONLD()))
+        end
+        # Process the loaded context with the document base set to the context's
+        # own IRI (so its relative term IRIs resolve correctly), loader preserved.
+        sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms), ctx.loader)
+        sub = _process_context(sub, loaded)
+        sub.base = ctx.base   # restore the document base for subsequent processing
+        return sub
     end
 
     raw_ctx isa AbstractDict || return ctx
@@ -951,9 +970,38 @@ end
 Parse a JSON-LD document from `io` and return all triples as a single Graph
 (named graphs are merged into the default graph).
 """
+# Transport hook for remote JSON-LD context loading, installed by RDFHTTPExt
+# when HTTP.jl is loaded.  iri::String -> context value (the remote document's
+# @context) or nothing.  Keeps the core HTTP-free.
+const _JSONLD_REMOTE_LOADER = Ref{Any}(nothing)
+
+# Build a context loader from the `contexts` map/callable and the
+# `load_remote_contexts` flag.  Returns iri -> context value | nothing.
+function _build_jsonld_loader(contexts, load_remote::Bool)
+    base_loader = if contexts isa AbstractDict
+        iri -> get(contexts, String(iri), nothing)
+    elseif contexts !== nothing
+        contexts                       # assume callable
+    else
+        _ -> nothing
+    end
+    load_remote || return base_loader
+    function (iri)
+        v = base_loader(iri)
+        v !== nothing && return v
+        f = _JSONLD_REMOTE_LOADER[]
+        f === nothing && throw(ParseError(
+            "load_remote_contexts=true requires HTTP.jl: run `using HTTP`",
+            0, 0, _MIME_JSONLD()))
+        f(iri)
+    end
+end
+
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
-                   base::Union{AbstractString,Nothing}=nothing)::Graph
-    ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base)
+                   base::Union{AbstractString,Nothing}=nothing,
+                   contexts=nothing, load_remote_contexts::Bool=false)::Graph
+    ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base,
+                   contexts=contexts, load_remote_contexts=load_remote_contexts)
     g = ds.default_graph
     for (_, ng) in ds.named_graphs
         for t in ng
@@ -969,7 +1017,8 @@ end
 Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs).
 """
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
-                   base::Union{AbstractString,Nothing}=nothing)::Dataset
+                   base::Union{AbstractString,Nothing}=nothing,
+                   contexts=nothing, load_remote_contexts::Bool=false)::Dataset
     # Parse from the raw bytes, not a String: JSON3.read(::String) treats a
     # short/path-like string as a filename and stats it (which aborts on some
     # high-Unicode content via libuv on Windows).
@@ -979,7 +1028,7 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
     catch e
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
-    ctx      = _JsonLDContext()
+    ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts))
     base !== nothing && (ctx.base = String(base))
     expanded = _expand_document(doc, ctx)
     _jsonld_to_rdf(expanded, ctx.base)
