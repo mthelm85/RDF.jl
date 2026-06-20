@@ -857,10 +857,13 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
 
     # @type — the type values are expanded against the context *before* any
     # type-scoped contexts are applied (so a type-scoped @vocab/@base reset does
-    # not affect the type IRIs themselves).
-    if haskey(d, "@type")
-        types = d["@type"]
+    # not affect the type IRIs themselves).  @type values nested under @nest are
+    # hoisted in as well.
+    nest_types = _nest_types(d, ctx)
+    if haskey(d, "@type") || !isempty(nest_types)
+        types = get(d, "@type", Any[])
         types_arr = types isa AbstractArray ? collect(types) : Any[types]
+        append!(types_arr, nest_types)
         expanded_types = String[]
         for t in types_arr
             t isa AbstractString ||
@@ -1093,6 +1096,24 @@ function _validate_included(v)
         (it isa AbstractDict && !haskey(it, "@value") && !haskey(it, "@list")) ||
             throw(ParseError("invalid @included value", 0, 0, _MIME_JSONLD()))
     end
+end
+
+# Collect @type values hoisted from @nest properties (recursively); a node's
+# own @type is handled separately by the caller.
+function _nest_types(d::AbstractDict, ctx::_JsonLDContext)::Vector{Any}
+    out = Any[]
+    for (k0, v) in d
+        _kw_alias(ctx, String(k0)) == "@nest" || continue
+        for nv in (v isa AbstractArray ? collect(v) : Any[v])
+            nv isa AbstractDict || continue
+            for (kk, vv) in nv
+                _kw_alias(ctx, String(kk)) == "@type" &&
+                    append!(out, vv isa AbstractArray ? collect(vv) : Any[vv])
+            end
+            append!(out, _nest_types(nv, ctx))
+        end
+    end
+    out
 end
 
 # Collect a node's ordinary (non-keyword) property pairs, recursively hoisting
