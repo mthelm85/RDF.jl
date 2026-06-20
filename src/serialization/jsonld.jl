@@ -44,12 +44,26 @@ mutable struct _JsonLDContext
     # resolves a (resolved, absolute) context IRI → context value, or nothing.
     # Preserved across context resets so nested/remote contexts can be loaded.
     loader::Any
+    # names of @protected terms (cannot be redefined with a different mapping)
+    protected::Set{String}
 end
 
-_JsonLDContext(loader=nothing) = _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader)
+_JsonLDContext(loader=nothing) =
+    _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader, Set{String}())
 
 function _copy_ctx(ctx::_JsonLDContext)::_JsonLDContext
-    _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms), ctx.loader)
+    _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms),
+                   ctx.loader, copy(ctx.protected))
+end
+
+# Signature of a term definition used to decide whether two definitions are the
+# same (for @protected redefinition checks).
+function _term_sig(t)
+    t isa AbstractString && return (t, nothing, nothing, nothing, nothing)
+    t isa AbstractDict && return (get(t, "@id", nothing), get(t, "@type", nothing),
+                                  get(t, "@container", nothing), get(t, "@reverse", nothing),
+                                  get(t, "@language", nothing))
+    (nothing, nothing, nothing, nothing, nothing)
 end
 
 # ── IRI expansion ─────────────────────────────────────────────────────────────
@@ -227,15 +241,16 @@ end
 Process a raw JSON-LD @context value (null, string, object, or array) and
 return an updated context. Throws ParseError for remote context references.
 """
-function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
+function _process_context(ctx::_JsonLDContext, raw_ctx;
+                          override_protected::Bool=false)::_JsonLDContext
     # @context: null resets the context but keeps the document base and loader.
     raw_ctx === nothing && return _JsonLDContext(ctx.base, nothing, nothing,
-                                                 Dict{String,Any}(), ctx.loader)
+                                                 Dict{String,Any}(), ctx.loader, Set{String}())
 
     if raw_ctx isa AbstractArray
         result = _copy_ctx(ctx)
         for entry in raw_ctx
-            result = _process_context(result, entry)
+            result = _process_context(result, entry; override_protected=override_protected)
         end
         return result
     end
@@ -255,8 +270,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
         end
         # Process the loaded context with the document base set to the context's
         # own IRI (so its relative term IRIs resolve correctly), loader preserved.
-        sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms), ctx.loader)
-        sub = _process_context(sub, loaded)
+        sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms),
+                             ctx.loader, copy(ctx.protected))
+        sub = _process_context(sub, loaded; override_protected=override_protected)
         sub.base = ctx.base   # restore the document base for subsequent processing
         return sub
     end
@@ -337,6 +353,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             throw(ParseError("invalid context @type definition", 0, 0, _MIME_JSONLD()))
     end
 
+    # Whether all terms in this context are protected by default.
+    ctx_protected = get(raw_ctx, "@protected", false) === true
+
     # Term definitions
     for (k, v) in raw_ctx
         sk = String(k)
@@ -345,23 +364,18 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
         # The empty string is not a valid term.
         sk == "" && throw(ParseError("definition for the empty term", 0, 0, _MIME_JSONLD()))
 
+        term_protected = ctx_protected
+        newdef = nothing
         if v === nothing
-            result.terms[sk] = nothing
-            continue
-        end
-
-        if v isa AbstractString
+            newdef = nothing
+        elseif v isa AbstractString
             sv = String(v)
             expanded = _expand_iri(result, sv; vocab=true, base=false)
-            result.terms[sk] = (expanded !== nothing && expanded != sv) ? expanded : sv
-            continue
-        end
-
-        # A term definition must be a string, map, or null.
-        v isa AbstractDict ||
-            throw(ParseError("invalid term definition for \"$sk\"", 0, 0, _MIME_JSONLD()))
-
-        begin
+            newdef = (expanded !== nothing && expanded != sv) ? expanded : sv
+        else
+            # A term definition must be a string, map, or null.
+            v isa AbstractDict ||
+                throw(ParseError("invalid term definition for \"$sk\"", 0, 0, _MIME_JSONLD()))
             td = Dict{String,Any}()
             # @id and @reverse cannot coexist.
             haskey(v, "@id") && haskey(v, "@reverse") &&
@@ -448,8 +462,19 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             # A property-scoped @context is stored raw and applied when this
             # term's values are expanded.
             haskey(v, "@context") && (td["@context"] = v["@context"])
-            result.terms[sk] = td
+            haskey(v, "@protected") && (term_protected = v["@protected"] === true)
+            newdef = td
         end
+
+        # @protected: a protected term may not be redefined with a different
+        # mapping (an identical redefinition is allowed).  Scoped contexts are
+        # processed with override_protected and may redefine protected terms.
+        if !override_protected && sk in result.protected &&
+           _term_sig(get(result.terms, sk, nothing)) != _term_sig(newdef)
+            throw(ParseError("attempt to redefine protected term \"$sk\"", 0, 0, _MIME_JSONLD()))
+        end
+        result.terms[sk] = newdef
+        term_protected ? push!(result.protected, sk) : delete!(result.protected, sk)
     end
 
     result
@@ -637,7 +662,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for tv in tvals_arr
             td = get(ctx.terms, tv, nothing)
             if td isa AbstractDict && haskey(td, "@context")
-                ctx = _process_context(ctx, td["@context"])
+                ctx = _process_context(ctx, td["@context"]; override_protected=true)
             end
         end
     end
@@ -710,7 +735,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         # (and propagates into nested nodes).
         pctx = ctx
         if tdk isa AbstractDict && haskey(tdk, "@context")
-            pctx = _process_context(ctx, tdk["@context"])
+            pctx = _process_context(ctx, tdk["@context"]; override_protected=true)
         end
 
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
@@ -779,7 +804,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 kctx = pctx
                 kt = get(pctx.terms, String(key), nothing)
                 if kt isa AbstractDict && haskey(kt, "@context")
-                    kctx = _process_context(pctx, kt["@context"])
+                    kctx = _process_context(pctx, kt["@context"]; override_protected=true)
                 end
                 for node in _expand_map_nodes(sub, kctx)
                     if node isa AbstractDict && ekey !== nothing
