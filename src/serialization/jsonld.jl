@@ -1747,6 +1747,11 @@ end
 
 # ── Write ─────────────────────────────────────────────────────────────────────
 
+# Active rdfDirection mode for serialization (i18n-datatype / compound-literal /
+# nothing); set for the duration of a write so _object_to_jsonld_obj can decode
+# i18n-datatype literals back to @direction value objects.
+const _WRITE_DIRECTION_MODE = Ref{Union{String,Nothing}}(nothing)
+
 _jbn_label(bn::BlankNode) = "_:b$(bn.id)"
 
 function _object_to_jsonld_obj(obj::IRI)
@@ -1777,6 +1782,18 @@ function _object_to_jsonld_obj(obj::Literal)
         parsed = try JSON3.read(obj.lexical_form) catch; obj.lexical_form end
         return Dict{String,Any}("@value" => parsed, "@type" => "@json")
     end
+    # Under rdfDirection: i18n-datatype, decode an i18n#<lang>_<dir> typed literal
+    # back to a value object with @language/@direction.
+    if _WRITE_DIRECTION_MODE[] == "i18n-datatype" && startswith(dt, _I18N_BASE)
+        tag = dt[ncodeunits(_I18N_BASE)+1:end]
+        us = findlast('_', tag)
+        if us !== nothing
+            lang = tag[1:us-1]; dir = tag[us+1:end]
+            r = Dict{String,Any}("@value" => obj.lexical_form, "@direction" => dir)
+            isempty(lang) || (r["@language"] = lang)
+            return r
+        end
+    end
     Dict{String,Any}("@value" => obj.lexical_form, "@type" => dt)
 end
 
@@ -1791,14 +1808,21 @@ end
 Serialize an RDF `Graph` to JSON-LD format. If `context` is provided (a `Dict`
 or `String`), it is included as `"@context"` in the root object.
 """
-function Base.write(io::IO, ::_MIME_JSONLD, g::Graph; context=nothing, indent::Int=2)
-    nodes  = _graph_to_jsonld(g)
-    output = if context !== nothing
-        Dict{String,Any}("@context" => context, "@graph" => nodes)
-    else
-        nodes
+function Base.write(io::IO, ::_MIME_JSONLD, g::Graph; context=nothing, indent::Int=2,
+                    rdfdirection::Union{AbstractString,Nothing}=nothing)
+    prev = _WRITE_DIRECTION_MODE[]
+    _WRITE_DIRECTION_MODE[] = rdfdirection === nothing ? nothing : String(rdfdirection)
+    try
+        nodes  = _graph_to_jsonld(g)
+        output = if context !== nothing
+            Dict{String,Any}("@context" => context, "@graph" => nodes)
+        else
+            nodes
+        end
+        print(io, JSON3.write(output))
+    finally
+        _WRITE_DIRECTION_MODE[] = prev
     end
-    print(io, JSON3.write(output))
     nothing
 end
 
@@ -1808,30 +1832,37 @@ end
 Serialize an RDF `Dataset` to JSON-LD format. Named graphs are represented with
 `"@graph"` entries; the default graph's triples appear at the top level.
 """
-function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent::Int=2)
-    top = Any[]
+function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent::Int=2,
+                    rdfdirection::Union{AbstractString,Nothing}=nothing)
+    prev = _WRITE_DIRECTION_MODE[]
+    _WRITE_DIRECTION_MODE[] = rdfdirection === nothing ? nothing : String(rdfdirection)
+    try
+        top = Any[]
 
-    if !isempty(ds.default_graph)
-        for n in _graph_to_jsonld(ds.default_graph)
-            push!(top, n)
+        if !isempty(ds.default_graph)
+            for n in _graph_to_jsonld(ds.default_graph)
+                push!(top, n)
+            end
         end
-    end
 
-    for (name, ng) in ds.named_graphs
-        graph_id = name isa IRI ? name.value : _jbn_label(name)
-        named_entry = Dict{String,Any}(
-            "@id"    => graph_id,
-            "@graph" => _graph_to_jsonld(ng),
-        )
-        push!(top, named_entry)
-    end
+        for (name, ng) in ds.named_graphs
+            graph_id = name isa IRI ? name.value : _jbn_label(name)
+            named_entry = Dict{String,Any}(
+                "@id"    => graph_id,
+                "@graph" => _graph_to_jsonld(ng),
+            )
+            push!(top, named_entry)
+        end
 
-    output = if context !== nothing
-        Dict{String,Any}("@context" => context, "@graph" => top)
-    else
-        top
+        output = if context !== nothing
+            Dict{String,Any}("@context" => context, "@graph" => top)
+        else
+            top
+        end
+        print(io, JSON3.write(output))
+    finally
+        _WRITE_DIRECTION_MODE[] = prev
     end
-    print(io, JSON3.write(output))
     nothing
 end
 
