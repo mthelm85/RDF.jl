@@ -97,8 +97,11 @@ if isdir(_JLD_DIR)
             base = opt !== nothing && _jget(opt, "base") !== nothing ?
                    String(_jget(opt, "base")) : iri
             types = _jget(entry, "@type", String[])
+            rdfdir = opt !== nothing ? _jget(opt, "rdfDirection") : nothing
+            rdfdir = rdfdir === nothing ? nothing : String(rdfdir)
             parse() = open(io -> read(io, MIME"application/ld+json"(),
-                                      Dataset; base=base, contexts=_jld_loader), inpath)
+                                      Dataset; base=base, contexts=_jld_loader,
+                                      rdfdirection=rdfdir), inpath)
             if ("jld:NegativeEvaluationTest" in types) || ("jld:NegativeSyntaxTest" in types)
                 # Must raise an error.
                 @test_throws Exception parse()

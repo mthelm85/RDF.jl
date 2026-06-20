@@ -19,6 +19,10 @@ const _JRDF_FIRST        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first"
 const _JRDF_REST         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest"
 const _JRDF_NIL          = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil"
 const _JRDF_JSON         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON"
+const _JRDF_VALUE        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#value"
+const _JRDF_LANGUAGE     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#language"
+const _JRDF_DIRECTION    = "http://www.w3.org/1999/02/22-rdf-syntax-ns#direction"
+const _I18N_BASE         = "https://www.w3.org/ns/i18n#"
 const _JXSD_STRING_S     = "http://www.w3.org/2001/XMLSchema#string"
 const _JXSD_INTEGER_S    = "http://www.w3.org/2001/XMLSchema#integer"
 const _JXSD_DOUBLE_S     = "http://www.w3.org/2001/XMLSchema#double"
@@ -1096,12 +1100,24 @@ end
 
 Convert an expanded JSON-LD document to an RDF Dataset.
 """
-function _jsonld_to_rdf(expanded::Vector{Any}, base::Union{String,Nothing})::Dataset
+# Active rdfDirection serialization mode ("i18n-datatype", "compound-literal",
+# or nothing). Set for the duration of a single _jsonld_to_rdf call so the deep
+# value-conversion helpers can read it without threading a parameter everywhere.
+const _RDF_DIRECTION_MODE = Ref{Union{String,Nothing}}(nothing)
+
+function _jsonld_to_rdf(expanded::Vector{Any}, base::Union{String,Nothing};
+                        rdfdir::Union{String,Nothing}=nothing)::Dataset
     ds = Dataset()
     blank_map = Dict{String,BlankNode}()
-    for node in expanded
-        node isa AbstractDict || continue
-        _process_node!(ds.default_graph, node, ds, blank_map; top_level=true)
+    prev = _RDF_DIRECTION_MODE[]
+    _RDF_DIRECTION_MODE[] = rdfdir
+    try
+        for node in expanded
+            node isa AbstractDict || continue
+            _process_node!(ds.default_graph, node, ds, blank_map; top_level=true)
+        end
+    finally
+        _RDF_DIRECTION_MODE[] = prev
     end
     ds
 end
@@ -1273,6 +1289,24 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
         lang    = get(d, "@language", nothing)
         dir     = get(d, "@direction", nothing)
 
+        # rdfDirection serialization modes (only when @direction is present).
+        if dir !== nothing && _RDF_DIRECTION_MODE[] !== nothing
+            dir_s = lowercase(String(dir))
+            dir_s in ("ltr", "rtl") || return nothing
+            lang_s = lang === nothing ? "" : lowercase(String(lang))
+            mode = _RDF_DIRECTION_MODE[]
+            if mode == "i18n-datatype"
+                return Literal(string(raw_val), IRI(_I18N_BASE * lang_s * "_" * dir_s))
+            elseif mode == "compound-literal"
+                bn = _mint_blank_node()
+                push!(graph, Triple(bn, IRI(_JRDF_VALUE), Literal(string(raw_val))))
+                lang === nothing ||
+                    push!(graph, Triple(bn, IRI(_JRDF_LANGUAGE), Literal(lang_s)))
+                push!(graph, Triple(bn, IRI(_JRDF_DIRECTION), Literal(dir_s)))
+                return bn
+            end
+        end
+
         if lang !== nothing
             lang_s = lowercase(String(lang))
             if dir !== nothing
@@ -1423,9 +1457,11 @@ end
 
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
                    base::Union{AbstractString,Nothing}=nothing,
-                   contexts=nothing, load_remote_contexts::Bool=false)::Graph
+                   contexts=nothing, load_remote_contexts::Bool=false,
+                   rdfdirection::Union{AbstractString,Nothing}=nothing)::Graph
     ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base,
-                   contexts=contexts, load_remote_contexts=load_remote_contexts)
+                   contexts=contexts, load_remote_contexts=load_remote_contexts,
+                   rdfdirection=rdfdirection)
     g = ds.default_graph
     for (_, ng) in ds.named_graphs
         for t in ng
@@ -1442,7 +1478,8 @@ Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs
 """
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
                    base::Union{AbstractString,Nothing}=nothing,
-                   contexts=nothing, load_remote_contexts::Bool=false)::Dataset
+                   contexts=nothing, load_remote_contexts::Bool=false,
+                   rdfdirection::Union{AbstractString,Nothing}=nothing)::Dataset
     # Parse from the raw bytes, not a String: JSON3.read(::String) treats a
     # short/path-like string as a filename and stats it (which aborts on some
     # high-Unicode content via libuv on Windows).
@@ -1455,7 +1492,8 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
     ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts))
     base !== nothing && (ctx.base = String(base))
     expanded = _expand_document(doc, ctx)
-    _jsonld_to_rdf(expanded, ctx.base)
+    _jsonld_to_rdf(expanded, ctx.base;
+                   rdfdir=(rdfdirection === nothing ? nothing : String(rdfdirection)))
 end
 
 # ── Write ─────────────────────────────────────────────────────────────────────
