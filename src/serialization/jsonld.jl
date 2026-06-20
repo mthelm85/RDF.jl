@@ -114,10 +114,11 @@ function _expand_iri(ctx::_JsonLDContext, value::String;
         prefix == "_" && return value
         startswith(rest, "//") && return value
 
-        # Check if prefix is a known term/prefix in the context
+        # Check if prefix is a known term/prefix in the context. A term marked
+        # @prefix:false may not be used as a compact-IRI prefix.
         if haskey(ctx.terms, prefix)
             td = ctx.terms[prefix]
-            if td !== nothing
+            if td !== nothing && !(td isa AbstractDict && get(td, "@prefix", nothing) === false)
                 mapped = _term_def_id(td)
                 if mapped !== nothing
                     # Expand rest as well (recursive)
@@ -459,8 +460,10 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 td["@id"] = (expanded !== nothing) ? expanded : sk
             end
             # @prefix must be a boolean.
-            if haskey(v, "@prefix") && !(v["@prefix"] isa Bool)
-                throw(ParseError("@prefix must be a boolean", 0, 0, _MIME_JSONLD()))
+            if haskey(v, "@prefix")
+                v["@prefix"] isa Bool ||
+                    throw(ParseError("@prefix must be a boolean", 0, 0, _MIME_JSONLD()))
+                td["@prefix"] = v["@prefix"]
             end
             if haskey(v, "@type")
                 tv = v["@type"]
