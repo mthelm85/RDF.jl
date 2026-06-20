@@ -648,6 +648,11 @@ function _expand_list_values(list_val, ctx::_JsonLDContext)::Vector{Any}
     end
     out = Any[]
     for item in list_val
+        # A nested array becomes a nested list object.
+        if item isa AbstractArray
+            push!(out, Dict{String,Any}("@list" => _expand_list_values(item, ctx)))
+            continue
+        end
         v = _expand_value(item, ctx)
         v !== nothing && push!(out, v)
     end
@@ -858,10 +863,13 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         end
 
         if "@list" in container
-            # Values under a @list-container term form a single list — unless
-            # they are already list objects (avoid double-wrapping).
-            if !any(x -> x isa AbstractDict && haskey(x, "@list"), expanded_vals)
-                expanded_vals = Any[Dict{String,Any}("@list" => expanded_vals)]
+            # A @list-container term turns its value into a single list. A value
+            # that is already a list object is used as-is; an array value becomes
+            # a list whose members may themselves be nested lists.
+            if v isa AbstractDict && haskey(v, "@list")
+                # already a list object — expanded_vals holds it
+            else
+                expanded_vals = Any[Dict{String,Any}("@list" => _expand_list_values(v, pctx))]
             end
         end
         # "@set" container: values stay a plain array (the default) — no-op.
