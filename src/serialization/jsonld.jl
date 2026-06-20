@@ -416,6 +416,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             newdef = nothing
         elseif v isa AbstractString
             sv = String(v)
+            # A mapping in keyword form that is not a real keyword → term ignored.
+            occursin(r"^@[A-Za-z]+$", sv) && !(sv in _JSONLD_KEYWORDS) && continue
             expanded = _expand_iri(result, sv; vocab=true, base=false)
             newdef = (expanded !== nothing && expanded != sv) ? expanded : sv
         else
@@ -622,7 +624,18 @@ function _expand_value(doc, ctx::_JsonLDContext)
         nd = Dict{String,Any}()
         for (k, v) in d
             kw = _kw_alias(ctx, k)
-            nd[kw === nothing ? k : kw] = v
+            target = kw === nothing ? k : kw
+            if haskey(nd, target)
+                # Several keys alias the same keyword: list-valued keywords merge
+                # their values; a scalar keyword collision (e.g. @id) is an error.
+                target in ("@type", "@included", "@nest", "@graph", "@set", "@list") ||
+                    throw(ParseError("colliding keywords \"$target\"", 0, 0, _MIME_JSONLD()))
+                ex = nd[target]
+                nd[target] = Any[(ex isa AbstractArray ? collect(ex) : Any[ex])...,
+                                 (v isa AbstractArray ? collect(v) : Any[v])...]
+            else
+                nd[target] = v
+            end
         end
         d = nd
     end
@@ -787,8 +800,11 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         raw_id = d["@id"]
         raw_id isa AbstractString ||
             throw(ParseError("@id value must be a string", 0, 0, _MIME_JSONLD()))
-        expanded_id = _expand_iri(ctx, String(raw_id); vocab=false, base=true)
-        expanded_id !== nothing && (node["@id"] = expanded_id)
+        # An @id in keyword form that is not a real keyword is ignored.
+        if !(occursin(r"^@[A-Za-z]+$", String(raw_id)) && !(String(raw_id) in _JSONLD_KEYWORDS))
+            expanded_id = _expand_iri(ctx, String(raw_id); vocab=false, base=true)
+            expanded_id !== nothing && (node["@id"] = expanded_id)
+        end
     end
 
     # @type
