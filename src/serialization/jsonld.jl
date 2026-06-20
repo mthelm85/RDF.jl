@@ -291,10 +291,15 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             result.base = nothing
         elseif v isa AbstractString
             sv = String(v)
-            if !isempty(sv) && result.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sv)
-                result.base = _resolve_iri(result.base, sv)
+            if isempty(sv)
+                # @base "" resolves to the current base (e.g. the base option).
+                result.base = result.base === nothing ? nothing : _resolve_iri(result.base, "")
+            elseif occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sv)
+                result.base = sv                       # absolute IRI, kept verbatim
+            elseif result.base !== nothing
+                result.base = _resolve_iri(result.base, sv)   # relative to current base
             else
-                result.base = isempty(sv) ? nothing : sv
+                result.base = sv
             end
         else
             throw(ParseError("@base must be a string or null", 0, 0, _MIME_JSONLD()))
@@ -722,7 +727,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for t in types_arr
             t isa AbstractString ||
                 throw(ParseError("@type value must be a string", 0, 0, _MIME_JSONLD()))
-            et = _expand_iri(ctx, String(t); vocab=true, base=false)
+            et = _expand_iri(ctx, String(t); vocab=true, base=true)
             et !== nothing && push!(expanded_types, et)
         end
         isempty(expanded_types) || (node["@type"] = expanded_types)
