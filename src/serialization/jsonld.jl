@@ -54,14 +54,18 @@ mutable struct _JsonLDContext
     # non-propagating (type-scoped or @propagate:false) context is applied;
     # nothing means the active context propagates normally.
     previous::Any
+    # the URL of the current context document, used to resolve relative context
+    # references and @import (NOT changed by @base, which only affects data).
+    docbase::Any
 end
 
 _JsonLDContext(loader=nothing) =
-    _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader, Set{String}(), nothing)
+    _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader,
+                   Set{String}(), nothing, nothing)
 
 function _copy_ctx(ctx::_JsonLDContext)::_JsonLDContext
     _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms),
-                   ctx.loader, copy(ctx.protected), ctx.previous)
+                   ctx.loader, copy(ctx.protected), ctx.previous, ctx.docbase)
 end
 
 # Signature of a term definition used to decide whether two definitions are the
@@ -268,7 +272,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             throw(ParseError("attempt to clear protected terms with a null context",
                              0, 0, _MIME_JSONLD()))
         return _JsonLDContext(ctx.base, nothing, nothing, Dict{String,Any}(),
-                              ctx.loader, Set{String}(), propagate ? nothing : ctx)
+                              ctx.loader, Set{String}(), propagate ? nothing : ctx, ctx.docbase)
     end
 
     if raw_ctx isa AbstractArray
@@ -281,11 +285,12 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     end
 
     if raw_ctx isa AbstractString
-        # A string @context is a reference to a remote context document.
-        # Resolve it relative to the document base, then load it via the loader.
+        # A string @context is a reference to a remote context document, resolved
+        # against the document URL (docbase) — not @base, which is data-only.
         sref = String(raw_ctx)
+        rbase = ctx.docbase !== nothing ? ctx.docbase : ctx.base
         iri = occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sref) ? sref :
-              (ctx.base !== nothing ? _resolve_iri(ctx.base, sref) : sref)
+              (rbase !== nothing ? _resolve_iri(rbase, sref) : sref)
         loaded = ctx.loader === nothing ? nothing : ctx.loader(iri)
         if loaded === nothing
             throw(ParseError(
@@ -296,10 +301,11 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         # Process the loaded context with the document base set to the context's
         # own IRI (so its relative term IRIs resolve correctly), loader preserved.
         sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms),
-                             ctx.loader, copy(ctx.protected), ctx.previous)
+                             ctx.loader, copy(ctx.protected), ctx.previous, iri)
         sub = _process_context(sub, loaded;
                                override_protected=override_protected, propagate=propagate)
-        sub.base = ctx.base   # restore the document base for subsequent processing
+        sub.base = ctx.base       # restore the document base for subsequent processing
+        sub.docbase = ctx.docbase
         return sub
     end
 
@@ -314,8 +320,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         imp isa AbstractString ||
             throw(ParseError("@import must be a string", 0, 0, _MIME_JSONLD()))
         sref = String(imp)
+        ibase = ctx.docbase !== nothing ? ctx.docbase : ctx.base
         iri = occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sref) ? sref :
-              (ctx.base !== nothing ? _resolve_iri(ctx.base, sref) : sref)
+              (ibase !== nothing ? _resolve_iri(ibase, sref) : sref)
         loaded = ctx.loader === nothing ? nothing : ctx.loader(iri)
         loaded === nothing && throw(ParseError(
             "@import context \"$iri\" could not be resolved", 0, 0, _MIME_JSONLD()))
@@ -569,7 +576,13 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             end
             # A property-scoped @context is stored raw and applied when this
             # term's values are expanded.
-            haskey(v, "@context") && (td["@context"] = v["@context"])
+            # Store the scoped @context with the URL of the context document it
+            # was defined in, so its own relative context references resolve
+            # correctly when the scoped context is later applied.
+            if haskey(v, "@context")
+                td["@context"] = v["@context"]
+                result.docbase !== nothing && (td["@context_base"] = result.docbase)
+            end
             # @prefix:true cannot apply to a keyword alias.
             if get(v, "@prefix", false) === true && haskey(v, "@id") &&
                v["@id"] isa AbstractString && startswith(String(v["@id"]), "@")
@@ -825,6 +838,21 @@ function _expand_list_values(list_val, ctx::_JsonLDContext; coerce=nothing)::Vec
     out
 end
 
+# Apply a term's scoped @context, resolving its own relative context references
+# against the URL of the context document the term was defined in (@context_base),
+# then restoring the document docbase for subsequent value expansion.
+function _apply_scoped_context(ctx::_JsonLDContext, td::AbstractDict;
+                              propagate::Bool=true)::_JsonLDContext
+    cb = get(td, "@context_base", nothing)
+    if cb === nothing
+        return _process_context(ctx, td["@context"]; override_protected=true, propagate=propagate)
+    end
+    tmp = _copy_ctx(ctx); tmp.docbase = cb
+    r = _process_context(tmp, td["@context"]; override_protected=true, propagate=propagate)
+    r.docbase = ctx.docbase
+    r
+end
+
 function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     node = Dict{String,Any}()
 
@@ -844,8 +872,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for tv in tvals_arr
             td = get(ctx.terms, tv, nothing)
             if td isa AbstractDict && haskey(td, "@context")
-                ctx = _process_context(ctx, td["@context"]; override_protected=true,
-                                       propagate=false)
+                ctx = _apply_scoped_context(ctx, td; propagate=false)
             end
         end
     end
@@ -955,8 +982,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         pctx = ctx
         cctx = child_base
         if tdk isa AbstractDict && haskey(tdk, "@context")
-            pctx = _process_context(ctx, tdk["@context"]; override_protected=true)
-            cctx = _process_context(child_base, tdk["@context"]; override_protected=true)
+            pctx = _apply_scoped_context(ctx, tdk)
+            cctx = _apply_scoped_context(child_base, tdk)
         end
 
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
@@ -1028,7 +1055,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 kctx = pctx
                 kt = get(pctx.terms, String(key), nothing)
                 if kt isa AbstractDict && haskey(kt, "@context")
-                    kctx = _process_context(pctx, kt["@context"]; override_protected=true)
+                    kctx = _apply_scoped_context(pctx, kt)
                 end
                 for node in _expand_map_nodes(sub, kctx)
                     # Type-map values must be node references, not literals.
@@ -1746,7 +1773,7 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
     ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts))
-    base !== nothing && (ctx.base = String(base))
+    base !== nothing && (ctx.base = String(base); ctx.docbase = String(base))
     expanded = _expand_document(doc, ctx)
     _jsonld_to_rdf(expanded, ctx.base;
                    rdfdir=(rdfdirection === nothing ? nothing : String(rdfdirection)))
