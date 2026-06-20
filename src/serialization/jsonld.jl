@@ -106,8 +106,10 @@ function _expand_iri(ctx::_JsonLDContext, value::String;
         prefix = value[1:colon_idx-1]
         rest   = value[colon_idx+1:end]
 
-        # _: signals a blank node identifier
+        # _: signals a blank node identifier; a suffix beginning with // means
+        # the value is an absolute IRI, not a compact IRI — return it unchanged.
         prefix == "_" && return value
+        startswith(rest, "//") && return value
 
         # Check if prefix is a known term/prefix in the context
         if haskey(ctx.terms, prefix)
@@ -1170,6 +1172,9 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
                         blank_map::Dict{String,BlankNode}; top_level::Bool=false)
     d = Dict{String,Any}(String(k) => v for (k, v) in node)
 
+    # A value or list object is not a node; free-floating, it yields no triples.
+    (haskey(d, "@value") || haskey(d, "@list")) && return nothing
+
     # A bare graph object (only @graph). At the top level (the document object)
     # its contents belong to the current/default graph; nested, it denotes a
     # fresh named graph keyed by a blank node.
@@ -1200,7 +1205,7 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
         for t in types
             t isa AbstractString || continue
             obj = _id_to_term(String(t), blank_map)
-            obj isa IRI || continue
+            obj isa Union{IRI,BlankNode} || continue
             push!(graph, Triple(subj, IRI(_JRDF_TYPE), obj))
         end
     end
