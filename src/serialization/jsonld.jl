@@ -414,6 +414,12 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
 
         term_protected = ctx_protected
         newdef = nothing
+        # Exclude the term being (re)defined from the active context while
+        # expanding its own mapping, so a compact-IRI-shaped term name resolves
+        # via its prefix rather than its previous self-definition. Keep the
+        # previous definition for the @protected redefinition check.
+        prev_def = get(result.terms, sk, nothing)
+        delete!(result.terms, sk)
         if v === nothing
             newdef = nothing
         elseif v isa AbstractString
@@ -546,7 +552,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         # mapping (an identical redefinition is allowed).  Scoped contexts are
         # processed with override_protected and may redefine protected terms.
         if !override_protected && was_protected &&
-           _term_sig(get(result.terms, sk, nothing)) != _term_sig(newdef)
+           _term_sig(prev_def) != _term_sig(newdef)
             throw(ParseError("attempt to redefine protected term \"$sk\"", 0, 0, _MIME_JSONLD()))
         end
         result.terms[sk] = newdef
