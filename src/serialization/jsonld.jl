@@ -286,7 +286,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         return sub
     end
 
-    raw_ctx isa AbstractDict || return ctx
+    # A local context must be a map (string/array/null handled above).
+    raw_ctx isa AbstractDict ||
+        throw(ParseError("invalid local context", 0, 0, _MIME_JSONLD()))
 
     # @import: load the referenced context and merge it under the current one
     # (the current context's entries win); then process the merged result.
@@ -720,13 +722,21 @@ function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     if is_json
         result["@type"] = "@json"
     elseif dt_expanded !== nothing
-        # The datatype must be an absolute IRI (not a blank node or relative).
-        (startswith(dt_expanded, "_:") || !occursin(':', dt_expanded)) &&
+        # The datatype must be an absolute IRI (not a blank node, relative, or
+        # containing whitespace).
+        (startswith(dt_expanded, "_:") || !occursin(':', dt_expanded) ||
+         occursin(r"\s", dt_expanded)) &&
             throw(ParseError("invalid value object datatype", 0, 0, _MIME_JSONLD()))
         result["@type"] = dt_expanded
     elseif haskey(d, "@language")
         lv = d["@language"]
-        lv !== nothing && (result["@language"] = lowercase(String(lv)))
+        if lv !== nothing
+            ls = String(lv)
+            # A malformed language tag causes the value to be dropped (rejected),
+            # not a hard error.
+            occursin(r"^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$", ls) || return nothing
+            result["@language"] = lowercase(ls)
+        end
         haskey(d, "@direction") && (result["@direction"] = String(d["@direction"]))
     elseif haskey(d, "@direction")
         result["@direction"] = String(d["@direction"])
@@ -836,26 +846,26 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     # @reverse
     if haskey(d, "@reverse")
         rev = d["@reverse"]
-        if rev isa AbstractDict
-            rev_map = Dict{String,Any}()
-            for (k, v) in rev
-                sk = String(k)
-                expanded_pred = _expand_iri(ctx, sk; vocab=true, base=false)
-                expanded_pred === nothing && continue
-                # @reverse map keys must be properties, not keywords.
-                expanded_pred in _JSONLD_KEYWORDS &&
-                    throw(ParseError("invalid key \"$expanded_pred\" in @reverse", 0, 0, _MIME_JSONLD()))
-                !occursin(':', expanded_pred) && continue
-                expanded_vals = _expand_property_values(v, expanded_pred, ctx)
-                # Reverse property values must be node references, not literals.
-                for ev in expanded_vals
-                    (ev isa AbstractDict && !haskey(ev, "@value")) ||
-                        throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
-                end
-                isempty(expanded_vals) || (rev_map[expanded_pred] = expanded_vals)
+        rev isa AbstractDict ||
+            throw(ParseError("@reverse value must be a map", 0, 0, _MIME_JSONLD()))
+        rev_map = Dict{String,Any}()
+        for (k, v) in rev
+            sk = String(k)
+            expanded_pred = _expand_iri(ctx, sk; vocab=true, base=false)
+            expanded_pred === nothing && continue
+            # @reverse map keys must be properties, not keywords.
+            expanded_pred in _JSONLD_KEYWORDS &&
+                throw(ParseError("invalid key \"$expanded_pred\" in @reverse", 0, 0, _MIME_JSONLD()))
+            !occursin(':', expanded_pred) && continue
+            expanded_vals = _expand_property_values(v, expanded_pred, ctx)
+            # Reverse property values must be node references, not literals/lists.
+            for ev in expanded_vals
+                (ev isa AbstractDict && !haskey(ev, "@value") && !haskey(ev, "@list")) ||
+                    throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
             end
-            isempty(rev_map) || (node["@reverse"] = rev_map)
+            isempty(expanded_vals) || (rev_map[expanded_pred] = expanded_vals)
         end
+        isempty(rev_map) || (node["@reverse"] = rev_map)
     end
 
     # Other properties (with @nest contents hoisted into this node).
@@ -868,7 +878,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             rev_iri = tdk["@reverse"]
             revvals = _expand_values_with_td(v, tdk, ctx)
             for rv in revvals
-                (rv isa AbstractDict && !haskey(rv, "@value")) ||
+                (rv isa AbstractDict && !haskey(rv, "@value") && !haskey(rv, "@list")) ||
                     throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
             end
             if !isempty(revvals)
