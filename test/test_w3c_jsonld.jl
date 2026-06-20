@@ -88,7 +88,8 @@ function _jld_run_manifest(runner::Function, manifest_file::String, test_type::S
 end
 
 if isdir(_JLD_DIR)
-    @testset "W3C JSON-LD 1.1 toRdf" begin
+  @testset "W3C JSON-LD 1.1" begin
+    @testset "toRdf" begin
         _jld_run_manifest("toRdf-manifest.jsonld", "jld:ToRDFTest") do entry, opt
             input = String(_jget(entry, "input"))
             inpath = _jld_local(_JLD_BASE * input)
@@ -112,6 +113,30 @@ if isdir(_JLD_DIR)
             end
         end
     end
+
+    @testset "fromRdf" begin
+        # fromRdf is scored by round-tripping: our JSON-LD serialization of the
+        # input N-Quads is reparsed and compared to the parsed expected JSON-LD
+        # by dataset isomorphism (robust to JSON key/array ordering, blank-node
+        # labels, and @list-vs-first/rest representation).
+        _jld_run_manifest("fromRdf-manifest.jsonld", "jld:FromRDFTest") do entry, opt
+            input = String(_jget(entry, "input"))
+            inpath = _jld_local(_JLD_BASE * input)
+            types = _jget(entry, "@type", String[])
+            ds = open(io -> read(io, MIME"application/n-quads"(), Dataset), inpath)
+            actual_json = sprint(io -> write(io, MIME"application/ld+json"(), ds))
+            actual = read(IOBuffer(actual_json), MIME"application/ld+json"(), Dataset)
+            if ("jld:NegativeEvaluationTest" in types) || ("jld:NegativeSyntaxTest" in types)
+                @test_skip false
+            else
+                expect = String(_jget(entry, "expect"))
+                exppath = _jld_local(_JLD_BASE * expect)
+                expected = open(io -> read(io, MIME"application/ld+json"(), Dataset), exppath)
+                @test _jld_ds_iso(actual, expected)
+            end
+        end
+    end
+  end
 else
     error("JSON-LD fixtures missing at $_JLD_DIR")
 end
