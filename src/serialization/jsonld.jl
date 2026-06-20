@@ -354,6 +354,17 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
                 lv = v["@language"]
                 td["@language"] = lv === nothing ? nothing : lowercase(String(lv))
             end
+            # @nest in a term definition must be exactly "@nest", and cannot be
+            # combined with @reverse.
+            if haskey(v, "@nest")
+                nv = v["@nest"]
+                (nv isa AbstractString && String(nv) == "@nest") ||
+                    throw(ParseError("invalid @nest value in term definition",
+                                     0, 0, _MIME_JSONLD()))
+                haskey(v, "@reverse") &&
+                    throw(ParseError("@nest cannot be used with @reverse",
+                                     0, 0, _MIME_JSONLD()))
+            end
             # A property-scoped @context is stored raw and applied when this
             # term's values are expanded.
             haskey(v, "@context") && (td["@context"] = v["@context"])
@@ -549,6 +560,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
 
     # @included: independent node objects emitted alongside this node.
     if haskey(d, "@included")
+        _validate_included(d["@included"])
         inc = _expand_document(d["@included"], ctx)
         isempty(inc) || (node["@included"] = inc)
     end
@@ -700,6 +712,15 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     node
 end
 
+# @included must be a node object or an array of node objects (not a string,
+# value object, or list object).
+function _validate_included(v)
+    for it in (v isa AbstractArray ? collect(v) : Any[v])
+        (it isa AbstractDict && !haskey(it, "@value") && !haskey(it, "@list")) ||
+            throw(ParseError("invalid @included value", 0, 0, _MIME_JSONLD()))
+    end
+end
+
 # Collect a node's ordinary (non-keyword) property pairs, recursively hoisting
 # the contents of @nest properties (and @nest aliases) into the parent node.
 function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{String,Any}}
@@ -709,7 +730,10 @@ function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{Strin
         kw = _kw_alias(ctx, k)
         if kw == "@nest"
             for nv in (v isa AbstractArray ? collect(v) : Any[v])
-                nv isa AbstractDict && append!(pairs, _gather_props(nv, ctx))
+                # @nest must be a node object (not a scalar or value object).
+                (nv isa AbstractDict && !haskey(nv, "@value")) ||
+                    throw(ParseError("invalid @nest value", 0, 0, _MIME_JSONLD()))
+                append!(pairs, _gather_props(nv, ctx))
             end
         elseif kw === nothing && !startswith(k, "@")
             push!(pairs, (k, v))
