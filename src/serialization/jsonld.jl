@@ -259,8 +259,12 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                           override_protected::Bool=false,
                           propagate::Bool=true)::_JsonLDContext
     # @context: null resets the context but keeps the document base and loader.
-    # Under a non-propagating scope the reset context remembers its predecessor.
+    # Clearing the active context that has @protected terms is only allowed when
+    # overriding (a term/type-scoped context); an embedded null reset fails.
     if raw_ctx === nothing
+        !override_protected && !isempty(ctx.protected) &&
+            throw(ParseError("attempt to clear protected terms with a null context",
+                             0, 0, _MIME_JSONLD()))
         return _JsonLDContext(ctx.base, nothing, nothing, Dict{String,Any}(),
                               ctx.loader, Set{String}(), propagate ? nothing : ctx)
     end
