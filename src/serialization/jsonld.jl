@@ -745,8 +745,9 @@ function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     is_json = dt_expanded == "@json"
 
     val = d["@value"]
-    # A null @value expands to nothing (the value is dropped entirely).
-    val === nothing && return nothing
+    # A null @value drops the value — except for @type: @json, where null is a
+    # valid JSON value.
+    val === nothing && !is_json && return nothing
     # @value must be a scalar (string/number/boolean), except for @type: @json
     # where any JSON value is permitted.
     is_json || (val isa AbstractString || val isa Number || val isa Bool) ||
