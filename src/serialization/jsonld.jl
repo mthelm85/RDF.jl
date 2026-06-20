@@ -307,6 +307,36 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
         end
     end
 
+    # @version, if present, must be 1.1.
+    if haskey(raw_ctx, "@version")
+        vv = raw_ctx["@version"]
+        (vv isa Number && Float64(vv) == 1.1) ||
+            throw(ParseError("@version must be 1.1", 0, 0, _MIME_JSONLD()))
+    end
+    # @propagate must be a boolean.
+    if haskey(raw_ctx, "@propagate") && !(raw_ctx["@propagate"] isa Bool)
+        throw(ParseError("@propagate must be a boolean", 0, 0, _MIME_JSONLD()))
+    end
+    # @direction must be "ltr", "rtl", or null.
+    if haskey(raw_ctx, "@direction")
+        dv = raw_ctx["@direction"]
+        (dv === nothing || (dv isa AbstractString && lowercase(String(dv)) in ("ltr", "rtl"))) ||
+            throw(ParseError("@direction must be ltr or rtl", 0, 0, _MIME_JSONLD()))
+    end
+    # @import must be a string.
+    if haskey(raw_ctx, "@import") && !(raw_ctx["@import"] isa AbstractString)
+        throw(ParseError("@import must be a string", 0, 0, _MIME_JSONLD()))
+    end
+    # A context-level @type definition must be a non-empty map containing only
+    # @container (which must be @set) and/or @protected.
+    if haskey(raw_ctx, "@type")
+        tv = raw_ctx["@type"]
+        (tv isa AbstractDict && !isempty(tv) &&
+         all(kk -> String(kk) in ("@container", "@protected"), keys(tv)) &&
+         (!haskey(tv, "@container") || String(tv["@container"]) == "@set")) ||
+            throw(ParseError("invalid context @type definition", 0, 0, _MIME_JSONLD()))
+    end
+
     # Term definitions
     for (k, v) in raw_ctx
         sk = String(k)
@@ -377,8 +407,22 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
                 # @container may be a single keyword or an array of keywords
                 # (e.g. ["@language", "@set"]) in JSON-LD 1.1.
                 cv = v["@container"]
-                td["@container"] = cv isa AbstractString ? String(cv) :
-                                   cv isa AbstractArray  ? String[String(x) for x in cv] : cv
+                cont = cv isa AbstractString ? String[String(cv)] :
+                       cv isa AbstractArray  ? String[String(x) for x in cv] : String[]
+                isempty(cont) &&
+                    throw(ParseError("invalid @container mapping", 0, 0, _MIME_JSONLD()))
+                for c in cont
+                    c in ("@list", "@set", "@index", "@language", "@id", "@type", "@graph") ||
+                        throw(ParseError("invalid @container mapping \"$c\"", 0, 0, _MIME_JSONLD()))
+                end
+                # A reverse property's container is limited to @set / @index.
+                haskey(v, "@reverse") && !all(c -> c in ("@set", "@index"), cont) &&
+                    throw(ParseError("invalid @container for reverse property", 0, 0, _MIME_JSONLD()))
+                td["@container"] = length(cont) == 1 ? cont[1] : cont
+            end
+            # @index in a term definition must be a string.
+            if haskey(v, "@index") && !(v["@index"] isa AbstractString)
+                throw(ParseError("@index in term definition must be a string", 0, 0, _MIME_JSONLD()))
             end
             if haskey(v, "@reverse")
                 rv = v["@reverse"]
@@ -520,6 +564,9 @@ function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     # @type and @language are mutually exclusive.
     haskey(d, "@type") && haskey(d, "@language") &&
         throw(ParseError("value object with both @type and @language", 0, 0, _MIME_JSONLD()))
+    # @index must be a string.
+    haskey(d, "@index") && !(d["@index"] isa AbstractString) &&
+        throw(ParseError("@index must be a string", 0, 0, _MIME_JSONLD()))
 
     # Resolve the datatype up front, expanding aliases (e.g. a term mapped to
     # @json, or to a datatype IRI).
