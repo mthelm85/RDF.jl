@@ -699,6 +699,11 @@ function _kw_alias(ctx::_JsonLDContext, key::AbstractString)
     (startswith(key, "@") && key in _JSONLD_KEYWORDS) && return String(key)
     td = get(ctx.terms, String(key), nothing)
     td isa AbstractString && startswith(td, "@") && td in _JSONLD_KEYWORDS && return String(td)
+    # A map term definition whose @id is a keyword is also an alias.
+    if td isa AbstractDict && haskey(td, "@id")
+        id = td["@id"]
+        id isa AbstractString && startswith(id, "@") && id in _JSONLD_KEYWORDS && return String(id)
+    end
     nothing
 end
 
