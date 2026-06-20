@@ -655,6 +655,10 @@ function _kw_alias(ctx::_JsonLDContext, key::AbstractString)
     nothing
 end
 
+# Whether a map key denotes @none (literally or via a keyword alias).
+_is_none_key(ctx::_JsonLDContext, key::AbstractString) =
+    key == "@none" || _kw_alias(ctx, key) == "@none"
+
 # The @container keywords declared for a term definition, as a vector.
 function _container_of(td)::Vector{String}
     (td isa AbstractDict && haskey(td, "@container")) || return String[]
@@ -717,20 +721,38 @@ function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     result
 end
 
-function _expand_list_values(list_val, ctx::_JsonLDContext)::Vector{Any}
+# Expand a single list/scalar member, applying the list term's @type coercion
+# (@id/@vocab → node reference; a datatype → typed value) to bare strings.
+function _expand_coerced(item, ctx::_JsonLDContext, coerce)
+    if item isa AbstractString && coerce !== nothing
+        cs = String(coerce)
+        if cs == "@id"
+            ex = _expand_iri(ctx, String(item); vocab=false, base=true)
+            return Dict{String,Any}("@id" => (ex !== nothing ? ex : String(item)))
+        elseif cs == "@vocab"
+            ex = _expand_iri(ctx, String(item); vocab=true, base=true)
+            return Dict{String,Any}("@id" => (ex !== nothing ? ex : String(item)))
+        elseif cs != "@none"
+            return Dict{String,Any}("@value" => String(item), "@type" => cs)
+        end
+    end
+    _expand_value(item, ctx)
+end
+
+function _expand_list_values(list_val, ctx::_JsonLDContext; coerce=nothing)::Vector{Any}
     list_val === nothing && return Any[]
     if !(list_val isa AbstractArray)
-        v = _expand_value(list_val, ctx)
+        v = _expand_coerced(list_val, ctx, coerce)
         return v !== nothing ? Any[v] : Any[]
     end
     out = Any[]
     for item in list_val
         # A nested array becomes a nested list object.
         if item isa AbstractArray
-            push!(out, Dict{String,Any}("@list" => _expand_list_values(item, ctx)))
+            push!(out, Dict{String,Any}("@list" => _expand_list_values(item, ctx; coerce=coerce)))
             continue
         end
-        v = _expand_value(item, ctx)
+        v = _expand_coerced(item, ctx, coerce)
         v !== nothing && push!(out, v)
     end
     out
@@ -867,10 +889,11 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             out = Any[]
             for (lang, lv) in v
                 ls = lowercase(String(lang))
+                isnone = _is_none_key(ctx, String(lang))
                 for item in (lv isa AbstractArray ? collect(lv) : Any[lv])
                     item === nothing && continue
                     vo = Dict{String,Any}("@value" => String(item))
-                    ls == "@none" || (vo["@language"] = ls)
+                    isnone || (vo["@language"] = ls)
                     push!(out, vo)
                 end
             end
@@ -887,7 +910,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 for (key, sub) in v
                     for node in _expand_property_values(sub, expanded_pred, pctx)
                         go = _wrapg(node)
-                        if "@id" in container && String(key) != "@none"
+                        if "@id" in container && !_is_none_key(ctx, String(key))
                             eid = _expand_iri(pctx, String(key); vocab=false, base=true)
                             if eid !== nothing
                                 go = Dict{String,Any}(go)   # copy before tagging
@@ -909,7 +932,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             out = Any[]
             for (key, sub) in v
                 for node in _expand_map_nodes(sub, pctx)
-                    if node isa AbstractDict && !haskey(node, "@id") && String(key) != "@none"
+                    if node isa AbstractDict && !haskey(node, "@id") && !_is_none_key(ctx, String(key))
                         eid = _expand_iri(pctx, String(key); vocab=false, base=true)
                         eid !== nothing && (node["@id"] = eid)
                     end
@@ -922,7 +945,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             # @type, and the key term's type-scoped @context applies to the node.
             out = Any[]
             for (key, sub) in v
-                ekey = String(key) == "@none" ? nothing :
+                ekey = _is_none_key(ctx, String(key)) ? nothing :
                        _expand_iri(pctx, String(key); vocab=true, base=false)
                 kctx = pctx
                 kt = get(pctx.terms, String(key), nothing)
@@ -950,7 +973,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             out = Any[]
             for (idxkey, iv) in v
                 members = _expand_property_values(iv, expanded_pred, pctx)
-                if idx_prop !== nothing && String(idxkey) != "@none"
+                if idx_prop !== nothing && !_is_none_key(ctx, String(idxkey))
                     ipred = _expand_iri(pctx, idx_prop; vocab=true, base=false)
                     ival = _expand_index_value(String(idxkey), idx_prop, pctx)
                     if ipred !== nothing
@@ -976,7 +999,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             if v isa AbstractDict && haskey(v, "@list")
                 # already a list object — expanded_vals holds it
             else
-                expanded_vals = Any[Dict{String,Any}("@list" => _expand_list_values(v, pctx))]
+                lc = tdk isa AbstractDict ? get(tdk, "@type", nothing) : nothing
+                expanded_vals = Any[Dict{String,Any}("@list" => _expand_list_values(v, pctx; coerce=lc))]
             end
         end
         # "@set" container: values stay a plain array (the default) — no-op.
