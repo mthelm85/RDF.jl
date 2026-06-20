@@ -438,9 +438,13 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     # Whether all terms in this context are protected by default.
     ctx_protected = get(raw_ctx, "@protected", false) === true
 
-    # Term definitions
-    for (k, v) in raw_ctx
-        sk = String(k)
+    # Term definitions. Process simple (string) definitions — which establish
+    # prefixes — before map definitions, so a term whose @id uses a prefix
+    # defined later in the same context still resolves (forward references).
+    _term_pairs = [(String(k), v) for (k, v) in raw_ctx]
+    _term_pairs = vcat([p for p in _term_pairs if !(p[2] isa AbstractDict)],
+                       [p for p in _term_pairs if p[2] isa AbstractDict])
+    for (sk, v) in _term_pairs
         sk in ("@base", "@vocab", "@language", "@version") && continue
         # A key in keyword form (@ followed by letters) is reserved and ignored;
         # other @-keys (e.g. "@", "@foo.bar") are ordinary terms.
