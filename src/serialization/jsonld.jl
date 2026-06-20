@@ -586,8 +586,12 @@ function _expand_value(doc, ctx::_JsonLDContext)
     # Value object
     haskey(d, "@value") && return _expand_value_object(d, ctx)
 
-    # List object
+    # List object — may only carry @list and @index.
     if haskey(d, "@list")
+        for k in keys(d)
+            String(k) in ("@list", "@index", "@context") ||
+                throw(ParseError("invalid set or list object key \"$k\"", 0, 0, _MIME_JSONLD()))
+        end
         return Dict{String,Any}("@list" => _expand_list_values(d["@list"], ctx))
     end
 
@@ -882,7 +886,10 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                     kctx = _process_context(pctx, kt["@context"]; override_protected=true)
                 end
                 for node in _expand_map_nodes(sub, kctx)
-                    if node isa AbstractDict && ekey !== nothing
+                    # Type-map values must be node references, not literals.
+                    (node isa AbstractDict && !haskey(node, "@value")) ||
+                        throw(ParseError("type-map value must not be a literal", 0, 0, _MIME_JSONLD()))
+                    if ekey !== nothing
                         ex = get(node, "@type", nothing)
                         node["@type"] = ex === nothing ? String[ekey] :
                             String[ekey, (ex isa AbstractArray ? ex : Any[ex])...]
