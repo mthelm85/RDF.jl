@@ -804,11 +804,13 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             out
         elseif "@graph" in container
             # Graph container: each value is wrapped in a graph object. With
-            # @id/@index the value is a map keyed by graph id / index.
-            _wrapg(node) = (node isa AbstractDict && haskey(node, "@graph")) ?
-                           node : Dict{String,Any}("@graph" => Any[node])
+            # @id/@index the value is a map keyed by graph id / index, and an
+            # existing graph object is kept as-is; a plain @graph always wraps
+            # (so a value that is already a graph becomes a nested graph).
             out = Any[]
             if ("@id" in container || "@index" in container) && v isa AbstractDict
+                _wrapg(node) = (node isa AbstractDict && haskey(node, "@graph")) ?
+                               node : Dict{String,Any}("@graph" => Any[node])
                 for (key, sub) in v
                     for node in _expand_property_values(sub, expanded_pred, pctx)
                         go = _wrapg(node)
@@ -824,7 +826,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 end
             else
                 for node in _expand_property_values(v, expanded_pred, pctx)
-                    push!(out, _wrapg(node))
+                    push!(out, Dict{String,Any}("@graph" => Any[node]))
                 end
             end
             out
@@ -1092,7 +1094,7 @@ function _jsonld_to_rdf(expanded::Vector{Any}, base::Union{String,Nothing})::Dat
     blank_map = Dict{String,BlankNode}()
     for node in expanded
         node isa AbstractDict || continue
-        _process_node!(ds.default_graph, node, ds, blank_map)
+        _process_node!(ds.default_graph, node, ds, blank_map; top_level=true)
     end
     ds
 end
@@ -1120,14 +1122,22 @@ end
 # Emit a node's triples into `graph`, returning the subject term (or nothing
 # if the node has an unusable @id).  Handles @type, properties, @reverse, and
 # @graph (named graphs).
-function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset, blank_map::Dict{String,BlankNode})
+function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
+                        blank_map::Dict{String,BlankNode}; top_level::Bool=false)
     d = Dict{String,Any}(String(k) => v for (k, v) in node)
 
-    # A bare graph wrapper (only @graph, e.g. the top-level document object):
-    # its contents belong to the current graph, not a fresh named graph.
+    # A bare graph object (only @graph). At the top level (the document object)
+    # its contents belong to the current/default graph; nested, it denotes a
+    # fresh named graph keyed by a blank node.
     if haskey(d, "@graph") && length(d) == 1
-        _process_graph_contents!(graph, d["@graph"], ds, blank_map)
-        return nothing
+        if top_level
+            _process_graph_contents!(graph, d["@graph"], ds, blank_map)
+            return nothing
+        end
+        gname = _mint_blank_node()
+        ng = get!(() -> Graph(), ds.named_graphs, gname)
+        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        return gname
     end
 
     # Determine subject
