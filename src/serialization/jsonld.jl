@@ -362,7 +362,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     for (k, v) in raw_ctx
         sk = String(k)
         sk in ("@base", "@vocab", "@language", "@version") && continue
-        startswith(sk, "@") && continue
+        # A key in keyword form (@ followed by letters) is reserved and ignored;
+        # other @-keys (e.g. "@", "@foo.bar") are ordinary terms.
+        occursin(r"^@[A-Za-z]+$", sk) && continue
         # The empty string is not a valid term.
         sk == "" && throw(ParseError("definition for the empty term", 0, 0, _MIME_JSONLD()))
 
@@ -388,6 +390,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                     td["@id"] = nothing
                 elseif vid isa AbstractString
                     sv = String(vid)
+                    # An @id in keyword form that is not a real keyword makes the
+                    # term reserved/ignored (not defined).
+                    occursin(r"^@[A-Za-z]+$", sv) && !(sv in _JSONLD_KEYWORDS) && continue
                     # @id may not be set to a keyword like @context.
                     sv == "@context" &&
                         throw(ParseError("invalid keyword alias to @context", 0, 0, _MIME_JSONLD()))
@@ -941,7 +946,9 @@ function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{Strin
                     throw(ParseError("invalid @nest value", 0, 0, _MIME_JSONLD()))
                 append!(pairs, _gather_props(nv, ctx))
             end
-        elseif kw === nothing && !startswith(k, "@")
+        elseif kw === nothing && (!startswith(k, "@") || haskey(ctx.terms, k))
+            # ordinary terms, plus @-keys that are explicitly defined terms
+            # (e.g. "@", "@foo.bar"); reserved keyword-form keys are dropped.
             push!(pairs, (k, v))
         end
     end
