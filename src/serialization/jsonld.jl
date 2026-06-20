@@ -291,7 +291,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             result.base = nothing
         elseif v isa AbstractString
             sv = String(v)
-            if !isempty(sv) && result.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]:", sv)
+            if !isempty(sv) && result.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sv)
                 result.base = _resolve_iri(result.base, sv)
             else
                 result.base = isempty(sv) ? nothing : sv
