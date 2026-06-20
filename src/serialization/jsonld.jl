@@ -1871,7 +1871,13 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
     subject_ids    = String[]
     subject_preds  = Dict{String, Dict{String,Vector{Any}}}()
 
+    # Under rdfDirection: compound-literal, blank nodes that are compound
+    # literals (rdf:value + rdf:direction [+ rdf:language] only) collapse into
+    # a single @direction value object and are not emitted as standalone nodes.
+    compound = _compound_literals(g)
+
     for triple in g
+        triple.subject isa BlankNode && haskey(compound, triple.subject) && continue
         s_key = triple.subject isa IRI ? triple.subject.value : _jbn_label(triple.subject)
 
         if !haskey(subject_preds, s_key)
@@ -1885,7 +1891,8 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
             vals = get!(pred_map, "@type") do; Any[] end
             push!(vals, triple.object.value)
         else
-            obj_node = _object_to_jsonld_obj(triple.object)
+            obj_node = (triple.object isa BlankNode && haskey(compound, triple.object)) ?
+                       compound[triple.object] : _object_to_jsonld_obj(triple.object)
             obj_node === nothing && continue
             vals = get!(pred_map, pred_iri) do; Any[] end
             push!(vals, obj_node)
@@ -1902,6 +1909,34 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
         push!(nodes, node)
     end
     nodes
+end
+
+# Identify compound-literal blank nodes (rdfDirection: compound-literal): a
+# blank node whose only properties are rdf:value, rdf:direction, and optionally
+# rdf:language maps to a @value/@direction/@language value object.
+function _compound_literals(g::Graph)::Dict{BlankNode,Dict{String,Any}}
+    out = Dict{BlankNode,Dict{String,Any}}()
+    _WRITE_DIRECTION_MODE[] == "compound-literal" || return out
+    bysubj = Dict{BlankNode,Vector{Any}}()
+    for t in g
+        t.subject isa BlankNode || continue
+        push!(get!(() -> Any[], bysubj, t.subject), t)
+    end
+    allowed = Set([_JRDF_VALUE, _JRDF_DIRECTION, _JRDF_LANGUAGE])
+    for (bn, ts) in bysubj
+        preds = Set(t.predicate.value for t in ts)
+        (_JRDF_VALUE in preds && _JRDF_DIRECTION in preds && preds ⊆ allowed) || continue
+        vo = Dict{String,Any}()
+        for t in ts
+            t.object isa Literal || continue
+            lf = t.object.lexical_form
+            t.predicate.value == _JRDF_VALUE     && (vo["@value"] = lf)
+            t.predicate.value == _JRDF_DIRECTION && (vo["@direction"] = lf)
+            t.predicate.value == _JRDF_LANGUAGE  && (vo["@language"] = lf)
+        end
+        out[bn] = vo
+    end
+    out
 end
 
 # File extension dispatch (.jsonld, .json-ld) is handled in ntriples.jl's
