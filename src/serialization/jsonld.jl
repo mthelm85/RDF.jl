@@ -826,7 +826,9 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         end
     end
 
-    # @type
+    # @type — the type values are expanded against the context *before* any
+    # type-scoped contexts are applied (so a type-scoped @vocab/@base reset does
+    # not affect the type IRIs themselves).
     if haskey(d, "@type")
         types = d["@type"]
         types_arr = types isa AbstractArray ? collect(types) : Any[types]
@@ -834,7 +836,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for t in types_arr
             t isa AbstractString ||
                 throw(ParseError("@type value must be a string", 0, 0, _MIME_JSONLD()))
-            et = _expand_iri(ctx, String(t); vocab=true, base=true)
+            et = _expand_iri(child_base, String(t); vocab=true, base=true)
             et !== nothing && push!(expanded_types, et)
         end
         isempty(expanded_types) || (node["@type"] = expanded_types)
