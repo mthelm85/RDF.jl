@@ -1192,6 +1192,20 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
         return Dict{String,Any}("@value" => sv, "@type" => _JXSD_STRING_S)
     end
 
+    # A native (boolean/number) value coerced to an arbitrary datatype: emit its
+    # canonical lexical form tagged with the coercion datatype.
+    if (val isa Bool || val isa Number) && term_def isa AbstractDict &&
+       haskey(term_def, "@type")
+        coerce = String(term_def["@type"])
+        if !(coerce in ("@id", "@vocab", "@json"))
+            dt = _expand_iri(ctx, coerce; vocab=true, base=false)
+            dt = dt !== nothing ? dt : coerce
+            lex = val isa Bool ? (val ? "true" : "false") :
+                  val isa Integer ? string(val) : _double_lexical(Float64(val))
+            return Dict{String,Any}("@value" => lex, "@type" => dt)
+        end
+    end
+
     if val isa Bool
         return Dict{String,Any}("@value" => val, "@type" => _JXSD_BOOLEAN_S)
     end
