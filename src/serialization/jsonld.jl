@@ -276,6 +276,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             else
                 result.base = isempty(sv) ? nothing : sv
             end
+        else
+            throw(ParseError("@base must be a string or null", 0, 0, _MIME_JSONLD()))
         end
     end
 
@@ -288,6 +290,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             sv = String(v)
             expanded = _expand_iri(result, sv; vocab=true, base=false)
             result.vocab = (expanded !== nothing && expanded != sv) ? expanded : sv
+        else
+            throw(ParseError("@vocab must be a string or null", 0, 0, _MIME_JSONLD()))
         end
     end
 
@@ -298,6 +302,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             result.language = nothing
         elseif v isa AbstractString
             result.language = lowercase(String(v))
+        else
+            throw(ParseError("@language must be a string or null", 0, 0, _MIME_JSONLD()))
         end
     end
 
@@ -306,6 +312,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
         sk = String(k)
         sk in ("@base", "@vocab", "@language", "@version") && continue
         startswith(sk, "@") && continue
+        # The empty string is not a valid term.
+        sk == "" && throw(ParseError("definition for the empty term", 0, 0, _MIME_JSONLD()))
 
         if v === nothing
             result.terms[sk] = nothing
@@ -319,25 +327,51 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             continue
         end
 
-        if v isa AbstractDict
+        # A term definition must be a string, map, or null.
+        v isa AbstractDict ||
+            throw(ParseError("invalid term definition for \"$sk\"", 0, 0, _MIME_JSONLD()))
+
+        begin
             td = Dict{String,Any}()
+            # @id and @reverse cannot coexist.
+            haskey(v, "@id") && haskey(v, "@reverse") &&
+                throw(ParseError("term definition has both @id and @reverse", 0, 0, _MIME_JSONLD()))
             if haskey(v, "@id")
                 vid = v["@id"]
                 if vid === nothing
                     td["@id"] = nothing
                 elseif vid isa AbstractString
                     sv = String(vid)
+                    # @id may not be set to a keyword like @context.
+                    sv == "@context" &&
+                        throw(ParseError("invalid keyword alias to @context", 0, 0, _MIME_JSONLD()))
                     expanded = _expand_iri(result, sv; vocab=true, base=false)
                     td["@id"] = (expanded !== nothing && expanded != sv) ? expanded : sv
+                else
+                    throw(ParseError("@id in term definition must be a string", 0, 0, _MIME_JSONLD()))
                 end
             else
                 # Default @id: expand the term name itself
                 expanded = _expand_iri(result, sk; vocab=true, base=false)
                 td["@id"] = (expanded !== nothing) ? expanded : sk
             end
+            # @prefix must be a boolean.
+            if haskey(v, "@prefix") && !(v["@prefix"] isa Bool)
+                throw(ParseError("@prefix must be a boolean", 0, 0, _MIME_JSONLD()))
+            end
             if haskey(v, "@type")
                 tv = v["@type"]
-                td["@type"] = tv isa AbstractString ? String(tv) : tv
+                tv isa AbstractString ||
+                    throw(ParseError("@type in term definition must be a string", 0, 0, _MIME_JSONLD()))
+                tvs = String(tv)
+                if tvs in ("@id", "@vocab", "@json", "@none")
+                    td["@type"] = tvs
+                else
+                    ety = _expand_iri(result, tvs; vocab=true, base=false)
+                    (ety === nothing || startswith(ety, "_:") || !occursin(':', ety)) &&
+                        throw(ParseError("invalid type mapping \"$tvs\"", 0, 0, _MIME_JSONLD()))
+                    td["@type"] = ety
+                end
             end
             if haskey(v, "@container")
                 # @container may be a single keyword or an array of keywords
@@ -348,7 +382,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx)::_JsonLDContext
             end
             if haskey(v, "@reverse")
                 rv = v["@reverse"]
-                td["@reverse"] = rv isa AbstractString ? String(rv) : rv
+                rv isa AbstractString ||
+                    throw(ParseError("@reverse in term definition must be a string", 0, 0, _MIME_JSONLD()))
+                td["@reverse"] = String(rv)
             end
             if haskey(v, "@language")
                 lv = v["@language"]
