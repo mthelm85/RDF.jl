@@ -268,7 +268,10 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     # Clearing the active context that has @protected terms is only allowed when
     # overriding (a term/type-scoped context); an embedded null reset fails.
     if raw_ctx === nothing
-        !override_protected && !isempty(ctx.protected) &&
+        # Clearing protected terms via null is allowed only for a propagating
+        # override (a property/term-scoped context); a plain or non-propagating
+        # (type-scoped) null reset over protected terms fails.
+        (!override_protected || !propagate) && !isempty(ctx.protected) &&
             throw(ParseError("attempt to clear protected terms with a null context",
                              0, 0, _MIME_JSONLD()))
         # Resetting restores the document base (base option), not the overwritten
