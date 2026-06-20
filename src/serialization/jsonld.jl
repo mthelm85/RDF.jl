@@ -442,7 +442,13 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 rv = v["@reverse"]
                 rv isa AbstractString ||
                     throw(ParseError("@reverse in term definition must be a string", 0, 0, _MIME_JSONLD()))
-                td["@reverse"] = String(rv)
+                rev_iri = _expand_iri(result, String(rv); vocab=true, base=false)
+                # A keyword-form mapping (@…) makes the term ignored, not invalid.
+                if rev_iri !== nothing && !startswith(rev_iri, "@")
+                    (startswith(rev_iri, "_:") || !occursin(':', rev_iri)) &&
+                        throw(ParseError("invalid reverse property IRI \"$(String(rv))\"", 0, 0, _MIME_JSONLD()))
+                    td["@reverse"] = rev_iri
+                end
             end
             if haskey(v, "@language")
                 lv = v["@language"]
@@ -711,9 +717,16 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 sk = String(k)
                 expanded_pred = _expand_iri(ctx, sk; vocab=true, base=false)
                 expanded_pred === nothing && continue
-                expanded_pred in _JSONLD_KEYWORDS && continue
+                # @reverse map keys must be properties, not keywords.
+                expanded_pred in _JSONLD_KEYWORDS &&
+                    throw(ParseError("invalid key \"$expanded_pred\" in @reverse", 0, 0, _MIME_JSONLD()))
                 !occursin(':', expanded_pred) && continue
                 expanded_vals = _expand_property_values(v, expanded_pred, ctx)
+                # Reverse property values must be node references, not literals.
+                for ev in expanded_vals
+                    (ev isa AbstractDict && !haskey(ev, "@value")) ||
+                        throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
+                end
                 isempty(expanded_vals) || (rev_map[expanded_pred] = expanded_vals)
             end
             isempty(rev_map) || (node["@reverse"] = rev_map)
@@ -722,13 +735,30 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
 
     # Other properties (with @nest contents hoisted into this node).
     for (k, v) in _gather_props(d, ctx)
+        tdk = get(ctx.terms, k, nothing)
+
+        # A reverse term (defined with @reverse) routes its values into the
+        # node's @reverse map under the reverse IRI; values must be nodes.
+        if tdk isa AbstractDict && haskey(tdk, "@reverse")
+            rev_iri = tdk["@reverse"]
+            revvals = _expand_values_with_td(v, tdk, ctx)
+            for rv in revvals
+                (rv isa AbstractDict && !haskey(rv, "@value")) ||
+                    throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
+            end
+            if !isempty(revvals)
+                rmap = get!(() -> Dict{String,Any}(), node, "@reverse")
+                append!(get!(() -> Any[], rmap, rev_iri), revvals)
+            end
+            continue
+        end
+
         expanded_pred = _expand_iri(ctx, k; vocab=true, base=false)
         expanded_pred === nothing && continue
         expanded_pred in _JSONLD_KEYWORDS && continue
         !occursin(':', expanded_pred) && continue
 
         # @container coercion (driven by the *term*, not the IRI).
-        tdk = get(ctx.terms, k, nothing)
         container = _container_of(tdk)
 
         # A property-scoped @context applies while expanding this term's values
@@ -877,6 +907,24 @@ function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{Strin
         end
     end
     pairs
+end
+
+# Expand reverse-term values applying the term's @type:@id/@vocab coercion to
+# bare strings (node references); other values expand normally.
+function _expand_values_with_td(v, td, ctx::_JsonLDContext)::Vector{Any}
+    coerce = td isa AbstractDict ? get(td, "@type", nothing) : nothing
+    out = Any[]
+    for val in (v isa AbstractArray ? collect(v) : Any[v])
+        ev = if val isa AbstractString && (coerce == "@id" || coerce == "@vocab")
+            ex = coerce == "@id" ? _expand_iri(ctx, String(val); vocab=false, base=true) :
+                                   _expand_iri(ctx, String(val); vocab=true, base=false)
+            Dict{String,Any}("@id" => (ex !== nothing ? ex : String(val)))
+        else
+            _expand_value(val, ctx)
+        end
+        ev isa AbstractArray ? append!(out, ev) : (ev !== nothing && push!(out, ev))
+    end
+    out
 end
 
 # Expand the value(s) of an @id-/@type-map entry into node objects.  A bare
