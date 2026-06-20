@@ -271,7 +271,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         !override_protected && !isempty(ctx.protected) &&
             throw(ParseError("attempt to clear protected terms with a null context",
                              0, 0, _MIME_JSONLD()))
-        return _JsonLDContext(ctx.base, nothing, nothing, Dict{String,Any}(),
+        # Resetting restores the document base (base option), not the overwritten
+        # @base from the cleared context.
+        return _JsonLDContext(ctx.docbase, nothing, nothing, Dict{String,Any}(),
                               ctx.loader, Set{String}(), propagate ? nothing : ctx, ctx.docbase)
     end
 
@@ -551,6 +553,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 rv = v["@reverse"]
                 rv isa AbstractString ||
                     throw(ParseError("@reverse in term definition must be a string", 0, 0, _MIME_JSONLD()))
+                # A keyword-form @reverse value makes the term ignored (even with
+                # @vocab set, which would otherwise turn it into an IRI).
+                occursin(r"^@[A-Za-z]+$", String(rv)) && !(String(rv) in _JSONLD_KEYWORDS) && continue
                 rev_iri = _expand_iri(result, String(rv); vocab=true, base=false)
                 # A keyword-form mapping (@…) makes the term ignored, not invalid.
                 if rev_iri !== nothing && !startswith(rev_iri, "@")
