@@ -450,6 +450,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             sv = String(v)
             # A mapping in keyword form that is not a real keyword → term ignored.
             occursin(r"^@[A-Za-z]+$", sv) && !(sv in _JSONLD_KEYWORDS) && continue
+            # Cyclic IRI mapping: a compact IRI prefixed by the term itself.
+            (startswith(sv, sk * ":") && !startswith(sv, sk * "://")) &&
+                throw(ParseError("cyclic IRI mapping for \"$sk\"", 0, 0, _MIME_JSONLD()))
             expanded = _expand_iri(result, sv; vocab=true, base=false)
             newdef = (expanded !== nothing && expanded != sv) ? expanded : sv
         else
@@ -472,6 +475,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                     # @id may not be set to a keyword like @context.
                     sv == "@context" &&
                         throw(ParseError("invalid keyword alias to @context", 0, 0, _MIME_JSONLD()))
+                    # Cyclic IRI mapping: a compact IRI prefixed by the term itself.
+                    (startswith(sv, sk * ":") && !startswith(sv, sk * "://")) &&
+                        throw(ParseError("cyclic IRI mapping for \"$sk\"", 0, 0, _MIME_JSONLD()))
                     expanded = _expand_iri(result, sv; vocab=true, base=false)
                     td["@id"] = (expanded !== nothing && expanded != sv) ? expanded : sv
                 else
