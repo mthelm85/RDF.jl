@@ -287,6 +287,34 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     end
 
     raw_ctx isa AbstractDict || return ctx
+
+    # @import: load the referenced context and merge it under the current one
+    # (the current context's entries win); then process the merged result.
+    if haskey(raw_ctx, "@import")
+        imp = raw_ctx["@import"]
+        imp isa AbstractString ||
+            throw(ParseError("@import must be a string", 0, 0, _MIME_JSONLD()))
+        sref = String(imp)
+        iri = occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", sref) ? sref :
+              (ctx.base !== nothing ? _resolve_iri(ctx.base, sref) : sref)
+        loaded = ctx.loader === nothing ? nothing : ctx.loader(iri)
+        loaded === nothing && throw(ParseError(
+            "@import context \"$iri\" could not be resolved", 0, 0, _MIME_JSONLD()))
+        loaded isa AbstractArray &&
+            throw(ParseError("@import can only reference a single context", 0, 0, _MIME_JSONLD()))
+        loaded isa AbstractDict ||
+            throw(ParseError("invalid @import context", 0, 0, _MIME_JSONLD()))
+        haskey(loaded, "@import") &&
+            throw(ParseError("@import may not be used in an imported context", 0, 0, _MIME_JSONLD()))
+        merged = Dict{String,Any}()
+        for (k, v) in loaded; merged[String(k)] = v; end
+        for (k, v) in raw_ctx
+            String(k) == "@import" && continue
+            merged[String(k)] = v
+        end
+        return _process_context(ctx, merged; override_protected=override_protected)
+    end
+
     result = _copy_ctx(ctx)
 
     # @base
