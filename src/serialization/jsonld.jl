@@ -50,14 +50,18 @@ mutable struct _JsonLDContext
     loader::Any
     # names of @protected terms (cannot be redefined with a different mapping)
     protected::Set{String}
+    # the context to revert to when entering a nested node object, set when a
+    # non-propagating (type-scoped or @propagate:false) context is applied;
+    # nothing means the active context propagates normally.
+    previous::Any
 end
 
 _JsonLDContext(loader=nothing) =
-    _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader, Set{String}())
+    _JsonLDContext(nothing, nothing, nothing, Dict{String,Any}(), loader, Set{String}(), nothing)
 
 function _copy_ctx(ctx::_JsonLDContext)::_JsonLDContext
     _JsonLDContext(ctx.base, ctx.vocab, ctx.language, copy(ctx.terms),
-                   ctx.loader, copy(ctx.protected))
+                   ctx.loader, copy(ctx.protected), ctx.previous)
 end
 
 # Signature of a term definition used to decide whether two definitions are the
@@ -252,15 +256,20 @@ Process a raw JSON-LD @context value (null, string, object, or array) and
 return an updated context. Throws ParseError for remote context references.
 """
 function _process_context(ctx::_JsonLDContext, raw_ctx;
-                          override_protected::Bool=false)::_JsonLDContext
+                          override_protected::Bool=false,
+                          propagate::Bool=true)::_JsonLDContext
     # @context: null resets the context but keeps the document base and loader.
-    raw_ctx === nothing && return _JsonLDContext(ctx.base, nothing, nothing,
-                                                 Dict{String,Any}(), ctx.loader, Set{String}())
+    # Under a non-propagating scope the reset context remembers its predecessor.
+    if raw_ctx === nothing
+        return _JsonLDContext(ctx.base, nothing, nothing, Dict{String,Any}(),
+                              ctx.loader, Set{String}(), propagate ? nothing : ctx)
+    end
 
     if raw_ctx isa AbstractArray
         result = _copy_ctx(ctx)
         for entry in raw_ctx
-            result = _process_context(result, entry; override_protected=override_protected)
+            result = _process_context(result, entry;
+                                      override_protected=override_protected, propagate=propagate)
         end
         return result
     end
@@ -281,8 +290,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         # Process the loaded context with the document base set to the context's
         # own IRI (so its relative term IRIs resolve correctly), loader preserved.
         sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms),
-                             ctx.loader, copy(ctx.protected))
-        sub = _process_context(sub, loaded; override_protected=override_protected)
+                             ctx.loader, copy(ctx.protected), ctx.previous)
+        sub = _process_context(sub, loaded;
+                               override_protected=override_protected, propagate=propagate)
         sub.base = ctx.base   # restore the document base for subsequent processing
         return sub
     end
@@ -315,10 +325,17 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             String(k) == "@import" && continue
             merged[String(k)] = v
         end
-        return _process_context(ctx, merged; override_protected=override_protected)
+        return _process_context(ctx, merged; override_protected=override_protected,
+                                propagate=propagate)
     end
 
     result = _copy_ctx(ctx)
+
+    # Effective propagation: a context-level @propagate overrides the inherited
+    # default. A non-propagating context remembers the prior context so nested
+    # node objects can revert to it.
+    eff_propagate = haskey(raw_ctx, "@propagate") ? (raw_ctx["@propagate"] === true) : propagate
+    result.previous = eff_propagate ? ctx.previous : ctx
 
     # @base
     if haskey(raw_ctx, "@base")
@@ -809,7 +826,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for tv in tvals_arr
             td = get(ctx.terms, tv, nothing)
             if td isa AbstractDict && haskey(td, "@context")
-                ctx = _process_context(ctx, td["@context"]; override_protected=true)
+                ctx = _process_context(ctx, td["@context"]; override_protected=true,
+                                       propagate=false)
             end
         end
     end
@@ -908,9 +926,11 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         container = _container_of(tdk)
 
         # A property-scoped @context applies while expanding this term's values
-        # (and, unlike type-scoped, propagates into nested nodes). `pctx` is the
-        # active context for scalar coercion; `cctx` is what nested node values
-        # inherit (the propagating base, without ancestor type-scoped terms).
+        # and propagates into nested nodes. `pctx` is the active context (for
+        # scalar coercion, value objects, and bare @id references); `cctx` is
+        # what nested node objects inherit — the propagating base without
+        # ancestor type-scoped terms, with this property-scoped context layered
+        # on, so type-scoped contexts do not propagate but property-scoped do.
         pctx = ctx
         cctx = child_base
         if tdk isa AbstractDict && haskey(tdk, "@context")
@@ -1158,12 +1178,16 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     term_def = _find_term_def_by_id(ctx, pred)
 
     if val isa AbstractDict
-        # A value/list object uses the active context (for @type/@language
-        # coercion); a nested node object inherits the propagating child context
-        # (so ancestor type-scoped terms do not leak into it).
+        # A value/list object and a bare @id reference use the active context
+        # (their @value/@id resolve against the type-scoped base); a nested node
+        # object inherits the propagating child context (so ancestor type-scoped
+        # terms do not leak into it).
         is_value = haskey(val, "@value") ||
                    any(k -> _kw_alias(ctx, String(k)) in ("@value", "@list"), keys(val))
-        return _expand_value(val, is_value ? ctx : child)
+        nonctx = [String(k) for k in keys(val)
+                  if String(k) != "@context" && _kw_alias(ctx, String(k)) != "@context"]
+        is_id_ref = length(nonctx) == 1 && _kw_alias(ctx, nonctx[1]) == "@id"
+        return _expand_value(val, (is_value || is_id_ref) ? ctx : child)
     end
 
     if val isa AbstractString
