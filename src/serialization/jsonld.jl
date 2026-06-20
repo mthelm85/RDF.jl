@@ -1743,6 +1743,12 @@ function _object_to_jsonld_obj(obj::Literal)
         return Dict{String,Any}("@value" => obj.lexical_form, "@language" => obj.language_tag)
     end
     dt == _JXSD_STRING_S && return Dict{String,Any}("@value" => obj.lexical_form)
+    # An rdf:JSON literal round-trips as a @json value object (its lexical form
+    # is canonical JSON).
+    if dt == _JRDF_JSON
+        parsed = try JSON3.read(obj.lexical_form) catch; obj.lexical_form end
+        return Dict{String,Any}("@value" => parsed, "@type" => "@json")
+    end
     Dict{String,Any}("@value" => obj.lexical_form, "@type" => dt)
 end
 
