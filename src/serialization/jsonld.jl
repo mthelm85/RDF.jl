@@ -63,11 +63,14 @@ end
 # Signature of a term definition used to decide whether two definitions are the
 # same (for @protected redefinition checks).
 function _term_sig(t)
-    t isa AbstractString && return (t, nothing, nothing, nothing, nothing)
-    t isa AbstractDict && return (get(t, "@id", nothing), get(t, "@type", nothing),
-                                  get(t, "@container", nothing), get(t, "@reverse", nothing),
-                                  get(t, "@language", nothing))
-    (nothing, nothing, nothing, nothing, nothing)
+    t isa AbstractString && return (t, nothing, nothing, nothing, nothing, nothing)
+    if t isa AbstractDict
+        cs = haskey(t, "@context") ? JSON3.write(t["@context"]) : nothing
+        return (get(t, "@id", nothing), get(t, "@type", nothing),
+                get(t, "@container", nothing), get(t, "@reverse", nothing),
+                get(t, "@language", nothing), cs)
+    end
+    (nothing, nothing, nothing, nothing, nothing, nothing)
 end
 
 # ── IRI expansion ─────────────────────────────────────────────────────────────
@@ -497,19 +500,32 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             # A property-scoped @context is stored raw and applied when this
             # term's values are expanded.
             haskey(v, "@context") && (td["@context"] = v["@context"])
+            # @prefix:true cannot apply to a keyword alias.
+            if get(v, "@prefix", false) === true && haskey(v, "@id") &&
+               v["@id"] isa AbstractString && startswith(String(v["@id"]), "@")
+                throw(ParseError("a keyword alias cannot be a prefix", 0, 0, _MIME_JSONLD()))
+            end
             haskey(v, "@protected") && (term_protected = v["@protected"] === true)
             newdef = td
         end
 
+        was_protected = sk in result.protected
         # @protected: a protected term may not be redefined with a different
         # mapping (an identical redefinition is allowed).  Scoped contexts are
         # processed with override_protected and may redefine protected terms.
-        if !override_protected && sk in result.protected &&
+        if !override_protected && was_protected &&
            _term_sig(get(result.terms, sk, nothing)) != _term_sig(newdef)
             throw(ParseError("attempt to redefine protected term \"$sk\"", 0, 0, _MIME_JSONLD()))
         end
         result.terms[sk] = newdef
-        term_protected ? push!(result.protected, sk) : delete!(result.protected, sk)
+        # An identical redefinition retains protection unless @protected:false is
+        # given explicitly.
+        explicit_unprotect = v isa AbstractDict && get(v, "@protected", nothing) === false
+        if term_protected || (was_protected && !explicit_unprotect)
+            push!(result.protected, sk)
+        else
+            delete!(result.protected, sk)
+        end
     end
 
     result
