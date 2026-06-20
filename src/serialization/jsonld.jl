@@ -94,8 +94,10 @@ function _expand_iri(ctx::_JsonLDContext, value::String;
     # Keywords pass through unchanged
     value in _JSONLD_KEYWORDS && return value
 
-    # Check if value is a defined term
-    if haskey(ctx.terms, value)
+    # Check if value is a defined term. Bare-term lookup only applies in vocab
+    # mode (property keys / @type); for document-relative resolution (@id) terms
+    # are ignored and the value resolves against the base.
+    if vocab && haskey(ctx.terms, value)
         td = ctx.terms[value]
         td === nothing && return nothing
         mapped = _term_def_id(td)
