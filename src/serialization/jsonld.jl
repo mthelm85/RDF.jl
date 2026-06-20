@@ -476,18 +476,46 @@ function _container_of(td)::Vector{String}
 end
 
 function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
+    # A value object may only contain these keys.
+    for k in keys(d)
+        String(k) in ("@value", "@type", "@language", "@index", "@direction") ||
+            throw(ParseError("invalid value object key \"$k\"", 0, 0, _MIME_JSONLD()))
+    end
+    # @type and @language are mutually exclusive.
+    haskey(d, "@type") && haskey(d, "@language") &&
+        throw(ParseError("value object with both @type and @language", 0, 0, _MIME_JSONLD()))
+
+    # Resolve the datatype up front, expanding aliases (e.g. a term mapped to
+    # @json, or to a datatype IRI).
+    dt_expanded = nothing
+    if haskey(d, "@type")
+        dtraw = d["@type"]
+        dtraw isa AbstractString ||
+            throw(ParseError("@type of a value object must be a string", 0, 0, _MIME_JSONLD()))
+        dts = String(dtraw)
+        dt_expanded = dts == "@json" ? "@json" : _expand_iri(ctx, dts; vocab=true, base=false)
+    end
+    is_json = dt_expanded == "@json"
+
     val = d["@value"]
     # A null @value expands to nothing (the value is dropped entirely).
     val === nothing && return nothing
+    # @value must be a scalar (string/number/boolean), except for @type: @json
+    # where any JSON value is permitted.
+    is_json || (val isa AbstractString || val isa Number || val isa Bool) ||
+        throw(ParseError("invalid @value (must be a scalar)", 0, 0, _MIME_JSONLD()))
+    # A language-tagged value must be a string.
+    haskey(d, "@language") && !(val isa AbstractString) &&
+        throw(ParseError("language-tagged @value must be a string", 0, 0, _MIME_JSONLD()))
+
     result = Dict{String,Any}("@value" => val)
-    if haskey(d, "@type")
-        dt = String(d["@type"])
-        if dt == "@json"
-            result["@type"] = "@json"
-        else
-            expanded_dt = _expand_iri(ctx, dt; vocab=true, base=false)
-            result["@type"] = expanded_dt !== nothing ? expanded_dt : dt
-        end
+    if is_json
+        result["@type"] = "@json"
+    elseif dt_expanded !== nothing
+        # The datatype must be an absolute IRI (not a blank node or relative).
+        (startswith(dt_expanded, "_:") || !occursin(':', dt_expanded)) &&
+            throw(ParseError("invalid value object datatype", 0, 0, _MIME_JSONLD()))
+        result["@type"] = dt_expanded
     elseif haskey(d, "@language")
         lv = d["@language"]
         lv !== nothing && (result["@language"] = lowercase(String(lv)))
@@ -534,10 +562,10 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
     # @id
     if haskey(d, "@id")
         raw_id = d["@id"]
-        if raw_id isa AbstractString
-            expanded_id = _expand_iri(ctx, String(raw_id); vocab=false, base=true)
-            expanded_id !== nothing && (node["@id"] = expanded_id)
-        end
+        raw_id isa AbstractString ||
+            throw(ParseError("@id value must be a string", 0, 0, _MIME_JSONLD()))
+        expanded_id = _expand_iri(ctx, String(raw_id); vocab=false, base=true)
+        expanded_id !== nothing && (node["@id"] = expanded_id)
     end
 
     # @type
@@ -546,7 +574,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         types_arr = types isa AbstractArray ? collect(types) : Any[types]
         expanded_types = String[]
         for t in types_arr
-            t isa AbstractString || continue
+            t isa AbstractString ||
+                throw(ParseError("@type value must be a string", 0, 0, _MIME_JSONLD()))
             et = _expand_iri(ctx, String(t); vocab=true, base=false)
             et !== nothing && push!(expanded_types, et)
         end
@@ -1077,7 +1106,9 @@ function _json_canonical(v)::String
     v isa Integer && return string(v)
     if v isa Real
         f = Float64(v)
-        return isinteger(f) ? string(Integer(f)) : string(f)
+        # Only collapse to an integer literal within Int64's exact range.
+        (isinteger(f) && abs(f) < 9.007199254740992e15) && return string(Integer(f))
+        return string(f)
     end
     v isa AbstractString && return JSON3.write(String(v))
     if v isa AbstractArray
