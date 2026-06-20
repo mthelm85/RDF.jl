@@ -434,9 +434,20 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                     throw(ParseError("invalid @container for reverse property", 0, 0, _MIME_JSONLD()))
                 td["@container"] = length(cont) == 1 ? cont[1] : cont
             end
-            # @index in a term definition must be a string.
-            if haskey(v, "@index") && !(v["@index"] isa AbstractString)
-                throw(ParseError("@index in term definition must be a string", 0, 0, _MIME_JSONLD()))
+            # @index in a term definition must be a non-keyword string, and the
+            # term's container must include @index (property-valued index).
+            if haskey(v, "@index")
+                iv = v["@index"]
+                iv isa AbstractString ||
+                    throw(ParseError("@index in term definition must be a string", 0, 0, _MIME_JSONLD()))
+                String(iv) in _JSONLD_KEYWORDS &&
+                    throw(ParseError("@index must not be a keyword", 0, 0, _MIME_JSONLD()))
+                cont = get(td, "@container", nothing)
+                has_index = cont isa AbstractString ? cont == "@index" :
+                            cont isa AbstractArray ? ("@index" in cont) : false
+                has_index ||
+                    throw(ParseError("@index requires @container @index", 0, 0, _MIME_JSONLD()))
+                td["@index"] = String(iv)
             end
             if haskey(v, "@reverse")
                 rv = v["@reverse"]
@@ -852,10 +863,26 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             end
             out
         elseif ("@index" in container) && v isa AbstractDict
-            # Index map: { index => value(s) } → values expanded, index dropped.
+            # Index map: { index => value(s) }. By default the index is dropped;
+            # with a property-valued @index the index key becomes a value of that
+            # property on each indexed node.
+            idx_prop = tdk isa AbstractDict ? get(tdk, "@index", nothing) : nothing
             out = Any[]
-            for (_, iv) in v
-                append!(out, _expand_property_values(iv, expanded_pred, pctx))
+            for (idxkey, iv) in v
+                members = _expand_property_values(iv, expanded_pred, pctx)
+                if idx_prop !== nothing && String(idxkey) != "@none"
+                    ipred = _expand_iri(pctx, idx_prop; vocab=true, base=false)
+                    ival = _expand_index_value(String(idxkey), idx_prop, pctx)
+                    if ipred !== nothing
+                        for m in members
+                            m isa AbstractDict && !haskey(m, "@value") ||
+                                throw(ParseError("cannot add an index property to a value object",
+                                                 0, 0, _MIME_JSONLD()))
+                            append!(get!(() -> Any[], m, ipred), ival)
+                        end
+                    end
+                end
+                append!(out, members)
             end
             out
         else
@@ -915,6 +942,21 @@ function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{Strin
         end
     end
     pairs
+end
+
+# Expand a property-valued index key as a value of the @index property,
+# applying that property's @type:@id/@vocab coercion.
+function _expand_index_value(idxkey::String, idx_prop, ctx::_JsonLDContext)::Vector{Any}
+    td = get(ctx.terms, idx_prop, nothing)
+    coerce = td isa AbstractDict ? get(td, "@type", nothing) : nothing
+    if coerce == "@vocab"
+        ex = _expand_iri(ctx, idxkey; vocab=true, base=false)
+        return Any[Dict{String,Any}("@id" => (ex !== nothing ? ex : idxkey))]
+    elseif coerce == "@id"
+        ex = _expand_iri(ctx, idxkey; vocab=false, base=true)
+        return Any[Dict{String,Any}("@id" => (ex !== nothing ? ex : idxkey))]
+    end
+    Any[Dict{String,Any}("@value" => idxkey)]
 end
 
 # Expand reverse-term values applying the term's @type:@id/@vocab coercion to
