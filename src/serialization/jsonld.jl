@@ -304,7 +304,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             result.vocab = nothing
         elseif v isa AbstractString
             sv = String(v)
-            expanded = _expand_iri(result, sv; vocab=true, base=false)
+            # @vocab is expanded against the current vocab/base (so a relative or
+            # empty @vocab resolves to a document-relative IRI).
+            expanded = _expand_iri(result, sv; vocab=true, base=true)
             result.vocab = (expanded !== nothing && expanded != sv) ? expanded : sv
         else
             throw(ParseError("@vocab must be a string or null", 0, 0, _MIME_JSONLD()))
@@ -1026,7 +1028,7 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext)
                 expanded = _expand_iri(ctx, sv; vocab=false, base=true)
                 return Dict{String,Any}("@id" => (expanded !== nothing ? expanded : sv))
             elseif coerce == "@vocab"
-                expanded = _expand_iri(ctx, sv; vocab=true, base=false)
+                expanded = _expand_iri(ctx, sv; vocab=true, base=true)
                 return Dict{String,Any}("@id" => (expanded !== nothing ? expanded : sv))
             else
                 expanded_dt = _expand_iri(ctx, coerce; vocab=true, base=false)
