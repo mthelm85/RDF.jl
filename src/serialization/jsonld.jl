@@ -1498,6 +1498,47 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
     nothing
 end
 
+# ECMAScript Number::toString (per RFC 8785 / JCS) for a finite Float64: shortest
+# round-tripping decimal, formatted exactly as ECMA-262 specifies.
+function _ecma_number(x::Real)::String
+    f = Float64(x)
+    f == 0.0 && return "0"
+    (isnan(f) || isinf(f)) && return "null"
+    neg = f < 0
+    f = abs(f)
+    # Shortest decimal from Julia (Ryu-based), parsed into digits and exponent.
+    str = string(f)
+    mant, e10 = if occursin('e', str)
+        p = split(str, 'e'); (String(p[1]), parse(Int, p[2]))
+    else
+        (str, 0)
+    end
+    intpart, fracpart = occursin('.', mant) ?
+        (String(split(mant, '.')[1]), String(split(mant, '.')[2])) : (mant, "")
+    combined = intpart * fracpart
+    point = length(intpart) + e10           # digits before the decimal point
+    lead = 0
+    while lead < length(combined) - 1 && combined[lead+1] == '0'
+        lead += 1
+    end
+    combined = combined[lead+1:end]; point -= lead
+    combined = rstrip(combined, '0')
+    isempty(combined) && (combined = "0")
+    digits = String(combined); k = length(digits); n = point
+    s = if k <= n <= 21
+        digits * "0"^(n - k)
+    elseif 0 < n <= 21
+        digits[1:n] * "." * digits[n+1:end]
+    elseif -6 < n <= 0
+        "0." * "0"^(-n) * digits
+    else
+        mantis = k == 1 ? digits : digits[1:1] * "." * digits[2:end]
+        ex = n - 1
+        mantis * "e" * (ex >= 0 ? "+" : "-") * string(abs(ex))
+    end
+    neg ? "-" * s : s
+end
+
 # Canonical JSON (RFC 8785 / JCS subset) for rdf:JSON literals: object keys
 # sorted by code point, no insignificant whitespace, JSON-escaped strings.
 function _json_canonical(v)::String
@@ -1508,7 +1549,7 @@ function _json_canonical(v)::String
         f = Float64(v)
         # Only collapse to an integer literal within Int64's exact range.
         (isinteger(f) && abs(f) < 9.007199254740992e15) && return string(Integer(f))
-        return string(f)
+        return _ecma_number(f)
     end
     v isa AbstractString && return JSON3.write(String(v))
     if v isa AbstractArray
