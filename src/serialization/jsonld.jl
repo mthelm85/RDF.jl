@@ -689,7 +689,9 @@ function _expand_value(doc, ctx::_JsonLDContext)
         nd = Dict{String,Any}()
         for (k, v) in d
             kw = _kw_alias(ctx, k)
-            target = kw === nothing ? k : kw
+            # Keep @nest-aliased keys under their original name so the term's
+            # scoped @context remains discoverable when hoisting.
+            target = (kw === nothing || kw == "@nest") ? k : kw
             if haskey(nd, target)
                 # Several keys alias the same keyword: list-valued keywords merge
                 # their values; a scalar keyword collision (e.g. @id) is an error.
@@ -957,15 +959,18 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         isempty(rev_map) || (node["@reverse"] = rev_map)
     end
 
-    # Other properties (with @nest contents hoisted into this node).
-    for (k, v) in _gather_props(d, ctx)
-        tdk = get(ctx.terms, k, nothing)
+    # Other properties (with @nest contents hoisted into this node). `actx` is
+    # the active context for this property (differs from `ctx` only for @nest-
+    # hoisted properties that carry the @nest term's scoped @context).
+    for (k, v, actx) in _gather_props(d, ctx)
+        cbase = actx === ctx ? child_base : actx
+        tdk = get(actx.terms, k, nothing)
 
         # A reverse term (defined with @reverse) routes its values into the
         # node's @reverse map under the reverse IRI; values must be nodes.
         if tdk isa AbstractDict && haskey(tdk, "@reverse")
             rev_iri = tdk["@reverse"]
-            revvals = _expand_values_with_td(v, tdk, ctx)
+            revvals = _expand_values_with_td(v, tdk, actx)
             for rv in revvals
                 (rv isa AbstractDict && !haskey(rv, "@value") && !haskey(rv, "@list")) ||
                     throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
@@ -977,7 +982,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             continue
         end
 
-        expanded_pred = _expand_iri(ctx, k; vocab=true, base=false)
+        expanded_pred = _expand_iri(actx, k; vocab=true, base=false)
         expanded_pred === nothing && continue
         expanded_pred in _JSONLD_KEYWORDS && continue
         !occursin(':', expanded_pred) && continue
@@ -991,11 +996,11 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         # what nested node objects inherit — the propagating base without
         # ancestor type-scoped terms, with this property-scoped context layered
         # on, so type-scoped contexts do not propagate but property-scoped do.
-        pctx = ctx
-        cctx = child_base
+        pctx = actx
+        cctx = cbase
         if tdk isa AbstractDict && haskey(tdk, "@context")
-            pctx = _apply_scoped_context(ctx, tdk)
-            cctx = _apply_scoped_context(child_base, tdk)
+            pctx = _apply_scoped_context(actx, tdk)
+            cctx = _apply_scoped_context(cbase, tdk)
         end
 
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
@@ -1162,24 +1167,30 @@ function _nest_types(d::AbstractDict, ctx::_JsonLDContext)::Vector{Any}
     out
 end
 
-# Collect a node's ordinary (non-keyword) property pairs, recursively hoisting
-# the contents of @nest properties (and @nest aliases) into the parent node.
-function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{String,Any}}
-    pairs = Tuple{String,Any}[]
+# Collect a node's ordinary (non-keyword) property pairs as (key, value, ctx),
+# recursively hoisting @nest contents into the parent. The third element is the
+# active context for that property — for @nest-hoisted props it includes the
+# @nest term's scoped @context.
+function _gather_props(d::AbstractDict, ctx::_JsonLDContext)::Vector{Tuple{String,Any,_JsonLDContext}}
+    pairs = Tuple{String,Any,_JsonLDContext}[]
     for (k0, v) in d
         k = String(k0)
         kw = _kw_alias(ctx, k)
         if kw == "@nest"
+            nctx = ctx
+            td = get(ctx.terms, k, nothing)
+            td isa AbstractDict && haskey(td, "@context") &&
+                (nctx = _apply_scoped_context(ctx, td))
             for nv in (v isa AbstractArray ? collect(v) : Any[v])
                 # @nest must be a node object (not a scalar or value object).
                 (nv isa AbstractDict && !haskey(nv, "@value")) ||
                     throw(ParseError("invalid @nest value", 0, 0, _MIME_JSONLD()))
-                append!(pairs, _gather_props(nv, ctx))
+                append!(pairs, _gather_props(nv, nctx))
             end
         elseif kw === nothing && (!startswith(k, "@") || haskey(ctx.terms, k))
             # ordinary terms, plus @-keys that are explicitly defined terms
             # (e.g. "@", "@foo.bar"); reserved keyword-form keys are dropped.
-            push!(pairs, (k, v))
+            push!(pairs, (k, v, ctx))
         end
     end
     pairs
