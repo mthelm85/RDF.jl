@@ -1424,6 +1424,7 @@ end
 # (whitespace, controls, or <>"{}|^`); invalid IRIs are dropped from output.
 function _is_valid_iri(s::AbstractString)::Bool
     occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", s) || return false
+    count(==('#'), s) <= 1 || return false      # at most one fragment
     !any(c -> c <= ' ' || c in ('<','>','"','{','}','|','^','\\','`'), s)
 end
 
@@ -1491,7 +1492,7 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
     for (pred_str, values) in d
         pred_str in ("@id", "@type", "@graph", "@reverse") && continue
         startswith(pred_str, "@") && continue
-        occursin(':', pred_str) || continue
+        _is_valid_iri(pred_str) || continue
 
         pred_iri = try
             IRI(pred_str)
