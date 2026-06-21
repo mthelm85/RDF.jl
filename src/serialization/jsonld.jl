@@ -1274,6 +1274,23 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     term_def = _find_term_def_by_id(ctx, pred)
 
     if val isa AbstractDict
+        # An explicit @list / @set object carries this property's @type coercion
+        # down to its members.
+        coerce = term_def isa AbstractDict ? get(term_def, "@type", nothing) : nothing
+        if coerce !== nothing
+            if haskey(val, "@list")
+                return Dict{String,Any}("@list" => _expand_list_values(val["@list"], ctx; coerce=coerce))
+            elseif haskey(val, "@set")
+                s = val["@set"]
+                items = s isa AbstractArray ? collect(s) : Any[s]
+                out = Any[]
+                for it in items
+                    ev = _expand_coerced(it, ctx, coerce)
+                    ev === nothing || push!(out, ev)
+                end
+                return out
+            end
+        end
         # A value/list object and a bare @id reference use the active context
         # (their @value/@id resolve against the type-scoped base); a nested node
         # object inherits the propagating child context (so ancestor type-scoped
