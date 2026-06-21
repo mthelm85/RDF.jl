@@ -99,9 +99,12 @@ if isdir(_JLD_DIR)
             types = _jget(entry, "@type", String[])
             rdfdir = opt !== nothing ? _jget(opt, "rdfDirection") : nothing
             rdfdir = rdfdir === nothing ? nothing : String(rdfdir)
+            xctx = opt !== nothing ? _jget(opt, "expandContext") : nothing
+            # expandContext is relative to the manifest base.
+            xctx = xctx === nothing ? nothing : _JLD_BASE * String(xctx)
             parse() = open(io -> read(io, MIME"application/ld+json"(),
                                       Dataset; base=base, contexts=_jld_loader,
-                                      rdfdirection=rdfdir), inpath)
+                                      rdfdirection=rdfdir, expandcontext=xctx), inpath)
             if ("jld:NegativeEvaluationTest" in types) || ("jld:NegativeSyntaxTest" in types)
                 # Must raise an error.
                 @test_throws Exception parse()

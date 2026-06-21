@@ -1788,10 +1788,11 @@ end
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
                    base::Union{AbstractString,Nothing}=nothing,
                    contexts=nothing, load_remote_contexts::Bool=false,
-                   rdfdirection::Union{AbstractString,Nothing}=nothing)::Graph
+                   rdfdirection::Union{AbstractString,Nothing}=nothing,
+                   expandcontext=nothing)::Graph
     ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base,
                    contexts=contexts, load_remote_contexts=load_remote_contexts,
-                   rdfdirection=rdfdirection)
+                   rdfdirection=rdfdirection, expandcontext=expandcontext)
     g = ds.default_graph
     for (_, ng) in ds.named_graphs
         for t in ng
@@ -1809,7 +1810,8 @@ Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
                    base::Union{AbstractString,Nothing}=nothing,
                    contexts=nothing, load_remote_contexts::Bool=false,
-                   rdfdirection::Union{AbstractString,Nothing}=nothing)::Dataset
+                   rdfdirection::Union{AbstractString,Nothing}=nothing,
+                   expandcontext=nothing)::Dataset
     # Parse from the raw bytes, not a String: JSON3.read(::String) treats a
     # short/path-like string as a filename and stats it (which aborts on some
     # high-Unicode content via libuv on Windows).
@@ -1821,6 +1823,9 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
     end
     ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts))
     base !== nothing && (ctx.base = String(base); ctx.docbase = String(base))
+    # expandContext option: a context applied to the document before expansion
+    # (a string is treated as a context reference, resolved/loaded as usual).
+    expandcontext === nothing || (ctx = _process_context(ctx, expandcontext))
     expanded = _expand_document(doc, ctx)
     _jsonld_to_rdf(expanded, ctx.base;
                    rdfdir=(rdfdirection === nothing ? nothing : String(rdfdirection)))
