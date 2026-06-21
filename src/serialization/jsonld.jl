@@ -1074,7 +1074,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                 if kt isa AbstractDict && haskey(kt, "@context")
                     kctx = _apply_scoped_context(pctx, kt)
                 end
-                for node in _expand_map_nodes(sub, kctx)
+                tcoerce = tdk isa AbstractDict ? get(tdk, "@type", nothing) : nothing
+                for node in _expand_map_nodes(sub, kctx; coerce=tcoerce)
                     # Type-map values must be node references, not literals.
                     (node isa AbstractDict && !haskey(node, "@value")) ||
                         throw(ParseError("type-map value must not be a literal", 0, 0, _MIME_JSONLD()))
@@ -1237,14 +1238,19 @@ function _expand_values_with_td(v, td, ctx::_JsonLDContext)::Vector{Any}
 end
 
 # Expand the value(s) of an @id-/@type-map entry into node objects.  A bare
-# string is treated as a node reference ({"@id": string}).
-function _expand_map_nodes(sub, ctx::_JsonLDContext)::Vector{Any}
+# string is a node reference ({"@id": string}) unless the term coerces values to
+# a datatype (then it becomes a value object — invalid in a @type map).
+function _expand_map_nodes(sub, ctx::_JsonLDContext; coerce=nothing)::Vector{Any}
     items = sub isa AbstractArray ? collect(sub) : Any[sub]
     out = Any[]
+    datatype = coerce !== nothing && !(coerce in ("@id", "@vocab"))
     for it in items
-        ev = it isa AbstractString ?
-             _expand_value(Dict{String,Any}("@id" => String(it)), ctx) :
-             _expand_value(it, ctx)
+        ev = if it isa AbstractString
+            datatype ? _expand_coerced(it, ctx, coerce) :
+                       _expand_value(Dict{String,Any}("@id" => String(it)), ctx)
+        else
+            _expand_value(it, ctx)
+        end
         ev === nothing && continue
         ev isa AbstractArray ? append!(out, ev) : push!(out, ev)
     end
