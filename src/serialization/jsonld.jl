@@ -1135,8 +1135,15 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         end
     end
 
-    # Return nothing for empty expansion (no @id, no properties, no @graph)
-    isempty(node) && return nothing
+    # An empty expansion becomes a blank node (kept) when the input was a plain
+    # (possibly only-@context) node object, but is dropped when the input carried
+    # value-object/@id keywords — a malformed value object or an ignored @id.
+    if isempty(node)
+        any(k -> _kw_alias(ctx, String(k)) in
+                 ("@value", "@language", "@direction", "@index", "@id"), keys(d)) &&
+            return nothing
+        return Dict{String,Any}()
+    end
     node
 end
 
@@ -1608,8 +1615,8 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
         end
     end
 
-    # Anonymous node object
-    if any(k -> occursin(':', k) || startswith(k, "@"), keys(d))
+    # Anonymous node object (including an empty node object → a bare blank node).
+    if isempty(d) || any(k -> occursin(':', k) || startswith(k, "@"), keys(d))
         bnode = _mint_blank_node()
         # Inject a synthetic @id so _process_node! can use it
         d_with_id = copy(d)
