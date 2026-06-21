@@ -1414,6 +1414,13 @@ function _bnode_for_label(blank_map::Dict{String,BlankNode}, label::String)::Bla
     end
 end
 
+# An absolute IRI must have a scheme and contain no forbidden characters
+# (whitespace, controls, or <>"{}|^`); invalid IRIs are dropped from output.
+function _is_valid_iri(s::AbstractString)::Bool
+    occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", s) || return false
+    !any(c -> c <= ' ' || c in ('<','>','"','{','}','|','^','\\','`'), s)
+end
+
 function _id_to_term(id_str::String, blank_map::Dict{String,BlankNode})::Union{IRI,BlankNode,Nothing}
     isempty(id_str) && return nothing
     if startswith(id_str, "_:")
@@ -1421,6 +1428,7 @@ function _id_to_term(id_str::String, blank_map::Dict{String,BlankNode})::Union{I
         isempty(label) && return nothing
         return _bnode_for_label(blank_map, label)
     end
+    _is_valid_iri(id_str) || return nothing
     try
         IRI(id_str)
     catch
@@ -1733,12 +1741,9 @@ function _build_rdf_list(items::AbstractArray, graph::Graph, ds::Dataset, blank_
     n = length(items)
     for (i, item) in enumerate(items)
         obj = _val_to_rdf(item, graph, ds, blank_map)
-        if obj === nothing
-            # Still need to advance the list node
-            push!(graph, Triple(current, IRI(_JRDF_FIRST), Literal("")))
-        else
-            push!(graph, Triple(current, IRI(_JRDF_FIRST), obj))
-        end
+        # A dropped member (e.g. an invalid IRI) yields no rdf:first triple, but
+        # the list node and its rdf:rest chain are still emitted.
+        obj === nothing || push!(graph, Triple(current, IRI(_JRDF_FIRST), obj))
         if i < n
             next_node = _mint_blank_node()
             push!(graph, Triple(current, IRI(_JRDF_REST), next_node))
