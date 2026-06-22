@@ -18,6 +18,7 @@ const _JRDF_TYPE         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 const _JRDF_FIRST        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first"
 const _JRDF_REST         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest"
 const _JRDF_NIL          = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil"
+const _JRDF_LIST         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#List"
 const _JRDF_JSON         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON"
 const _JRDF_VALUE        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#value"
 const _JRDF_LANGUAGE     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#language"
@@ -2045,8 +2046,17 @@ function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent
     try
         top = Any[]
 
+        # Dataset-wide blank-node object usage: a list node reused in another
+        # graph must keep its identity (W3C fromRdf t0020/t0021).
+        ds_usage = Dict{BlankNode,Int}()
+        _accum_usage(g) = for t in g
+            t.object isa BlankNode && (ds_usage[t.object] = get(ds_usage, t.object, 0) + 1)
+        end
+        _accum_usage(ds.default_graph)
+        for (_, ng) in ds.named_graphs; _accum_usage(ng); end
+
         if !isempty(ds.default_graph)
-            for n in _graph_to_jsonld(ds.default_graph)
+            for n in _graph_to_jsonld(ds.default_graph; ds_usage=ds_usage)
                 push!(top, n)
             end
         end
@@ -2055,7 +2065,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent
             graph_id = name isa IRI ? name.value : _jbn_label(name)
             named_entry = Dict{String,Any}(
                 "@id"    => graph_id,
-                "@graph" => _graph_to_jsonld(ng),
+                "@graph" => _graph_to_jsonld(ng; ds_usage=ds_usage),
             )
             push!(top, named_entry)
         end
@@ -2072,7 +2082,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent
     nothing
 end
 
-function _graph_to_jsonld(g::Graph)::Vector{Any}
+function _graph_to_jsonld(g::Graph; ds_usage::Union{Nothing,Dict{BlankNode,Int}}=nothing)::Vector{Any}
     # subject key → (subject-id-string, predicate-iri → [object nodes])
     subject_ids    = String[]
     subject_preds  = Dict{String, Dict{String,Vector{Any}}}()
@@ -2081,9 +2091,23 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
     # literals (rdf:value + rdf:direction [+ rdf:language] only) collapse into
     # a single @direction value object and are not emitted as standalone nodes.
     compound = _compound_literals(g)
+    # Well-formed RDF collections collapse into @list; their nodes are skipped.
+    # Blank-node usage is counted across the whole dataset (ds_usage) so a list
+    # node reused in another named graph is not consumed (W3C fromRdf t0020/t0021).
+    list_heads, list_skip = _rdf_lists(g, ds_usage)
+
+    objconv(o) = begin
+        if o isa BlankNode
+            haskey(compound, o) && return compound[o]
+            haskey(list_heads, o) &&
+                return Dict{String,Any}("@list" => Any[objconv(x) for x in list_heads[o]])
+        end
+        _object_to_jsonld_obj(o)
+    end
 
     for triple in g
-        triple.subject isa BlankNode && haskey(compound, triple.subject) && continue
+        triple.subject isa BlankNode &&
+            (haskey(compound, triple.subject) || triple.subject in list_skip) && continue
         s_key = triple.subject isa IRI ? triple.subject.value : _jbn_label(triple.subject)
 
         if !haskey(subject_preds, s_key)
@@ -2097,8 +2121,7 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
             vals = get!(pred_map, "@type") do; Any[] end
             push!(vals, triple.object.value)
         else
-            obj_node = (triple.object isa BlankNode && haskey(compound, triple.object)) ?
-                       compound[triple.object] : _object_to_jsonld_obj(triple.object)
+            obj_node = objconv(triple.object)
             obj_node === nothing && continue
             vals = get!(pred_map, pred_iri) do; Any[] end
             push!(vals, obj_node)
@@ -2115,6 +2138,63 @@ function _graph_to_jsonld(g::Graph)::Vector{Any}
         push!(nodes, node)
     end
     nodes
+end
+
+# Identify well-formed RDF collection (rdf:first/rdf:rest) blank nodes and the
+# @list values they represent. A list node is a blank node referenced exactly
+# once that has exactly one rdf:first and one rdf:rest (and at most rdf:type
+# rdf:List); a head is a list node not reached as the rdf:rest of another list
+# node, and its chain must terminate at rdf:nil. Returns (head => items, skip).
+function _rdf_lists(g::Graph, ds_usage::Union{Nothing,Dict{BlankNode,Int}}=nothing)
+    usage = Dict{BlankNode,Int}()
+    bysubj = Dict{BlankNode,Vector{Any}}()
+    for t in g
+        t.object isa BlankNode && (usage[t.object] = get(usage, t.object, 0) + 1)
+        t.subject isa BlankNode && push!(get!(() -> Any[], bysubj, t.subject), t)
+    end
+    # Use dataset-wide usage when available: a list node referenced from another
+    # graph must not be collapsed (its identity is needed for round-trip).
+    ds_usage !== nothing && (usage = ds_usage)
+    only_pred(ts, p) = begin
+        v = nothing; n = 0
+        for t in ts
+            t.predicate.value == p && (n += 1; v = t.object)
+        end
+        n == 1 ? v : nothing
+    end
+    iswf(bn) = begin
+        haskey(bysubj, bn) || return false
+        get(usage, bn, 0) == 1 || return false
+        ts = bysubj[bn]
+        for t in ts
+            p = t.predicate.value
+            p in (_JRDF_FIRST, _JRDF_REST) && continue
+            (p == _JRDF_TYPE && t.object isa IRI && t.object.value == _JRDF_LIST) && continue
+            return false
+        end
+        only_pred(ts, _JRDF_FIRST) !== nothing && only_pred(ts, _JRDF_REST) !== nothing
+    end
+    wf = Set(bn for bn in keys(bysubj) if iswf(bn))
+    rest_targets = Set{BlankNode}()
+    for bn in wf
+        r = only_pred(bysubj[bn], _JRDF_REST)
+        r isa BlankNode && r in wf && push!(rest_targets, r)
+    end
+    heads = Dict{BlankNode,Vector{Any}}(); skip = Set{BlankNode}()
+    for bn in wf
+        bn in rest_targets && continue
+        items = Any[]; cur = bn; chain = BlankNode[]; ok = true
+        while cur isa BlankNode
+            (cur in wf && !(cur in chain)) || (ok = false; break)
+            push!(chain, cur)
+            push!(items, only_pred(bysubj[cur], _JRDF_FIRST))
+            cur = only_pred(bysubj[cur], _JRDF_REST)
+        end
+        (ok && cur isa IRI && cur.value == _JRDF_NIL) || continue
+        heads[bn] = items
+        for c in chain; push!(skip, c); end
+    end
+    heads, skip
 end
 
 # Identify compound-literal blank nodes (rdfDirection: compound-literal): a
