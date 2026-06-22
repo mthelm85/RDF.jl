@@ -76,8 +76,12 @@ function _jld_run_manifest(runner::Function, manifest_file::String, test_type::S
         types = _jget(entry, "@type", String[])
         (test_type in types) || continue
         opt = _jget(entry, "option")
-        # We target JSON-LD 1.1; skip 1.0-processing-mode tests.
-        if opt !== nothing && _jget(opt, "processingMode", "") == "json-ld-1.0"
+        # We target JSON-LD 1.1; skip tests scoped to JSON-LD 1.0 (via either
+        # processingMode or specVersion). A 1.1 processor is expected not to run
+        # 1.0-only tests — several assert 1.0 behavior a 1.1 processor must not
+        # exhibit (e.g. @type-alias with @type:@id is valid in 1.0, an error in 1.1).
+        if opt !== nothing && (_jget(opt, "processingMode", "") == "json-ld-1.0" ||
+                               _jget(opt, "specVersion", "") == "json-ld-1.0")
             continue
         end
         name = string(_jget(entry, "@id", "?"), " ", _jget(entry, "name", ""))

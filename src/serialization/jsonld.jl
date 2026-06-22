@@ -497,6 +497,17 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                         throw(ParseError("cyclic IRI mapping for \"$sk\"", 0, 0, _MIME_JSONLD()))
                     expanded = _expand_iri(result, sv; vocab=true, base=false)
                     td["@id"] = (expanded !== nothing && expanded != sv) ? expanded : sv
+                    # A term aliasing @type may only also carry @container (whose
+                    # value must be @set) and @protected (W3C ter43).
+                    if sv == "@type"
+                        for kk in keys(v)
+                            k2 = String(kk)
+                            k2 in ("@id", "@protected") && continue
+                            (k2 == "@container" && v["@container"] isa AbstractString &&
+                             String(v["@container"]) == "@set") && continue
+                            throw(ParseError("invalid keyword alias for @type", 0, 0, _MIME_JSONLD()))
+                        end
+                    end
                 else
                     throw(ParseError("@id in term definition must be a string", 0, 0, _MIME_JSONLD()))
                 end
@@ -1292,8 +1303,16 @@ function _expand_map_nodes(sub, ctx::_JsonLDContext; coerce=nothing)::Vector{Any
     datatype = coerce !== nothing && !(coerce in ("@id", "@vocab"))
     for it in items
         ev = if it isa AbstractString
-            datatype ? _expand_coerced(it, ctx, coerce) :
-                       _expand_value(Dict{String,Any}("@id" => String(it)), ctx)
+            if datatype
+                _expand_coerced(it, ctx, coerce)
+            elseif coerce == "@vocab"
+                # @type: @vocab — the string is a node reference expanded against
+                # the vocabulary mapping (W3C tm019).
+                ex = _expand_iri(ctx, String(it); vocab=true, base=true)
+                Dict{String,Any}("@id" => (ex !== nothing ? ex : String(it)))
+            else
+                _expand_value(Dict{String,Any}("@id" => String(it)), ctx)
+            end
         else
             _expand_value(it, ctx)
         end
