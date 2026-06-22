@@ -1936,6 +1936,8 @@ end
 # nothing); set for the duration of a write so _object_to_jsonld_obj can decode
 # i18n-datatype literals back to @direction value objects.
 const _WRITE_DIRECTION_MODE = Ref{Union{String,Nothing}}(nothing)
+# Whether to serialize boolean/integer/double literals as native JSON values.
+const _WRITE_NATIVE_TYPES = Ref{Bool}(false)
 
 _jbn_label(bn::BlankNode) = "_:b$(bn.id)"
 
@@ -1961,6 +1963,21 @@ function _object_to_jsonld_obj(obj::Literal)
         return Dict{String,Any}("@value" => obj.lexical_form, "@language" => obj.language_tag)
     end
     dt == _JXSD_STRING_S && return Dict{String,Any}("@value" => obj.lexical_form)
+    # useNativeTypes: serialize boolean/integer/double literals as native JSON
+    # values when their lexical form is a valid (serializable) native value.
+    if _WRITE_NATIVE_TYPES[]
+        lf = obj.lexical_form
+        if dt == _JXSD_BOOLEAN_S
+            lf in ("true", "1")  && return Dict{String,Any}("@value" => true)
+            lf in ("false", "0") && return Dict{String,Any}("@value" => false)
+        elseif dt == _JXSD_INTEGER_S
+            i = tryparse(Int, lf)
+            i !== nothing && return Dict{String,Any}("@value" => i)
+        elseif dt == _JXSD_DOUBLE_S
+            f = tryparse(Float64, lf)
+            f !== nothing && isfinite(f) && return Dict{String,Any}("@value" => f)
+        end
+    end
     # An rdf:JSON literal round-trips as a @json value object (its lexical form
     # is canonical JSON).
     if dt == _JRDF_JSON
@@ -1994,9 +2011,11 @@ Serialize an RDF `Graph` to JSON-LD format. If `context` is provided (a `Dict`
 or `String`), it is included as `"@context"` in the root object.
 """
 function Base.write(io::IO, ::_MIME_JSONLD, g::Graph; context=nothing, indent::Int=2,
-                    rdfdirection::Union{AbstractString,Nothing}=nothing)
-    prev = _WRITE_DIRECTION_MODE[]
+                    rdfdirection::Union{AbstractString,Nothing}=nothing,
+                    usenativetypes::Bool=false)
+    prev = _WRITE_DIRECTION_MODE[]; prevn = _WRITE_NATIVE_TYPES[]
     _WRITE_DIRECTION_MODE[] = rdfdirection === nothing ? nothing : String(rdfdirection)
+    _WRITE_NATIVE_TYPES[] = usenativetypes
     try
         nodes  = _graph_to_jsonld(g)
         output = if context !== nothing
@@ -2006,7 +2025,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, g::Graph; context=nothing, indent::I
         end
         print(io, JSON3.write(output))
     finally
-        _WRITE_DIRECTION_MODE[] = prev
+        _WRITE_DIRECTION_MODE[] = prev; _WRITE_NATIVE_TYPES[] = prevn
     end
     nothing
 end
@@ -2018,9 +2037,11 @@ Serialize an RDF `Dataset` to JSON-LD format. Named graphs are represented with
 `"@graph"` entries; the default graph's triples appear at the top level.
 """
 function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent::Int=2,
-                    rdfdirection::Union{AbstractString,Nothing}=nothing)
-    prev = _WRITE_DIRECTION_MODE[]
+                    rdfdirection::Union{AbstractString,Nothing}=nothing,
+                    usenativetypes::Bool=false)
+    prev = _WRITE_DIRECTION_MODE[]; prevn = _WRITE_NATIVE_TYPES[]
     _WRITE_DIRECTION_MODE[] = rdfdirection === nothing ? nothing : String(rdfdirection)
+    _WRITE_NATIVE_TYPES[] = usenativetypes
     try
         top = Any[]
 
@@ -2046,7 +2067,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent
         end
         print(io, JSON3.write(output))
     finally
-        _WRITE_DIRECTION_MODE[] = prev
+        _WRITE_DIRECTION_MODE[] = prev; _WRITE_NATIVE_TYPES[] = prevn
     end
     nothing
 end

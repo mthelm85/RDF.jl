@@ -131,8 +131,10 @@ if isdir(_JLD_DIR)
             types = _jget(entry, "@type", String[])
             rdfdir = opt !== nothing && _jget(opt, "rdfDirection") !== nothing ?
                      String(_jget(opt, "rdfDirection")) : nothing
+            nativet = opt !== nothing && _jget(opt, "useNativeTypes") === true
             ds = open(io -> read(io, MIME"application/n-quads"(), Dataset), inpath)
-            actual_json = sprint(io -> write(io, MIME"application/ld+json"(), ds; rdfdirection=rdfdir))
+            actual_json = sprint(io -> write(io, MIME"application/ld+json"(), ds;
+                                             rdfdirection=rdfdir, usenativetypes=nativet))
             actual = read(IOBuffer(actual_json), MIME"application/ld+json"(), Dataset)
             if ("jld:NegativeEvaluationTest" in types) || ("jld:NegativeSyntaxTest" in types)
                 @test_skip false
