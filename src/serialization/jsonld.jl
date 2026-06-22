@@ -264,7 +264,8 @@ return an updated context. Throws ParseError for remote context references.
 """
 function _process_context(ctx::_JsonLDContext, raw_ctx;
                           override_protected::Bool=false,
-                          propagate::Bool=true)::_JsonLDContext
+                          propagate::Bool=true,
+                          validate_scoped::Bool=true)::_JsonLDContext
     # @context: null resets the context but keeps the document base and loader.
     # Clearing the active context that has @protected terms is only allowed when
     # overriding (a term/type-scoped context); an embedded null reset fails.
@@ -285,7 +286,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         result = _copy_ctx(ctx)
         for entry in raw_ctx
             result = _process_context(result, entry;
-                                      override_protected=override_protected, propagate=propagate)
+                                      override_protected=override_protected, propagate=propagate,
+                                      validate_scoped=validate_scoped)
         end
         return result
     end
@@ -309,7 +311,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms),
                              ctx.loader, copy(ctx.protected), ctx.previous, iri)
         sub = _process_context(sub, loaded;
-                               override_protected=override_protected, propagate=propagate)
+                               override_protected=override_protected, propagate=propagate,
+                               validate_scoped=validate_scoped)
         sub.base = ctx.base       # restore the document base for subsequent processing
         sub.docbase = ctx.docbase
         return sub
@@ -345,7 +348,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             merged[String(k)] = v
         end
         return _process_context(ctx, merged; override_protected=override_protected,
-                                propagate=propagate)
+                                propagate=propagate, validate_scoped=validate_scoped)
     end
 
     result = _copy_ctx(ctx)
@@ -456,6 +459,8 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     _term_pairs = [(String(k), v) for (k, v) in raw_ctx]
     _term_pairs = vcat([p for p in _term_pairs if !(p[2] isa AbstractDict)],
                        [p for p in _term_pairs if p[2] isa AbstractDict])
+    # Scoped @contexts defined by terms in this context, validated eagerly below.
+    scoped_defs = Any[]
     for (sk, v) in _term_pairs
         sk in ("@base", "@vocab", "@language", "@version") && continue
         # A key in keyword form (@ followed by letters) is reserved and ignored;
@@ -625,6 +630,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             if haskey(v, "@context")
                 td["@context"] = v["@context"]
                 result.docbase !== nothing && (td["@context_base"] = result.docbase)
+                push!(scoped_defs, td)
             end
             # @prefix:true cannot apply to a keyword alias, nor to a term name
             # that is not a simple prefix (a relative IRI / contains '/' or ':').
@@ -654,6 +660,17 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             push!(result.protected, sk)
         else
             delete!(result.protected, sk)
+        end
+    end
+
+    # Eagerly validate scoped @contexts (against the fully-built context, so
+    # forward references to sibling terms resolve). An invalid scoped context is
+    # an error even if its term is never used (W3C tc033). Validation processes
+    # one level only (validate_scoped=false on the recursive call) so a scoped
+    # context that includes itself does not recurse forever (W3C te126/127/128).
+    if validate_scoped
+        for td in scoped_defs
+            _apply_scoped_context(result, td; propagate=true, validate=false)
         end
     end
 
@@ -895,13 +912,15 @@ end
 # against the URL of the context document the term was defined in (@context_base),
 # then restoring the document docbase for subsequent value expansion.
 function _apply_scoped_context(ctx::_JsonLDContext, td::AbstractDict;
-                              propagate::Bool=true)::_JsonLDContext
+                              propagate::Bool=true, validate::Bool=true)::_JsonLDContext
     cb = get(td, "@context_base", nothing)
     if cb === nothing
-        return _process_context(ctx, td["@context"]; override_protected=true, propagate=propagate)
+        return _process_context(ctx, td["@context"]; override_protected=true,
+                                propagate=propagate, validate_scoped=validate)
     end
     tmp = _copy_ctx(ctx); tmp.docbase = cb
-    r = _process_context(tmp, td["@context"]; override_protected=true, propagate=propagate)
+    r = _process_context(tmp, td["@context"]; override_protected=true,
+                         propagate=propagate, validate_scoped=validate)
     r.docbase = ctx.docbase
     r
 end
