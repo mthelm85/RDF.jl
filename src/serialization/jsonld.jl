@@ -1209,11 +1209,14 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=noth
             out = Any[]
             for (key, sub) in v
                 ekey = _is_none_key(ctx, String(key)) ? nothing :
-                       _expand_iri(pctx, String(key); vocab=true, base=false)
-                kctx = pctx
-                kt = get(pctx.terms, String(key), nothing)
+                       _expand_iri(cbase, String(key); vocab=true, base=false)
+                # The type-map value is processed with the type index's scoped
+                # context applied to the base context (the containing node's
+                # type-scoping does not leak in) — W3C tc013.
+                kctx = cbase
+                kt = get(cbase.terms, String(key), nothing)
                 if kt isa AbstractDict && haskey(kt, "@context")
-                    kctx = _apply_scoped_context(pctx, kt)
+                    kctx = _apply_scoped_context(cbase, kt)
                 end
                 tcoerce = tdk isa AbstractDict ? get(tdk, "@type", nothing) : nothing
                 for node in _expand_map_nodes(sub, kctx; coerce=tcoerce)

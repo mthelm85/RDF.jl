@@ -487,7 +487,7 @@ julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |
 | W3C RDF graph isomorphism | ✓ |
-| W3C JSON-LD 1.1 (toRdf) | **445 / 448** (1.1 in-scope) |
+| W3C JSON-LD 1.1 (toRdf) | **446 / 448** (1.1 in-scope) |
 | W3C JSON-LD 1.1 (fromRdf) | **50 / 50** (round-trip) |
 
 ## Citing
