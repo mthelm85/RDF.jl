@@ -696,13 +696,14 @@ function _expand_document(doc, ctx::_JsonLDContext)::Vector{Any}
     Any[result]
 end
 
-function _expand_value(doc, ctx::_JsonLDContext)
+function _expand_value(doc, ctx::_JsonLDContext;
+                       child_base_hint::Union{Nothing,_JsonLDContext}=nothing)
     doc === nothing && return nothing
 
     if doc isa AbstractArray
         out = Any[]
         for item in doc
-            v = _expand_value(item, ctx)
+            v = _expand_value(item, ctx; child_base_hint=child_base_hint)
             if v isa AbstractArray
                 append!(out, v)
             elseif v !== nothing
@@ -735,12 +736,17 @@ function _expand_value(doc, ctx::_JsonLDContext)
 
     # Process @context first so it affects the current node. A non-propagating
     # embedded @context (@propagate:false) applies to this node only; nested node
-    # objects revert to the context in effect before it (W3C tc028).
-    nested_base = nothing
+    # objects revert to the context in effect before it (W3C tc028). Otherwise a
+    # caller-supplied child base (a non-propagating property-scoped context) is
+    # used for nested nodes (W3C tso06).
+    nested_base = child_base_hint
     if haskey(d, "@context")
         pre = ctx
         ctx = _process_context(ctx, d["@context"])
-        ctx.previous === pre && (nested_base = pre)
+        # A non-propagating embedded context reverts nested nodes to the prior
+        # context; a propagating one is inherited by nested nodes (overriding any
+        # caller-supplied child base — W3C tc005).
+        nested_base = ctx.previous === pre ? pre : nothing
     end
 
     # Resolve keyword aliases: a term whose definition is a keyword (e.g.
@@ -1129,17 +1135,20 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=noth
 
         # A property-scoped @context applies while expanding this term's values
         # and propagates into nested nodes. `pctx` is the active context (for
-        # scalar coercion, value objects, and bare @id references); `cctx` is
-        # what nested node objects inherit — the propagating base without
-        # ancestor type-scoped terms, with this property-scoped context layered
-        # on, so type-scoped contexts do not propagate but property-scoped do.
+        # scalar coercion, value objects, and bare @id references); `imm` is the
+        # context for an immediate value node (always gets the property-scoped
+        # context); `cctx` is what *deeper* nested nodes inherit — the property-
+        # scoped context only if it propagates. Both drop ancestor type-scoped
+        # terms (so type-scoped contexts do not propagate but property-scoped do).
         pctx = actx
+        imm  = cbase
         cctx = cbase
         if tdk isa AbstractDict && haskey(tdk, "@context")
             pctx = _apply_scoped_context(actx, tdk)
+            imm  = _apply_scoped_context(cbase, tdk)
             # Property-scoped contexts propagate by default; @propagate:false
-            # confines them to the immediate value (W3C tc027).
-            cctx = _scoped_propagate(tdk, true) ? _apply_scoped_context(cbase, tdk) : cbase
+            # confines them to the immediate value (W3C tc027/tso06).
+            cctx = _scoped_propagate(tdk, true) ? imm : cbase
         end
 
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
@@ -1264,7 +1273,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=noth
             end
             out
         else
-            _expand_property_values(v, expanded_pred, pctx; child=cctx)
+            _expand_property_values(v, expanded_pred, pctx; child=imm, child_base=cctx)
         end
 
         if "@list" in container
@@ -1434,11 +1443,12 @@ function _expand_map_nodes(sub, ctx::_JsonLDContext; coerce=nothing)::Vector{Any
 end
 
 function _expand_property_values(v, pred::String, ctx::_JsonLDContext;
-                                 child::_JsonLDContext=ctx)::Vector{Any}
+                                 child::_JsonLDContext=ctx,
+                                 child_base::Union{Nothing,_JsonLDContext}=nothing)::Vector{Any}
     vals = v isa AbstractArray ? collect(v) : Any[v]
     out = Any[]
     for val in vals
-        expanded = _expand_property_value(val, pred, ctx, child)
+        expanded = _expand_property_value(val, pred, ctx, child, child_base)
         # A value may expand to an array (e.g. a @set, or a nested array) — those
         # are flattened into the property's value list rather than nested.
         if expanded isa AbstractArray
@@ -1451,7 +1461,8 @@ function _expand_property_values(v, pred::String, ctx::_JsonLDContext;
 end
 
 function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
-                                child::_JsonLDContext=ctx)
+                                child::_JsonLDContext=ctx,
+                                child_base::Union{Nothing,_JsonLDContext}=nothing)
     # Look up term definition for this predicate (for @type coercion)
     term_def = _find_term_def_by_id(ctx, pred)
 
@@ -1483,7 +1494,8 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
         nonctx = [String(k) for k in keys(val)
                   if String(k) != "@context" && _kw_alias(ctx, String(k)) != "@context"]
         is_id_ref = length(nonctx) == 1 && _kw_alias(ctx, nonctx[1]) == "@id"
-        return _expand_value(val, (is_value || is_id_ref) ? ctx : child)
+        return (is_value || is_id_ref) ? _expand_value(val, ctx) :
+               _expand_value(val, child; child_base_hint=child_base)
     end
 
     if val isa AbstractString
