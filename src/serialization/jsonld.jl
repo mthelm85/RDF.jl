@@ -893,7 +893,10 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             sort!(String[String(t) for t in tvals if t isa AbstractString]) :
             (tvals isa AbstractString ? String[String(tvals)] : String[])
         for tv in tvals_arr
-            td = get(ctx.terms, tv, nothing)
+            # Look up each type's scoped context in the context *before* any
+            # type-scoping, so an earlier type's null reset cannot hide a later
+            # type's definition.
+            td = get(child_base.terms, tv, nothing)
             if td isa AbstractDict && haskey(td, "@context")
                 ctx = _apply_scoped_context(ctx, td; propagate=false)
             end
