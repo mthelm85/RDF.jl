@@ -595,10 +595,13 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 td["@context"] = v["@context"]
                 result.docbase !== nothing && (td["@context_base"] = result.docbase)
             end
-            # @prefix:true cannot apply to a keyword alias.
-            if get(v, "@prefix", false) === true && haskey(v, "@id") &&
-               v["@id"] isa AbstractString && startswith(String(v["@id"]), "@")
-                throw(ParseError("a keyword alias cannot be a prefix", 0, 0, _MIME_JSONLD()))
+            # @prefix:true cannot apply to a keyword alias, nor to a term name
+            # that is not a simple prefix (a relative IRI / contains '/' or ':').
+            if get(v, "@prefix", false) === true
+                (haskey(v, "@id") && v["@id"] isa AbstractString && startswith(String(v["@id"]), "@")) &&
+                    throw(ParseError("a keyword alias cannot be a prefix", 0, 0, _MIME_JSONLD()))
+                (occursin('/', sk) || occursin(':', sk)) &&
+                    throw(ParseError("a relative IRI cannot be used as a prefix", 0, 0, _MIME_JSONLD()))
             end
             haskey(v, "@protected") && (term_protected = v["@protected"] === true)
             newdef = td
@@ -967,10 +970,21 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         tdk = get(actx.terms, k, nothing)
 
         # A reverse term (defined with @reverse) routes its values into the
-        # node's @reverse map under the reverse IRI; values must be nodes.
+        # node's @reverse map under the reverse IRI; values must be nodes. A
+        # reverse term with an @index/@id container takes a map whose values are
+        # the reverse values (the keys/index are dropped).
         if tdk isa AbstractDict && haskey(tdk, "@reverse")
             rev_iri = tdk["@reverse"]
-            revvals = _expand_values_with_td(v, tdk, actx)
+            revcont = _container_of(tdk)
+            revvals = if ("@index" in revcont || "@id" in revcont) && v isa AbstractDict
+                rv = Any[]
+                for (_, sub) in v
+                    append!(rv, _expand_values_with_td(sub, tdk, actx))
+                end
+                rv
+            else
+                _expand_values_with_td(v, tdk, actx)
+            end
             for rv in revvals
                 (rv isa AbstractDict && !haskey(rv, "@value") && !haskey(rv, "@list")) ||
                     throw(ParseError("invalid reverse property value", 0, 0, _MIME_JSONLD()))
