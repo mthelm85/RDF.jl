@@ -468,6 +468,11 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         occursin(r"^@[A-Za-z]+$", sk) && continue
         # The empty string is not a valid term.
         sk == "" && throw(ParseError("definition for the empty term", 0, 0, _MIME_JSONLD()))
+        # A term that has the form of a relative IRI reference (a slash but no
+        # colon) cannot be used as a term name (W3C ter48/ter49).
+        occursin('/', sk) && !occursin(':', sk) &&
+            throw(ParseError("invalid IRI mapping: relative IRI \"$sk\" used as a term",
+                             0, 0, _MIME_JSONLD()))
 
         term_protected = ctx_protected
         newdef = nothing
