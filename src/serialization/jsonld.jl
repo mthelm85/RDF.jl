@@ -1029,6 +1029,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             if ("@id" in container || "@index" in container) && v isa AbstractDict
                 _wrapg(node) = (node isa AbstractDict && haskey(node, "@graph")) ?
                                node : Dict{String,Any}("@graph" => Any[node])
+                gidx = tdk isa AbstractDict ? get(tdk, "@index", nothing) : nothing
                 for (key, sub) in v
                     for node in _expand_property_values(sub, expanded_pred, pctx)
                         go = _wrapg(node)
@@ -1037,6 +1038,15 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
                             if eid !== nothing
                                 go = Dict{String,Any}(go)   # copy before tagging
                                 go["@id"] = eid
+                            end
+                        end
+                        # Property-valued @index: the index key becomes a property
+                        # of the graph node.
+                        if gidx !== nothing && !_is_none_key(ctx, String(key))
+                            ip = _expand_iri(pctx, gidx; vocab=true, base=false)
+                            if ip !== nothing
+                                go = Dict{String,Any}(go)
+                                go[ip] = _expand_index_value(String(key), gidx, pctx)
                             end
                         end
                         push!(out, go)
@@ -1570,6 +1580,16 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
         gname === nothing && (gname = _mint_blank_node())
         ng = get!(() -> Graph(), ds.named_graphs, gname)
         _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        # Any extra properties of the graph object (e.g. a property-valued index)
+        # are emitted on the graph name in the current graph.
+        for (p, vals) in d
+            (p == "@graph" || p == "@id" || startswith(p, "@") || !_is_valid_iri(p)) && continue
+            pi = IRI(p)
+            for vob in (vals isa AbstractArray ? vals : Any[vals])
+                o = _val_to_rdf(vob, graph, ds, blank_map)
+                o === nothing || push!(graph, Triple(gname, pi, o))
+            end
+        end
         return gname
     end
 
