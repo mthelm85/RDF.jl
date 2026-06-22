@@ -500,9 +500,15 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                     throw(ParseError("@id in term definition must be a string", 0, 0, _MIME_JSONLD()))
                 end
             else
-                # Default @id: expand the term name itself
+                # Default @id: expand the term name itself. With no @id and no
+                # way to form an IRI (no @vocab, not a compact/absolute IRI or
+                # keyword), the mapping is invalid.
                 expanded = _expand_iri(result, sk; vocab=true, base=false)
                 td["@id"] = (expanded !== nothing) ? expanded : sk
+                (occursin(':', td["@id"]) || startswith(td["@id"], "@") ||
+                 haskey(v, "@reverse")) ||
+                    throw(ParseError("invalid IRI mapping (no vocab mapping) for \"$sk\"",
+                                     0, 0, _MIME_JSONLD()))
             end
             # @prefix must be a boolean.
             if haskey(v, "@prefix")
