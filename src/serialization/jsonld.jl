@@ -945,6 +945,18 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         rev_map = Dict{String,Any}()
         for (k, v) in rev
             sk = String(k)
+            # A reverse term inside @reverse is a double reversal — it becomes a
+            # forward property of this node.
+            rtd = get(ctx.terms, sk, nothing)
+            if rtd isa AbstractDict && haskey(rtd, "@reverse")
+                fpred = rtd["@reverse"]
+                fvals = _expand_values_with_td(v, rtd, ctx)
+                if !isempty(fvals)
+                    haskey(node, fpred) ? append!(node[fpred]::Vector{Any}, fvals) :
+                                          (node[fpred] = fvals)
+                end
+                continue
+            end
             expanded_pred = _expand_iri(ctx, sk; vocab=true, base=false)
             expanded_pred === nothing && continue
             # @reverse map keys must be properties, not keywords.
