@@ -472,6 +472,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 throw(ParseError("cyclic IRI mapping for \"$sk\"", 0, 0, _MIME_JSONLD()))
             expanded = _expand_iri(result, sv; vocab=true, base=false)
             newdef = (expanded !== nothing && expanded != sv) ? expanded : sv
+            _check_compact_redef(result, sk, newdef)
         else
             # A term definition must be a string, map, or null.
             v isa AbstractDict ||
@@ -497,6 +498,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                         throw(ParseError("cyclic IRI mapping for \"$sk\"", 0, 0, _MIME_JSONLD()))
                     expanded = _expand_iri(result, sv; vocab=true, base=false)
                     td["@id"] = (expanded !== nothing && expanded != sv) ? expanded : sv
+                    _check_compact_redef(result, sk, td["@id"])
                     # A term aliasing @type may only also carry @container (whose
                     # value must be @set) and @protected (W3C ter43).
                     if sv == "@type"
@@ -896,6 +898,22 @@ end
 # The effective @propagate of a term's scoped @context (an explicit @propagate
 # entry overrides the supplied default). Type-scoped contexts default to false
 # (non-propagating); property-scoped and embedded contexts default to true.
+# A term that has the form of a compact IRI (prefix:suffix, where the prefix is
+# a term defined in the active context) must expand to the same IRI as the
+# compact IRI itself. Redefining it to a different IRI is invalid (W3C ter44).
+function _check_compact_redef(ctx::_JsonLDContext, sk::String, mapped)
+    mapped isa AbstractString || return
+    ci = findfirst(==(':'), sk)
+    ci === nothing && return
+    pfx = sk[1:ci-1]
+    (isempty(pfx) || pfx == "_" || startswith(sk[ci:end], "://")) && return
+    haskey(ctx.terms, pfx) || return
+    exp = _expand_iri(ctx, sk; vocab=true, base=false)
+    (exp !== nothing && exp != String(mapped)) &&
+        throw(ParseError("compact IRI term \"$sk\" must expand to itself",
+                         0, 0, _MIME_JSONLD()))
+end
+
 function _scoped_propagate(td::AbstractDict, default::Bool)::Bool
     c = get(td, "@context", nothing)
     if c isa AbstractDict && haskey(c, "@propagate")
