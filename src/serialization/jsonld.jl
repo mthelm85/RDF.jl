@@ -1007,6 +1007,14 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=noth
             expanded_id = _expand_iri(ctx, String(raw_id); vocab=false, base=true)
             expanded_id !== nothing && (node["@id"] = expanded_id)
         end
+    else
+        # An @id carried inside an @nest container is hoisted onto this node
+        # (W3C tin06), mirroring @type hoisting below.
+        nid = _nest_id(d, ctx)
+        if nid !== nothing
+            eid = _expand_iri(ctx, nid; vocab=false, base=true)
+            eid !== nothing && (node["@id"] = eid)
+        end
     end
 
     # @type — the type values are expanded against the context *before* any
@@ -1303,6 +1311,22 @@ end
 
 # Collect @type values hoisted from @nest properties (recursively); a node's
 # own @type is handled separately by the caller.
+# The @id of a node carried inside an @nest container (recursively), or nothing.
+function _nest_id(d::AbstractDict, ctx::_JsonLDContext)
+    for (k0, v) in d
+        _kw_alias(ctx, String(k0)) == "@nest" || continue
+        for nv in (v isa AbstractArray ? collect(v) : Any[v])
+            nv isa AbstractDict || continue
+            for (kk, vv) in nv
+                _kw_alias(ctx, String(kk)) == "@id" && vv isa AbstractString && return String(vv)
+            end
+            r = _nest_id(nv, ctx)
+            r !== nothing && return r
+        end
+    end
+    nothing
+end
+
 function _nest_types(d::AbstractDict, ctx::_JsonLDContext)::Vector{Any}
     out = Any[]
     for (k0, v) in d
