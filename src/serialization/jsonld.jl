@@ -1329,6 +1329,7 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
         # An explicit @list / @set object carries this property's @type coercion
         # down to its members.
         coerce = term_def isa AbstractDict ? get(term_def, "@type", nothing) : nothing
+        coerce !== nothing && String(coerce) == "@none" && (coerce = nothing)
         if coerce !== nothing
             if haskey(val, "@list")
                 return Dict{String,Any}("@list" => _expand_list_values(val["@list"], ctx; coerce=coerce))
@@ -1358,8 +1359,9 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     if val isa AbstractString
         sv = String(val)
 
-        # @type coercion from term definition
-        if term_def !== nothing && term_def isa AbstractDict && haskey(term_def, "@type")
+        # @type coercion from term definition (@type: @none means no coercion).
+        if term_def !== nothing && term_def isa AbstractDict && haskey(term_def, "@type") &&
+           String(term_def["@type"]) != "@none"
             coerce = String(term_def["@type"])
             if coerce == "@id"
                 expanded = _expand_iri(ctx, sv; vocab=false, base=true)
@@ -1393,15 +1395,19 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     end
 
     # A native (boolean/number) value coerced to an arbitrary datatype: emit its
-    # canonical lexical form tagged with the coercion datatype.
+    # canonical lexical form tagged with the coercion datatype. (@type: @none
+    # means "no coercion" — fall through to the native conversion below.)
     if (val isa Bool || val isa Number) && term_def isa AbstractDict &&
-       haskey(term_def, "@type")
+       haskey(term_def, "@type") && String(term_def["@type"]) != "@none"
         coerce = String(term_def["@type"])
         if !(coerce in ("@id", "@vocab", "@json"))
             dt = _expand_iri(ctx, coerce; vocab=true, base=false)
             dt = dt !== nothing ? dt : coerce
+            # An integer coerced to xsd:double takes the canonical double lexical
+            # form ("1.0E0"); a non-integral number always does (W3C t0035).
             lex = val isa Bool ? (val ? "true" : "false") :
-                  val isa Integer ? string(val) : _double_lexical(Float64(val))
+                  (val isa Integer && dt != _JXSD_DOUBLE_S) ? string(val) :
+                  _double_lexical(Float64(val))
             return Dict{String,Any}("@value" => lex, "@type" => dt)
         end
     end
@@ -1415,7 +1421,13 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     end
 
     if val isa AbstractFloat || val isa Number
-        return Dict{String,Any}("@value" => Float64(val), "@type" => _JXSD_DOUBLE_S)
+        # A JSON number with no non-zero fractional part is an xsd:integer
+        # (e.g. 10.0 → "10"), per JSON-LD value→RDF conversion (W3C ttn02).
+        f = Float64(val)
+        if isinteger(f) && abs(f) < 9.007199254740992e15
+            return Dict{String,Any}("@value" => Integer(f), "@type" => _JXSD_INTEGER_S)
+        end
+        return Dict{String,Any}("@value" => f, "@type" => _JXSD_DOUBLE_S)
     end
 
     nothing
