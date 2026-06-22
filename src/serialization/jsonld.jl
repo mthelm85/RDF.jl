@@ -698,9 +698,14 @@ function _expand_value(doc, ctx::_JsonLDContext)
     # Normalise to a concrete Dict{String,Any}
     d = Dict{String,Any}(String(k) => v for (k, v) in doc)
 
-    # Process @context first so it affects the current node
+    # Process @context first so it affects the current node. A non-propagating
+    # embedded @context (@propagate:false) applies to this node only; nested node
+    # objects revert to the context in effect before it (W3C tc028).
+    nested_base = nothing
     if haskey(d, "@context")
+        pre = ctx
         ctx = _process_context(ctx, d["@context"])
+        ctx.previous === pre && (nested_base = pre)
     end
 
     # Resolve keyword aliases: a term whose definition is a keyword (e.g.
@@ -744,7 +749,7 @@ function _expand_value(doc, ctx::_JsonLDContext)
     haskey(d, "@set") && return _expand_value(d["@set"], ctx)
 
     # Node object
-    _expand_node(d, ctx)
+    _expand_node(d, ctx; nested_base=nested_base)
 end
 
 # The keyword a key denotes, accounting for aliases (term → keyword); nothing
@@ -888,13 +893,33 @@ function _apply_scoped_context(ctx::_JsonLDContext, td::AbstractDict;
     r
 end
 
-function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
+# The effective @propagate of a term's scoped @context (an explicit @propagate
+# entry overrides the supplied default). Type-scoped contexts default to false
+# (non-propagating); property-scoped and embedded contexts default to true.
+function _scoped_propagate(td::AbstractDict, default::Bool)::Bool
+    c = get(td, "@context", nothing)
+    if c isa AbstractDict && haskey(c, "@propagate")
+        return c["@propagate"] === true
+    elseif c isa AbstractArray
+        for x in c
+            x isa AbstractDict && haskey(x, "@propagate") && return x["@propagate"] === true
+        end
+    end
+    default
+end
+
+function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=nothing)
     node = Dict{String,Any}()
 
     # Type-scoped contexts do NOT propagate into nested nodes, so remember the
     # context as it stands before they are applied; nested node values are
     # expanded from this base (plus any propagating property-scoped contexts).
-    child_base = ctx
+    # A non-propagating embedded @context supplies its pre-context state here.
+    child_base = nested_base === nothing ? ctx : nested_base
+
+    # The context used to expand the node's own @type IRIs (before any
+    # type-scoping is applied), independent of any propagation changes below.
+    type_base = ctx
 
     # Type-scoped contexts: a node's @type values may name terms whose term
     # definition carries a scoped @context.  Apply them — in lexicographic order
@@ -908,9 +933,13 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
             # Look up each type's scoped context in the context *before* any
             # type-scoping, so an earlier type's null reset cannot hide a later
             # type's definition.
-            td = get(child_base.terms, tv, nothing)
+            td = get(type_base.terms, tv, nothing)
             if td isa AbstractDict && haskey(td, "@context")
-                ctx = _apply_scoped_context(ctx, td; propagate=false)
+                # Type-scoped contexts do not propagate by default; @propagate:true
+                # makes the context propagate into nested nodes too (W3C tc026).
+                prop = _scoped_propagate(td, false)
+                ctx = _apply_scoped_context(ctx, td; propagate=prop)
+                prop && (child_base = _apply_scoped_context(child_base, td; propagate=true))
             end
         end
     end
@@ -940,7 +969,7 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         for t in types_arr
             t isa AbstractString ||
                 throw(ParseError("@type value must be a string", 0, 0, _MIME_JSONLD()))
-            et = _expand_iri(child_base, String(t); vocab=true, base=true)
+            et = _expand_iri(type_base, String(t); vocab=true, base=true)
             et !== nothing && push!(expanded_types, et)
         end
         isempty(expanded_types) || (node["@type"] = expanded_types)
@@ -1047,7 +1076,9 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext)
         cctx = cbase
         if tdk isa AbstractDict && haskey(tdk, "@context")
             pctx = _apply_scoped_context(actx, tdk)
-            cctx = _apply_scoped_context(cbase, tdk)
+            # Property-scoped contexts propagate by default; @propagate:false
+            # confines them to the immediate value (W3C tc027).
+            cctx = _scoped_propagate(tdk, true) ? _apply_scoped_context(cbase, tdk) : cbase
         end
 
         expanded_vals = if tdk isa AbstractDict && get(tdk, "@type", nothing) == "@json"
