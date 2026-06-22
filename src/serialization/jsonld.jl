@@ -434,6 +434,17 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
          all(kk -> String(kk) in ("@container", "@protected"), keys(tv)) &&
          (!haskey(tv, "@container") || String(tv["@container"]) == "@set")) ||
             throw(ParseError("invalid context @type definition", 0, 0, _MIME_JSONLD()))
+        # The @type keyword term can be @protected; once protected it may not be
+        # redefined with a different definition (W3C tpr32). Its definition is
+        # kept under the "@type" terms key (the "@type" data key never consults it).
+        newsig = sort!(String[string(kk, "=", tv[kk]) for kk in keys(tv) if String(kk) != "@protected"])
+        prev = get(result.terms, "@type", nothing)
+        if !override_protected && ("@type" in result.protected) && prev != newsig
+            throw(ParseError("attempt to redefine protected @type", 0, 0, _MIME_JSONLD()))
+        end
+        result.terms["@type"] = newsig
+        (get(tv, "@protected", false) === true || get(raw_ctx, "@protected", false) === true) &&
+            push!(result.protected, "@type")
     end
 
     # Whether all terms in this context are protected by default.
