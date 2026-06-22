@@ -1769,15 +1769,47 @@ function _json_canonical(v)::String
         (isinteger(f) && abs(f) < 9.007199254740992e15) && return string(Integer(f))
         return _ecma_number(f)
     end
-    v isa AbstractString && return JSON3.write(String(v))
+    v isa AbstractString && return _jcs_string(String(v))
     if v isa AbstractArray
         return "[" * join((_json_canonical(x) for x in v), ",") * "]"
     end
     if v isa AbstractDict || v isa JSON3.Object
-        ks = sort!(String[String(k) for k in keys(v)])
-        return "{" * join((JSON3.write(k) * ":" * _json_canonical(v[Symbol(k)]) for k in ks), ",") * "}"
+        # RFC 8785: object members are sorted by their keys' UTF-16 code units.
+        ks = sort!(String[String(k) for k in keys(v)]; by=s -> transcode(UInt16, s))
+        return "{" * join((_jcs_string(k) * ":" * _json_canonical(v[Symbol(k)]) for k in ks), ",") * "}"
     end
     "null"
+end
+
+# RFC 8785 / JCS JSON string serialization: escape ", \\, and control characters
+# (with the short escapes where defined, else lowercase \\u00XX); all other
+# characters, including non-ASCII, are emitted literally.
+function _jcs_string(s::AbstractString)::String
+    io = IOBuffer()
+    print(io, '"')
+    for c in s
+        if c == '"'
+            print(io, "\\\"")
+        elseif c == '\\'
+            print(io, "\\\\")
+        elseif c == '\b'
+            print(io, "\\b")
+        elseif c == '\f'
+            print(io, "\\f")
+        elseif c == '\n'
+            print(io, "\\n")
+        elseif c == '\r'
+            print(io, "\\r")
+        elseif c == '\t'
+            print(io, "\\t")
+        elseif c < '\x20'
+            print(io, "\\u", lpad(string(UInt32(c); base=16), 4, '0'))
+        else
+            print(io, c)
+        end
+    end
+    print(io, '"')
+    String(take!(io))
 end
 
 function _jsonld_raw_to_lexical(raw, dtype::String)::String
