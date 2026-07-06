@@ -333,7 +333,7 @@ end
 
             @testset "non-JSON Content-Type raises descriptive error" begin
                 # The mock returns application/x-binary-brtr for BINARY_RESP.
-                # Without the guard this would crash JSON3 with a cryptic message;
+                # Without the guard this would crash the JSON parser with a cryptic message;
                 # with the guard it should throw a clear RemoteEndpointError
                 # mentioning the actual Content-Type that came back.
                 err = @test_throws RemoteEndpointError sparql(base,

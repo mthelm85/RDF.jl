@@ -8,7 +8,7 @@
 #   entailment, syntax-fed
 
 using Test, RDF
-import JSON3
+import JSON
 
 # The fixtures are vendored in the repository, so the W3C SPARQL suites run
 # unconditionally — like every other test.
@@ -483,47 +483,47 @@ function _sp_parse_srx(path::String)::Union{SolutionSet, Bool}
     return sol
 end
 
-# ─── SRJ parser (SPARQL Results JSON, via JSON3) ─────────────────────────────
+# ─── SRJ parser (SPARQL Results JSON) ────────────────────────────────────────
 
 # Decode one SPARQL/JSON term object (recursively for SPARQL 1.2 triple terms).
 function _sp_srj_term(td, bm::_SpBNodeMap)::Union{RDFTerm, Nothing}
-    type_str = String(td[:type])
+    type_str = String(td["type"])
     if type_str == "uri"
-        return IRI(String(td[:value]))
+        return IRI(String(td["value"]))
     elseif type_str == "bnode"
-        return _sp_get_bnode!(bm, String(td[:value]))
+        return _sp_get_bnode!(bm, String(td["value"]))
     elseif type_str == "literal"
-        val_str = String(td[:value])
-        if haskey(td, Symbol("xml:lang"))
-            lang = String(td[Symbol("xml:lang")])
-            if haskey(td, Symbol("its:dir"))
-                return Literal(val_str; lang=lang, dir=String(td[Symbol("its:dir")]))
+        val_str = String(td["value"])
+        if haskey(td, "xml:lang")
+            lang = String(td["xml:lang"])
+            if haskey(td, "its:dir")
+                return Literal(val_str; lang=lang, dir=String(td["its:dir"]))
             end
             return Literal(val_str; lang=lang)
-        elseif haskey(td, :datatype)
-            return Literal(val_str, IRI(String(td[:datatype])))
+        elseif haskey(td, "datatype")
+            return Literal(val_str, IRI(String(td["datatype"])))
         else
             return Literal(val_str)
         end
     elseif type_str == "triple"
-        v = td[:value]
-        s = _sp_srj_term(v[:subject],   bm)
-        p = _sp_srj_term(v[:predicate], bm)
-        o = _sp_srj_term(v[:object],    bm)
+        v = td["value"]
+        s = _sp_srj_term(v["subject"],   bm)
+        p = _sp_srj_term(v["predicate"], bm)
+        o = _sp_srj_term(v["object"],    bm)
         return TripleTerm(s, p, o)
     end
     nothing
 end
 
 function _sp_parse_srj(path::String)::Union{SolutionSet, Bool}
-    data = JSON3.read(read(path, String))
-    haskey(data, :boolean) && return Bool(data[:boolean])
+    data = JSON.parse(read(path, String))
+    haskey(data, "boolean") && return Bool(data["boolean"])
 
-    vars = Symbol[Symbol(v) for v in get(data[:head], :vars, [])]
+    vars = Symbol[Symbol(v) for v in get(data["head"], "vars", [])]
     sol  = SolutionSet(vars)
     bm   = _SpBNodeMap()
 
-    for binding in data[:results][:bindings]
+    for binding in data["results"]["bindings"]
         row = Dict{Symbol,Union{RDFTerm,Nothing}}(v => nothing for v in vars)
         for (k, td) in pairs(binding)
             row[Symbol(k)] = _sp_srj_term(td, bm)

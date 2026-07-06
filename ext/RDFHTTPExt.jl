@@ -22,7 +22,7 @@ module RDFHTTPExt
 using RDF
 using HTTP
 using Base64
-import JSON3
+import JSON
 
 # Install the HTTP transport for SERVICE federation and RemoteGraph.
 # RDF.sparql(endpoint::AbstractString, query; kwargs...) is defined below in
@@ -40,9 +40,9 @@ function _fetch_jsonld_context(iri::AbstractString)
     resp = HTTP.get(String(iri);
                     headers = ["Accept" => "application/ld+json, application/json"],
                     redirect = true, retry = false)
-    doc = JSON3.read(resp.body)
-    if doc isa JSON3.Object && haskey(doc, Symbol("@context"))
-        return doc[Symbol("@context")]
+    doc = JSON.parse(resp.body)
+    if doc isa AbstractDict && haskey(doc, "@context")
+        return doc["@context"]
     end
     doc
 end
@@ -236,7 +236,7 @@ function RDF.sparql(endpoint::AbstractString, query::AbstractString;
     # Parse and return
     if qtype in (:select, :ask)
         # Fix 2: guard against endpoints that ignore the Accept header and return
-        # a binary or unexpected format.  JSON3 would crash with a cryptic
+        # a binary or unexpected format.  The JSON parser would crash with a cryptic
         # "invalid JSON at byte position 1" message; instead we surface the actual
         # Content-Type so the user knows exactly what to fix (typically by passing
         # headers=["Accept" => "application/sparql-results+json"]).

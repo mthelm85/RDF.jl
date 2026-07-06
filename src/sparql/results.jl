@@ -16,7 +16,7 @@ const _MIME_SPARQL_TSV  = MIME"text/tab-separated-values"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-# Minimal JSON string escaper — avoids a JSON3 dependency in this file.
+# Minimal JSON string escaper — avoids a JSON dependency in this file.
 @inline function _srj_write_escaped(io::IO, s::AbstractString)
     for c in s
         if c == '"'
@@ -330,28 +330,28 @@ consuming remote SPARQL endpoint responses.  Normal users call `sparql(url, quer
 after loading HTTP.jl.
 """
 function read_sparql_json(body::AbstractString)::Union{SolutionSet, Bool}
-    obj = JSON3.read(body)
+    obj = JSON.parse(body)
 
     # ASK response: {"head": {}, "boolean": true/false}
-    if haskey(obj, :boolean)
-        return Bool(obj[:boolean])
+    if haskey(obj, "boolean")
+        return Bool(obj["boolean"])
     end
 
     # SELECT response
-    head = obj[:head]
-    vars = haskey(head, :vars) ? Symbol.(head[:vars]) : Symbol[]
+    head = obj["head"]
+    vars = haskey(head, "vars") ? Symbol.(head["vars"]) : Symbol[]
 
     ss = SolutionSet(vars)
-    results_obj = get(obj, :results, nothing)
+    results_obj = get(obj, "results", nothing)
     results_obj === nothing && return ss
 
-    bindings = get(results_obj, :bindings, nothing)
+    bindings = get(results_obj, "bindings", nothing)
     bindings === nothing && return ss
 
     for binding in bindings
         row = Dict{Symbol, Union{RDFTerm, Nothing}}()
         for var in vars
-            entry = get(binding, var, nothing)
+            entry = get(binding, String(var), nothing)
             row[var] = entry === nothing ? nothing : _srj_read_term(entry)
         end
         push!(ss, row)
@@ -361,33 +361,30 @@ end
 
 # Convert a single SPARQL/JSON binding object to an RDFTerm.
 function _srj_read_term(t)::RDFTerm
-    type = String(t[:type])
+    type = String(t["type"])
     if type == "uri"
-        return IRI(String(t[:value]))
+        return IRI(String(t["value"]))
     elseif type == "bnode"
         # Blank node IDs from remote endpoints are string labels (e.g. "b0").
         # We hash the label to a UInt64 so that the same remote label consistently
         # maps to the same local BlankNode within a single result document.
-        return BlankNode(hash(String(t[:value]), UInt(0x424e4f44)))  # seed avoids collision with mint counter
+        return BlankNode(hash(String(t["value"]), UInt(0x424e4f44)))  # seed avoids collision with mint counter
     elseif type == "triple"
         # SPARQL 1.2: triple-term binding — value is a nested s/p/o object
-        v = t[:value]
-        return TripleTerm(_srj_read_term(v[:subject]),
-                          _srj_read_term(v[:predicate]),
-                          _srj_read_term(v[:object]))
+        v = t["value"]
+        return TripleTerm(_srj_read_term(v["subject"]),
+                          _srj_read_term(v["predicate"]),
+                          _srj_read_term(v["object"]))
     else  # "literal" (and any unrecognised type → literal fallback)
-        val = String(t[:value])
-        # "xml:lang" contains a colon — access via the Symbol form
-        lang_key = Symbol("xml:lang")
-        if haskey(t, lang_key)
-            lang = String(t[lang_key])
-            dir_key = Symbol("its:dir")   # SPARQL 1.2 base direction
-            if haskey(t, dir_key)
-                return Literal(val; lang=lang, dir=String(t[dir_key]))
+        val = String(t["value"])
+        if haskey(t, "xml:lang")
+            lang = String(t["xml:lang"])
+            if haskey(t, "its:dir")   # SPARQL 1.2 base direction
+                return Literal(val; lang=lang, dir=String(t["its:dir"]))
             end
             return Literal(val; lang=lang)
-        elseif haskey(t, :datatype)
-            dt = String(t[:datatype])
+        elseif haskey(t, "datatype")
+            dt = String(t["datatype"])
             # Positional 2-arg form: Literal(lexical, datatypeIRI)
             return Literal(val, IRI(dt))
         else

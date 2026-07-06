@@ -1,7 +1,7 @@
 using Test
 using RDF
 import RDF: Graph
-import JSON3
+import JSON
 
 # ── W3C JSON-LD 1.1 test suite (toRdf / fromRdf) ────────────────────────────────
 #
@@ -24,8 +24,8 @@ end
 function _jld_loader(iri::AbstractString)
     p = _jld_local(iri)
     (p === nothing || !isfile(p)) && return nothing
-    doc = JSON3.read(read(p, String))
-    doc isa JSON3.Object && haskey(doc, Symbol("@context")) ? doc[Symbol("@context")] : nothing
+    doc = JSON.parse(read(p, String))
+    doc isa AbstractDict && haskey(doc, "@context") ? doc["@context"] : nothing
 end
 
 # ── Dataset comparison (quad multiset under a blank-node bijection) ─────────────
@@ -68,11 +68,11 @@ end
 
 # ── Manifest runner ─────────────────────────────────────────────────────────────
 
-_jget(o, k, default=nothing) = haskey(o, Symbol(k)) ? o[Symbol(k)] : default
+_jget(o, k, default=nothing) = haskey(o, k) ? o[k] : default
 
 function _jld_run_manifest(runner::Function, manifest_file::String, test_type::String)
-    man = JSON3.read(read(joinpath(_JLD_DIR, manifest_file), String))
-    for entry in man.sequence
+    man = JSON.parse(read(joinpath(_JLD_DIR, manifest_file), String))
+    for entry in man["sequence"]
         types = _jget(entry, "@type", String[])
         (test_type in types) || continue
         opt = _jget(entry, "option")

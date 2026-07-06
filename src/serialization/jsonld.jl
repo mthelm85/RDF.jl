@@ -74,7 +74,7 @@ end
 function _term_sig(t)
     t isa AbstractString && return (t, nothing, nothing, nothing, nothing, nothing)
     if t isa AbstractDict
-        cs = haskey(t, "@context") ? JSON3.write(t["@context"]) : nothing
+        cs = haskey(t, "@context") ? JSON.json(t["@context"]) : nothing
         return (get(t, "@id", nothing), get(t, "@type", nothing),
                 get(t, "@container", nothing), get(t, "@reverse", nothing),
                 get(t, "@language", nothing), cs)
@@ -1928,10 +1928,10 @@ function _json_canonical(v)::String
     if v isa AbstractArray
         return "[" * join((_json_canonical(x) for x in v), ",") * "]"
     end
-    if v isa AbstractDict || v isa JSON3.Object
+    if v isa AbstractDict
         # RFC 8785: object members are sorted by their keys' UTF-16 code units.
         ks = sort!(String[String(k) for k in keys(v)]; by=s -> transcode(UInt16, s))
-        return "{" * join((_jcs_string(k) * ":" * _json_canonical(v[Symbol(k)]) for k in ks), ",") * "}"
+        return "{" * join((_jcs_string(k) * ":" * _json_canonical(v[k]) for k in ks), ",") * "}"
     end
     "null"
 end
@@ -2066,12 +2066,9 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
                    contexts=nothing, load_remote_contexts::Bool=false,
                    rdfdirection::Union{AbstractString,Nothing}=nothing,
                    expandcontext=nothing)::Dataset
-    # Parse from the raw bytes, not a String: JSON3.read(::String) treats a
-    # short/path-like string as a filename and stats it (which aborts on some
-    # high-Unicode content via libuv on Windows).
     bytes = Base.read(io)
     doc  = try
-        JSON3.read(bytes)
+        JSON.parse(bytes)
     catch e
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
@@ -2136,7 +2133,7 @@ function _object_to_jsonld_obj(obj::Literal)
     # An rdf:JSON literal round-trips as a @json value object (its lexical form
     # is canonical JSON).
     if dt == _JRDF_JSON
-        parsed = try JSON3.read(obj.lexical_form) catch; obj.lexical_form end
+        parsed = try JSON.parse(obj.lexical_form) catch; obj.lexical_form end
         return Dict{String,Any}("@value" => parsed, "@type" => "@json")
     end
     # Under rdfDirection: i18n-datatype, decode an i18n#<lang>_<dir> typed literal
@@ -2178,7 +2175,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, g::Graph; context=nothing, indent::I
         else
             nodes
         end
-        print(io, JSON3.write(output))
+        print(io, JSON.json(output))
     finally
         _WRITE_DIRECTION_MODE[] = prev; _WRITE_NATIVE_TYPES[] = prevn
     end
@@ -2229,7 +2226,7 @@ function Base.write(io::IO, ::_MIME_JSONLD, ds::Dataset; context=nothing, indent
         else
             top
         end
-        print(io, JSON3.write(output))
+        print(io, JSON.json(output))
     finally
         _WRITE_DIRECTION_MODE[] = prev; _WRITE_NATIVE_TYPES[] = prevn
     end

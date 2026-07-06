@@ -9,7 +9,7 @@ using Parsers
 using Bumper
 using Graphs
 using LRUCache
-using JSON3
+import JSON
 import Base: match, merge!
 
 # ── Core types ────────────────────────────────────────────────────────────────
