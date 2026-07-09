@@ -4,25 +4,43 @@ CurrentModule = RDF
 
 # RDF.jl
 
-A full-featured RDF 1.1 library for Julia.
+A full-featured **RDF 1.2** library for Julia with a conformant **SPARQL 1.1 and
+1.2** engine (657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing),
+including full RDF-star support — triple terms, reified triples, annotation
+syntax, and directional language tags.
 
 Graphs are backed by a **hexastore index** — six sorted arrays covering every
 (s, p, o) permutation — giving O(log n) pattern matching on any combination of
-subject, predicate, and object. The SPARQL 1.1 engine is 100% W3C conformant
-(657/657 tests passing).
+subject, predicate, and object.
 
 ## Features
 
-- **SPARQL 1.1** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language
+- **SPARQL 1.1 + 1.2** — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language
   (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths,
-  BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED
-- **Turtle 1.1** — parser and serializer
-- **N-Triples / N-Quads** — parser and serializer
-- **JSON-LD 1.1** — parser and serializer with inline context support
+  BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED,
+  SERVICE; plus RDF-star triple terms, reified triples, and annotation blocks
+- **Cost-based query optimization** — basic graph patterns are reordered
+  automatically using exact O(log n) hexastore cardinalities
+- **Remote SPARQL endpoints** — `sparql(url, query)`, `SERVICE` federation, and
+  `RemoteGraph` when HTTP.jl is loaded
+- **Turtle 1.2 / N-Triples / N-Quads** — parsers and serializers
+- **JSON-LD 1.1** — parser and serializer, inline and remote contexts
 - **SPARQL result formats** — SPARQL/JSON, SPARQL/XML, CSV, TSV serialization
+- **AI / GraphRAG primitives** — RDF-star fact annotation (`annotate!` /
+  `annotations`), subgraph extraction (`cbd` / `ego_graph`), token-budgeted LLM
+  context (`to_context`), and schema introspection for text-to-SPARQL
+  (`describe_schema` / `to_prompt`)
+- **Semantic retrieval** — an `EmbeddingIndex` maps terms to embedding vectors
+  and finds the nearest to a query vector (`knn`); `retrieve` runs the whole
+  GraphRAG loop — query vector → nearest entities → subgraph → context — in one call
+- **SHACL Core validation** — `validate_shapes` / `conforms`; doubles as an
+  LLM-extraction guardrail (`conforming` keeps only valid facts)
 - **Named graphs / Datasets** — full SPARQL dataset semantics
 - **RDFS inference** — forward-chaining closure, entailment check
 - **Graph isomorphism** — blank-node bijection
+- **Graphs.jl integration** — convert to `SimpleDiGraph`,
+  `SimpleWeightedDiGraph`, or `RDFDiGraph` and run PageRank, centrality,
+  shortest paths, community detection, and any other Graphs.jl algorithm
 - **Tables.jl integration** — match results and `SolutionSet` work directly
   with DataFrames and any Tables.jl consumer
 - **Vocabulary API** — load any external ontology or namespace as a

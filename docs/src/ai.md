@@ -107,6 +107,62 @@ profile = cbd(g, ex.alice)               # facts + their annotations
 println(to_context(profile))
 ```
 
+## Semantic retrieval — from a query vector to context
+
+`ego_graph` and `cbd` start from seed entities, but in a real GraphRAG system the
+first step is *semantic*: a user question is embedded, and the nearest entities
+become the seeds. An [`EmbeddingIndex`](@ref) supplies that entry point — it maps
+terms to embedding vectors and finds the nearest ones to a query vector — and
+[`retrieve`](@ref) chains the whole loop (nearest entities → subgraph → context)
+into one call.
+
+```@docs
+EmbeddingIndex
+index!
+knn
+retrieve
+```
+
+The index stores and searches vectors only; producing the embeddings is your
+model's job, exactly as remote contexts and Graphs.jl edge weights are
+caller-supplied. Search is exact brute-force cosine similarity, which is the
+right cut for the in-memory working sets this package targets.
+
+```julia
+using RDF
+ex = Namespace("http://example.org/")
+
+# embed() is your embedding model — any function term/text -> Vector{Float32}
+idx = EmbeddingIndex(384)
+index!(idx, ex.alice, embed("Alice Smith, engineer at Acme"))
+index!(idx, ex.acme,  embed("Acme Corporation"))
+index!(idx, ex.bob,   embed("Bob Jones"))
+
+# Nearest entities to a question, with cosine scores
+knn(idx, embed("who works at Acme?"); k=3)
+#  ex.acme  => 0.83
+#  ex.alice => 0.79
+#  ex.bob   => 0.41
+
+# Or the whole retrieval step in one call
+context = retrieve(g, idx, embed("who works at Acme?");
+                   k=5, hops=2, budget=2000,
+                   prefixes=Dict("ex" => "http://example.org/"))
+
+prompt = """
+Answer using only these facts:
+
+$context
+
+Question: Who works at Acme?
+"""
+```
+
+Entries are keyed by the term value, not its interned ID, so a term can be
+indexed before (or without ever) being added to a graph — index a vocabulary up
+front, load instances later. `retrieve` returns `""` when the index is empty or
+the seeds have no triples in the graph, so it degrades cleanly.
+
 ## Schema introspection for text-to-SPARQL
 
 LLMs write good SPARQL when handed the schema. [`describe_schema`](@ref)

@@ -43,6 +43,7 @@ include("vocabulary.jl")
 # ── AI / GraphRAG layer ───────────────────────────────────────────────────────
 include("annotations.jl")
 include("context.jl")
+include("embeddings.jl")
 include("schema.jl")
 include("shacl.jl")
 
@@ -115,6 +116,9 @@ export RemoteGraph
 export annotate!, annotations, anno
 export cbd, ego_graph, to_context
 
+# Semantic (vector → graph) retrieval
+export EmbeddingIndex, index!, knn, retrieve
+
 # Schema introspection (text-to-SPARQL)
 export describe_schema, to_prompt, SchemaSummary, ClassInfo, PredicateInfo
 
@@ -182,6 +186,10 @@ using PrecompileTools: @setup_workload, @compile_workload
         annotate!(g, Triple(_pc.s1, _pc.name, Literal("precompile")); confidence=0.9)
         ego_graph(g, _pc.s1; hops=2)
         to_context(g; prefixes=Dict("pc" => "http://precompile.invalid/"))
+        _ei = EmbeddingIndex(3)
+        index!(_ei, _pc.s1, Float32[1, 0, 0])
+        knn(_ei, Float32[1, 0, 0]; k=1)
+        retrieve(g, _ei, Float32[1, 0, 0]; k=1, hops=1)
         to_prompt(describe_schema(g); prefixes=Dict("pc" => "http://precompile.invalid/"))
 
         # SHACL

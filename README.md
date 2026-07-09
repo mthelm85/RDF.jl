@@ -14,6 +14,7 @@ Graphs are backed by a hexastore index — six sorted arrays covering every (s, 
 - **N-Triples / N-Quads 1.2** parser and serializer
 - **JSON-LD 1.1** parser and serializer — inline and remote contexts (caller-supplied `contexts=` map, or `load_remote_contexts=true` to fetch over HTTP), prefix expansion, language-tagged literals, typed literals, named graphs, RDF list encoding
 - **AI / GraphRAG primitives** — annotate individual triples with confidence/provenance via RDF-star (`annotate!`/`annotations`), extract focused subgraphs (`cbd`, `ego_graph`), render them as token-budgeted LLM context (`to_context`), and summarize a graph's schema for text-to-SPARQL prompting (`describe_schema`/`to_prompt`)
+- **Semantic retrieval** — an `EmbeddingIndex` maps terms to embedding vectors and finds the nearest ones to a query vector (`knn`); `retrieve` closes the GraphRAG loop end-to-end — query vector → nearest entities → subgraph → prompt-ready context — in one call
 - **SHACL Core validation** — validate a data graph against shapes (`validate_shapes`/`conforms`); doubles as an LLM-extraction guardrail (`conforming` keeps only valid facts; `to_prompt(report)` renders violations for model self-correction)
 - **Named graphs / Datasets** with full SPARQL dataset semantics
 - **RDFS inference** (forward-chaining closure, entailment check)
@@ -307,6 +308,16 @@ ctx = to_context(sub; budget=2000,             # ≈ tokens; most-connected firs
 
 profile = cbd(g, ex.alice)                      # everything about one entity,
                                                 # annotations included
+
+# Semantic entry point: embed terms (with your own model), then let a query
+# vector drive the whole retrieval loop — nearest entities → subgraph → context
+idx = EmbeddingIndex(384)                        # e.g. 384-dim sentence embeddings
+index!(idx, ex.alice, embed("Alice Smith"))      # embed() is your model
+index!(idx, ex.acme,  embed("Acme Corp"))
+
+ctx = retrieve(g, idx, embed("who is Alice?");   # knn → ego_graph → to_context
+               k=5, hops=2, budget=2000,
+               prefixes=Dict("ex" => "http://example.org/"))
 ```
 
 ### Graphs.jl integration
