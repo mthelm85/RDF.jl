@@ -69,6 +69,52 @@ function _copy_ctx(ctx::_JsonLDContext)::_JsonLDContext
                    ctx.loader, copy(ctx.protected), ctx.previous, ctx.docbase)
 end
 
+# ── Compiled-context cache ──────────────────────────────────────────────────
+# Compiling an @context into its term-definition map is O(context size), and is
+# otherwise repeated on every read of every document — which dominates bulk
+# loads of corpora that share a large context (e.g. CTDL / schema.org). When a
+# context is layered onto a *pristine* context with the default flags, the
+# compiled result is a pure function of (context value, base, docbase); this was
+# verified against the entire W3C toRdf suite (expansion never mutates a compiled
+# term-definition, and a shallow clone of a shared master behaves identically to
+# a fresh compile). We memoize that result and clone it (_copy_ctx) on reuse,
+# making per-document context cost O(1) across a bulk load.
+const _JSONLD_CTX_CACHE  = LRU{Any,Tuple{Any,_JsonLDContext}}(maxsize=512)
+const _JSONLD_CTX_HITS   = Ref(0)
+const _JSONLD_CTX_MISSES = Ref(0)
+
+_jsonld_ctx_cache_reset!() =
+    (empty!(_JSONLD_CTX_CACHE); _JSONLD_CTX_HITS[] = 0; _JSONLD_CTX_MISSES[] = 0; nothing)
+_jsonld_ctx_cache_stats() = (_JSONLD_CTX_HITS[], _JSONLD_CTX_MISSES[])
+
+# A context may be memoized only when layered onto a pristine context — the only
+# situation in which the compiled result depends on nothing but the context value
+# and the (base, docbase) it resolves against.
+_ctx_is_fresh(ctx::_JsonLDContext) =
+    isempty(ctx.terms) && ctx.vocab === nothing && ctx.language === nothing &&
+    isempty(ctx.protected) && ctx.previous === nothing
+
+# Look up a compiled context; `verify(stored_payload)` guards against hash
+# collisions (inline contexts) and objectid reuse (referenced contexts). On a
+# hit, return a clone rebased onto `ctx`; on a miss, nothing.
+function _ctx_cache_get(key, ctx::_JsonLDContext, verify)
+    hit = get(_JSONLD_CTX_CACHE, key, nothing)
+    (hit === nothing || !verify(hit[1])) && return nothing
+    _JSONLD_CTX_HITS[] += 1
+    r = _copy_ctx(hit[2])
+    r.base = ctx.base; r.docbase = ctx.docbase
+    r
+end
+
+# Store a compiled master. Only contexts that propagate normally (no back-
+# reference to a specific prior context) are cacheable; others fall through.
+function _ctx_cache_put!(key, payload, result::_JsonLDContext)
+    result.previous === nothing || return result
+    _JSONLD_CTX_MISSES[] += 1
+    _JSONLD_CTX_CACHE[key] = (payload, _copy_ctx(result))
+    result
+end
+
 # Signature of a term definition used to decide whether two definitions are the
 # same (for @protected redefinition checks).
 function _term_sig(t)
@@ -282,13 +328,21 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                               ctx.loader, Set{String}(), propagate ? nothing : ctx, ctx.docbase)
     end
 
+    docache = !override_protected && propagate && validate_scoped && _ctx_is_fresh(ctx)
+
     if raw_ctx isa AbstractArray
+        akey = docache ? (:a, hash(raw_ctx), ctx.base, ctx.docbase) : nothing
+        if akey !== nothing
+            hit = _ctx_cache_get(akey, ctx, p -> isequal(p, raw_ctx))
+            hit === nothing || return hit
+        end
         result = _copy_ctx(ctx)
         for entry in raw_ctx
             result = _process_context(result, entry;
                                       override_protected=override_protected, propagate=propagate,
                                       validate_scoped=validate_scoped)
         end
+        akey === nothing || _ctx_cache_put!(akey, raw_ctx, result)
         return result
     end
 
@@ -306,6 +360,14 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                 "contexts=Dict(iri => context) or load_remote_contexts=true",
                 0, 0, _MIME_JSONLD()))
         end
+        # Cache key uses the identity of the loaded context object — stable across
+        # a bulk load that reuses one `contexts` map (O(1) reuse), and naturally
+        # miss-only for volatile remote fetches (each returns a fresh object).
+        rkey = docache ? (:r, iri, objectid(loaded), ctx.base, ctx.docbase) : nothing
+        if rkey !== nothing
+            hit = _ctx_cache_get(rkey, ctx, p -> p === loaded)
+            hit === nothing || return hit
+        end
         # Process the loaded context with the document base set to the context's
         # own IRI (so its relative term IRIs resolve correctly), loader preserved.
         sub = _JsonLDContext(iri, ctx.vocab, ctx.language, copy(ctx.terms),
@@ -315,6 +377,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                                validate_scoped=validate_scoped)
         sub.base = ctx.base       # restore the document base for subsequent processing
         sub.docbase = ctx.docbase
+        rkey === nothing || _ctx_cache_put!(rkey, loaded, sub)
         return sub
     end
 
@@ -349,6 +412,12 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         end
         return _process_context(ctx, merged; override_protected=override_protected,
                                 propagate=propagate, validate_scoped=validate_scoped)
+    end
+
+    dkey = docache ? (:v, hash(raw_ctx), ctx.base, ctx.docbase) : nothing
+    if dkey !== nothing
+        hit = _ctx_cache_get(dkey, ctx, p -> isequal(p, raw_ctx))
+        hit === nothing || return hit
     end
 
     result = _copy_ctx(ctx)
@@ -679,6 +748,7 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
         end
     end
 
+    dkey === nothing || _ctx_cache_put!(dkey, raw_ctx, result)
     result
 end
 

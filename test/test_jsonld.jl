@@ -1,5 +1,6 @@
 using Test
 using RDF
+import JSON
 
 const _JLD_MIME = MIME"application/ld+json"()
 
@@ -322,3 +323,54 @@ end
     end
 
 end # @testset "JSON-LD"
+
+@testset "JSON-LD context-compilation cache" begin
+    mime = MIME"application/ld+json"()
+    exp  = Triple(IRI("http://x/1"), IRI("https://purl.org/ctdl/terms/name"), Literal("hi"))
+
+    # A large CTDL-style inline context as a JSON string.
+    big_ctx_json(n) = "{" * join(vcat(
+        ["\"ceterms\":\"https://purl.org/ctdl/terms/\""],
+        ["\"term$i\":\"https://purl.org/ctdl/terms/term$i\"" for i in 1:n]), ",") * "}"
+
+    # ── Inline context: identical content across reads must hit the cache ────────
+    RDF._jsonld_ctx_cache_reset!()
+    ctxj = big_ctx_json(200)
+    doc  = "{\"@context\":$ctxj,\"@id\":\"http://x/1\",\"ceterms:name\":\"hi\"}"
+    g1 = read(IOBuffer(doc), mime, Graph)
+    g2 = read(IOBuffer(doc), mime, Graph)
+    g3 = read(IOBuffer(doc), mime, Graph)
+    h, m = RDF._jsonld_ctx_cache_stats()
+    @test m >= 1                       # first read compiled the context
+    @test h >= 2                       # subsequent reads reused it
+    @test exp in g1 && exp in g2 && exp in g3
+    @test isomorphic(g1, g2)
+
+    # ── A different context must NOT get a stale hit ─────────────────────────────
+    RDF._jsonld_ctx_cache_reset!()
+    docA = "{\"@context\":{\"a\":\"http://a/\"},\"@id\":\"http://x/1\",\"a:p\":\"v\"}"
+    docB = "{\"@context\":{\"a\":\"http://b/\"},\"@id\":\"http://x/1\",\"a:p\":\"v\"}"
+    gA = read(IOBuffer(docA), mime, Graph)
+    gB = read(IOBuffer(docB), mime, Graph)
+    @test Triple(IRI("http://x/1"), IRI("http://a/p"), Literal("v")) in gA
+    @test Triple(IRI("http://x/1"), IRI("http://b/p"), Literal("v")) in gB
+    @test !(Triple(IRI("http://x/1"), IRI("http://a/p"), Literal("v")) in gB)
+
+    # ── URL-referenced context: hits via the stable loader-returned object ───────
+    RDF._jsonld_ctx_cache_reset!()
+    ctxobj   = JSON.parse(ctxj)                       # one stable object, reused
+    contexts = Dict("http://ctx.example/c" => ctxobj)
+    refdoc = "{\"@context\":\"http://ctx.example/c\",\"@id\":\"http://x/1\",\"ceterms:name\":\"hi\"}"
+    r1 = read(IOBuffer(refdoc), mime, Graph; contexts=contexts)
+    r2 = read(IOBuffer(refdoc), mime, Graph; contexts=contexts)
+    r3 = read(IOBuffer(refdoc), mime, Graph; contexts=contexts)
+    h2, m2 = RDF._jsonld_ctx_cache_stats()
+    @test m2 >= 1
+    @test h2 >= 2
+    @test exp in r1 && exp in r2 && exp in r3
+
+    # ── Equivalence: a never-cached (fresh) compile yields the same graph ────────
+    RDF._jsonld_ctx_cache_reset!()
+    fresh = read(IOBuffer(doc), mime, Graph)
+    @test isomorphic(fresh, g1)
+end
