@@ -93,8 +93,58 @@ const _JSONLD_CTX_MISSES = Ref(0)
 # reference so a hit can be identity-verified against objectid reuse.
 const _JSONLD_ID_INDEX = LRU{UInt,Tuple{Dict{String,Any},Dict{String,Any}}}(maxsize=512)
 
+# Content-hash memo, keyed by object identity: when the SAME context object is
+# presented repeatedly (a loader-returned dict, expandcontext, programmatic
+# reuse), skip rehashing its full contents. Entries hold a WeakRef so one-shot
+# objects (each inline parse creates a fresh dict) are not kept alive by the
+# memo — a strong reference here would retain up to maxsize full contexts and
+# make GC scans O(retained contexts). A hit requires ref.value === x, which is
+# also the objectid-recycling guard: a recycled id's old object is either dead
+# (value === nothing) or a different live object — never a false match. Contexts
+# handed to the reader must not be mutated between reads (same contract the :r
+# objectid key already relies on).
+const _JSONLD_HASH_MEMO = LRU{UInt,Tuple{WeakRef,UInt}}(maxsize=1024)
+
+function _ctx_content_hash(x)::UInt
+    (x isa AbstractDict || x isa AbstractArray) || return hash(x)
+    oid = objectid(x)
+    e = get(_JSONLD_HASH_MEMO, oid, nothing)
+    (e !== nothing && e[1].value === x) && return e[2]
+    h = hash(x)
+    _JSONLD_HASH_MEMO[oid] = (WeakRef(x), h)
+    h
+end
+
+# Structural equality for JSON values by ORDERED parallel iteration — O(size).
+# Generic isequal(a,b) on JSON.Object (a list-backed ordered dict with O(n)
+# lookups) is O(n²), which made the cache-hit verify dominate warm inline parses.
+# Two parses of the same document bytes iterate in identical order, so ordered
+# comparison is exact for the cache's use; an order-permuted-but-equal context
+# compares unequal, which merely causes a spurious recompile (never a wrong hit).
+function _ordered_json_eq(a, b)::Bool
+    a === b && return true
+    if a isa AbstractDict
+        b isa AbstractDict || return false
+        length(a) == length(b) || return false
+        for ((ka, va), (kb, vb)) in zip(a, b)
+            String(ka) == String(kb) || return false
+            _ordered_json_eq(va, vb) || return false
+        end
+        return true
+    end
+    if a isa AbstractArray
+        b isa AbstractArray || return false
+        length(a) == length(b) || return false
+        for (xa, xb) in zip(a, b)
+            _ordered_json_eq(xa, xb) || return false
+        end
+        return true
+    end
+    isequal(a, b)
+end
+
 _jsonld_ctx_cache_reset!() =
-    (empty!(_JSONLD_CTX_CACHE); empty!(_JSONLD_ID_INDEX);
+    (empty!(_JSONLD_CTX_CACHE); empty!(_JSONLD_ID_INDEX); empty!(_JSONLD_HASH_MEMO);
      _JSONLD_CTX_HITS[] = 0; _JSONLD_CTX_MISSES[] = 0; nothing)
 _jsonld_ctx_cache_stats() = (_JSONLD_CTX_HITS[], _JSONLD_CTX_MISSES[])
 
@@ -349,9 +399,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
     docache = !override_protected && propagate && validate_scoped && _ctx_is_fresh(ctx)
 
     if raw_ctx isa AbstractArray
-        akey = docache ? (:a, hash(raw_ctx), ctx.base, ctx.docbase) : nothing
+        akey = docache ? (:a, _ctx_content_hash(raw_ctx), ctx.base, ctx.docbase) : nothing
         if akey !== nothing
-            hit = _ctx_cache_get(akey, ctx, p -> isequal(p, raw_ctx))
+            hit = _ctx_cache_get(akey, ctx, p -> p === raw_ctx || _ordered_json_eq(p, raw_ctx))
             hit === nothing || return hit
         end
         result = _copy_ctx(ctx)
@@ -432,9 +482,9 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
                                 propagate=propagate, validate_scoped=validate_scoped)
     end
 
-    dkey = docache ? (:v, hash(raw_ctx), ctx.base, ctx.docbase) : nothing
+    dkey = docache ? (:v, _ctx_content_hash(raw_ctx), ctx.base, ctx.docbase) : nothing
     if dkey !== nothing
-        hit = _ctx_cache_get(dkey, ctx, p -> isequal(p, raw_ctx))
+        hit = _ctx_cache_get(dkey, ctx, p -> p === raw_ctx || _ordered_json_eq(p, raw_ctx))
         hit === nothing || return hit
     end
 

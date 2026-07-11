@@ -401,4 +401,30 @@ end # @testset "JSON-LD"
     @test expl in l1
     @test expl in l2
     @test isomorphic(l1, l2)
+
+    # ── Shared context OBJECT reuse (expandcontext) skips rehash, still correct ──
+    RDF._jsonld_ctx_cache_reset!()
+    shared = Dict{String,Any}("q" => "http://q/")
+    xdoc   = "{\"@id\":\"http://x/1\",\"q:v\":\"w\"}"
+    x1 = read(IOBuffer(xdoc), mime, Graph; expandcontext=shared)
+    x2 = read(IOBuffer(xdoc), mime, Graph; expandcontext=shared)
+    hx, mx = RDF._jsonld_ctx_cache_stats()
+    @test hx >= 1                       # second read reused the compiled context
+    expq = Triple(IRI("http://x/1"), IRI("http://q/v"), Literal("w"))
+    @test expq in x1 && expq in x2
+
+    # ── Reordered-but-equal inline contexts stay CORRECT (hit or recompile) ──────
+    RDF._jsonld_ctx_cache_reset!()
+    d1 = "{\"@context\":{\"a\":\"http://a/\",\"b\":\"http://b/\"},\"@id\":\"http://x/1\",\"a:p\":\"v\"}"
+    d2 = "{\"@context\":{\"b\":\"http://b/\",\"a\":\"http://a/\"},\"@id\":\"http://x/1\",\"a:p\":\"v\"}"
+    o1 = read(IOBuffer(d1), mime, Graph)
+    o2 = read(IOBuffer(d2), mime, Graph)
+    @test isomorphic(o1, o2)            # never a stale/wrong hit
+
+    # ── _ordered_json_eq: O(n) verify semantics ─────────────────────────────────
+    p1 = JSON.parse("{\"x\":{\"y\":[1,2]},\"z\":\"s\"}")
+    p2 = JSON.parse("{\"x\":{\"y\":[1,2]},\"z\":\"s\"}")
+    p3 = JSON.parse("{\"x\":{\"y\":[1,3]},\"z\":\"s\"}")
+    @test RDF._ordered_json_eq(p1, p2)
+    @test !RDF._ordered_json_eq(p1, p3)
 end
