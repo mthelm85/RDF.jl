@@ -373,4 +373,32 @@ end # @testset "JSON-LD"
     RDF._jsonld_ctx_cache_reset!()
     fresh = read(IOBuffer(doc), mime, Graph)
     @test isomorphic(fresh, g1)
+
+    # ── A context that sets @base must survive cache hits (base not clobbered) ───
+    RDF._jsonld_ctx_cache_reset!()
+    bdoc = "{\"@context\":{\"@base\":\"http://base.example/\",\"p\":\"http://p/\"}," *
+           "\"@id\":\"rel\",\"p:x\":\"v\"}"
+    b1 = read(IOBuffer(bdoc), mime, Graph)     # miss
+    b2 = read(IOBuffer(bdoc), mime, Graph)     # hit — must keep the context's @base
+    b3 = read(IOBuffer(bdoc), mime, Graph)     # hit
+    expb = Triple(IRI("http://base.example/rel"), IRI("http://p/x"), Literal("v"))
+    @test expb in b1
+    @test expb in b2
+    @test expb in b3
+    @test isomorphic(b1, b2) && isomorphic(b1, b3)
+
+    # ── @type:@id coercion (uses the term-by-@id index) must survive cache reuse ──
+    RDF._jsonld_ctx_cache_reset!()
+    lctx  = Dict("e" => "http://e/",
+                 "link" => Dict("@id" => "http://e/link", "@type" => "@id"))
+    lcontexts = Dict("http://ctx/link" => lctx)
+    ldoc = "{\"@context\":\"http://ctx/link\",\"@id\":\"http://x/1\"," *
+           "\"link\":\"http://target/\"}"
+    l1 = read(IOBuffer(ldoc), mime, Graph; contexts=lcontexts)   # miss
+    l2 = read(IOBuffer(ldoc), mime, Graph; contexts=lcontexts)   # hit
+    # @type:@id coerces the string value to an IRI object, not a literal
+    expl = Triple(IRI("http://x/1"), IRI("http://e/link"), IRI("http://target/"))
+    @test expl in l1
+    @test expl in l2
+    @test isomorphic(l1, l2)
 end

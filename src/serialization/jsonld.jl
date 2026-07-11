@@ -76,15 +76,26 @@ end
 # context is layered onto a *pristine* context with the default flags, the
 # compiled result is a pure function of (context value, base, docbase); this was
 # verified against the entire W3C toRdf suite (expansion never mutates a compiled
-# term-definition, and a shallow clone of a shared master behaves identically to
-# a fresh compile). We memoize that result and clone it (_copy_ctx) on reuse,
-# making per-document context cost O(1) across a bulk load.
+# term-definition or the active term map in place, so reusing a shared master
+# behaves identically to a fresh compile). We memoize that result and, on reuse,
+# share its compiled term map by reference behind a tiny per-read wrapper (see
+# _ctx_cache_get) — making per-document context cost genuinely O(1), not
+# O(context size).
 const _JSONLD_CTX_CACHE  = LRU{Any,Tuple{Any,_JsonLDContext}}(maxsize=512)
 const _JSONLD_CTX_HITS   = Ref(0)
 const _JSONLD_CTX_MISSES = Ref(0)
 
+# Reverse index (@id → term definition) for _find_term_def_by_id, which otherwise
+# linearly scans every term per property during RDF conversion — O(terms) per
+# document even with the context cache. Keyed by the identity of the (shared,
+# immutable) term map, so it is built once per compiled context and reused O(1)
+# across every document that shares that context. Value carries the term map by
+# reference so a hit can be identity-verified against objectid reuse.
+const _JSONLD_ID_INDEX = LRU{UInt,Tuple{Dict{String,Any},Dict{String,Any}}}(maxsize=512)
+
 _jsonld_ctx_cache_reset!() =
-    (empty!(_JSONLD_CTX_CACHE); _JSONLD_CTX_HITS[] = 0; _JSONLD_CTX_MISSES[] = 0; nothing)
+    (empty!(_JSONLD_CTX_CACHE); empty!(_JSONLD_ID_INDEX);
+     _JSONLD_CTX_HITS[] = 0; _JSONLD_CTX_MISSES[] = 0; nothing)
 _jsonld_ctx_cache_stats() = (_JSONLD_CTX_HITS[], _JSONLD_CTX_MISSES[])
 
 # A context may be memoized only when layered onto a pristine context — the only
@@ -96,14 +107,21 @@ _ctx_is_fresh(ctx::_JsonLDContext) =
 
 # Look up a compiled context; `verify(stored_payload)` guards against hash
 # collisions (inline contexts) and objectid reuse (referenced contexts). On a
-# hit, return a clone rebased onto `ctx`; on a miss, nothing.
+# hit, return an O(1) view that SHARES the compiled term map and protected set by
+# reference — the correctness gate proves expansion never mutates them in place
+# (nested/scoped contexts copy-on-write via _process_context). base/docbase come
+# from the master, not the caller: the cache key already pins them to the
+# compile-time values, and the master reflects any @base the context itself set
+# (overwriting them with the caller's would drop a context-level @base). Only the
+# per-read loader is taken from the current context, so nested contexts loaded
+# during body expansion resolve against this read's document loader.
 function _ctx_cache_get(key, ctx::_JsonLDContext, verify)
     hit = get(_JSONLD_CTX_CACHE, key, nothing)
     (hit === nothing || !verify(hit[1])) && return nothing
     _JSONLD_CTX_HITS[] += 1
-    r = _copy_ctx(hit[2])
-    r.base = ctx.base; r.docbase = ctx.docbase
-    r
+    m = hit[2]
+    _JsonLDContext(m.base, m.vocab, m.language, m.terms, ctx.loader,
+                   m.protected, m.previous, m.docbase)
 end
 
 # Store a compiled master. Only contexts that propagate normally (no back-
@@ -1645,14 +1663,26 @@ function _expand_property_value(val, pred::String, ctx::_JsonLDContext,
     nothing
 end
 
-# Find a term definition whose @id matches the given IRI
+# Find a term definition whose @id matches the given IRI. Backed by a reverse
+# index built once per (shared) term map — see _JSONLD_ID_INDEX — so this is O(1)
+# per call for cached contexts instead of an O(terms) scan. The index keeps the
+# FIRST term (in iteration order) per @id, matching the original scan's semantics.
 function _find_term_def_by_id(ctx::_JsonLDContext, pred_iri::String)
-    for (_, td) in ctx.terms
-        td === nothing && continue
-        mapped = _term_def_id(td)
-        mapped == pred_iri && return td
+    terms = ctx.terms
+    oid   = objectid(terms)
+    entry = get(_JSONLD_ID_INDEX, oid, nothing)
+    if entry === nothing || entry[1] !== terms
+        idx = Dict{String,Any}()
+        for (_, td) in terms
+            td === nothing && continue
+            mapped = _term_def_id(td)
+            mapped === nothing && continue
+            haskey(idx, mapped) || (idx[mapped] = td)
+        end
+        entry = (terms, idx)
+        _JSONLD_ID_INDEX[oid] = entry
     end
-    nothing
+    get(entry[2], pred_iri, nothing)
 end
 
 # ── RDF deserialization ───────────────────────────────────────────────────────
