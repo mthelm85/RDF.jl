@@ -11,7 +11,7 @@ makedocs(;
     format=Documenter.HTML(;
         canonical="https://mthelm85.github.io/RDF.jl",
         edit_link="main",
-        assets=String[],
+        assets=["assets/custom.css"],
     ),
     pages=[
         "Home"                    => "index.md",

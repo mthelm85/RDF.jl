@@ -1,0 +1,1046 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Evening Café — Documenter.jl theme for RDF.jl
+   v2: modern + elegant revision
+
+   Warm dark palette (midnight, amber, copper, gold) with clean lines.
+   Code blocks on neutral charcoal for contrast. No cursive fonts.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Google Fonts ─────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+/* ── Palette ─────────────────────────────────────────────────────────── */
+:root {
+    --cafe-midnight:    #2a231e;       /* page ground — warm, lifted for contrast */
+    --cafe-navbar:      #2c2420;       /* navbar — warm wood bar           */
+    --cafe-sidebar:     #241e19;       /* sidebar — darker than ground     */
+    --cafe-charcoal:    #181818;       /* code blocks — darkest, neutral   */
+    --cafe-surface:     #2a221d;       /* docstrings, cards                */
+    --cafe-border:      rgba(212, 137, 95, 0.15);  /* subtle warm line    */
+    --cafe-border-strong: rgba(212, 137, 95, 0.35);
+    --cafe-cream:       #f5e6d3;
+    --cafe-latte:       #b8a899;
+    --cafe-muted:       #7a6b5e;
+    --cafe-amber:       #ffb86c;
+    --cafe-gold:        #f4d58d;
+    --cafe-copper:      #d4895f;
+    --cafe-warm-glow:   #ffe4b5;
+    --cafe-neon:        #ff6b9d;
+
+    /* syntax — diverse palette on neutral charcoal */
+    --syn-keyword:      #c9a0dc;       /* soft purple — control flow       */
+    --syn-builtin:      #7ec8e3;       /* muted blue — types, built-ins    */
+    --syn-string:       #b5c78a;       /* warm sage — string literals      */
+    --syn-comment:      #6e6762;       /* grey — comments, meta            */
+    --syn-function:     #d4a574;       /* copper — function names          */
+    --syn-number:       #ff6b9d;       /* neon pink — numeric literals     */
+    --syn-type:         #7ec8e3;       /* same as builtin                  */
+    --syn-variable:     #d4c4b0;       /* latte — params, variables        */
+    --syn-operator:     #c4a882;       /* warm muted — operators            */
+    --syn-meta:         #c48a8a;       /* dusty rose — macros (@warn etc.) */
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Ground — single dark theme, no toggle
+   ═══════════════════════════════════════════════════════════════════════ */
+html, body,
+html.theme--documenter-dark body {
+    background-color: var(--cafe-midnight) !important;
+    color: var(--cafe-cream) !important;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+    font-size: 16px;
+}
+
+#documenter {
+    background-color: var(--cafe-midnight);
+}
+
+/* Hide theme toggle */
+#documenter-themepicker,
+.docs-right label[for="documenter-themepicker"] {
+    display: none !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Kill every default $primary / $link teal leak
+   ═══════════════════════════════════════════════════════════════════════ */
+html.theme--documenter-dark .content a:not([class]),
+html.theme--documenter-dark a,
+.theme--documenter-dark .docstring > section a,
+.navbar-link, a.navbar-item,
+.has-text-primary,
+.has-text-link,
+.has-text-info {
+    color: var(--cafe-copper) !important;
+}
+
+html.theme--documenter-dark .content a:not([class]):hover,
+html.theme--documenter-dark a:hover,
+.navbar-link:hover, a.navbar-item:hover {
+    color: var(--cafe-gold) !important;
+}
+
+/* Bulma primary background / text variants */
+.has-background-primary {
+    background-color: var(--cafe-surface) !important;
+}
+
+.has-text-primary-dark,
+.has-text-primary-light,
+html.theme--documenter-dark .has-text-primary-dark,
+html.theme--documenter-dark .has-text-primary-light {
+    color: var(--cafe-muted) !important;
+}
+
+.has-text-primary-dark:hover,
+html.theme--documenter-dark .has-text-primary-dark:hover {
+    color: var(--cafe-copper) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Sidebar
+   ═══════════════════════════════════════════════════════════════════════ */
+#documenter .docs-sidebar {
+    background-color: var(--cafe-sidebar) !important;
+    border-right: 1px solid var(--cafe-border) !important;
+}
+
+/* Package name */
+#documenter .docs-sidebar .docs-package-name {
+    background-color: transparent !important;
+    padding: 0.8rem 1rem !important;
+}
+
+#documenter .docs-sidebar .docs-package-name .docs-autofit {
+    font-family: "Bebas Neue", Impact, sans-serif !important;
+    color: var(--cafe-amber) !important;
+    letter-spacing: 0.08em !important;
+    font-size: 1.5rem !important;
+}
+
+#documenter .docs-sidebar .docs-logo > img {
+    filter: drop-shadow(0 0 6px rgba(255, 184, 108, 0.15));
+}
+
+/* Search box */
+#documenter .docs-sidebar .docs-search,
+#documenter .docs-sidebar input[type="text"] {
+    background-color: var(--cafe-charcoal) !important;
+    color: var(--cafe-cream) !important;
+    border-color: var(--cafe-border) !important;
+}
+
+#documenter .docs-sidebar input[type="text"]::placeholder {
+    color: var(--cafe-muted) !important;
+}
+
+/* Menu items */
+#documenter .docs-sidebar ul.docs-menu li a,
+#documenter .docs-sidebar ul.docs-menu li .tocitem {
+    font-family: "Inter", -apple-system, sans-serif !important;
+    color: var(--cafe-latte) !important;
+    border-left: 3px solid transparent;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+    font-size: 0.9rem;
+}
+
+#documenter .docs-sidebar ul.docs-menu li a:hover,
+#documenter .docs-sidebar ul.docs-menu li .tocitem:hover {
+    color: var(--cafe-cream) !important;
+    background-color: rgba(255, 184, 108, 0.06) !important;
+    border-left-color: var(--cafe-copper);
+}
+
+/* Active item */
+#documenter .docs-sidebar ul.docs-menu li.is-active > a,
+#documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem,
+html.theme--documenter-dark #documenter .docs-sidebar ul.docs-menu li.is-active > a {
+    color: var(--cafe-amber) !important;
+    background-color: rgba(255, 184, 108, 0.1) !important;
+    border-left-color: var(--cafe-amber);
+    font-weight: 600;
+}
+
+/* Sub-items (section headings within a page) */
+#documenter .docs-sidebar ul.docs-menu li.is-active ul li a,
+html.theme--documenter-dark #documenter .docs-sidebar ul.docs-menu li ul li a {
+    color: var(--cafe-latte) !important;
+    border-left: none;
+}
+
+#documenter .docs-sidebar ul.docs-menu li.is-active ul li a:hover {
+    color: var(--cafe-cream) !important;
+}
+
+/* Nested list border */
+#documenter .docs-sidebar ul.docs-menu ul {
+    border-left: 1px solid var(--cafe-border) !important;
+}
+
+/* Section bullet markers in sidebar */
+#documenter .docs-sidebar ul.docs-menu li li::before,
+#documenter .docs-sidebar ul.docs-menu li ul li::marker {
+    color: var(--cafe-muted) !important;
+}
+
+/* Version selector */
+#documenter .docs-sidebar select,
+#documenter .docs-sidebar .select select {
+    background-color: var(--cafe-charcoal) !important;
+    color: var(--cafe-cream) !important;
+    border-color: var(--cafe-border) !important;
+    font-family: "Inter", -apple-system, sans-serif;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Navbar
+   ═══════════════════════════════════════════════════════════════════════ */
+html.theme--documenter-dark .docs-navbar,
+#documenter .docs-main > .docs-navbar,
+.docs-navbar {
+    background-color: var(--cafe-navbar) !important;
+    border-bottom: 1px solid var(--cafe-border) !important;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25) !important;
+    font-family: "Inter", -apple-system, sans-serif !important;
+}
+
+/* ALL navbar links and icons — kill teal completely */
+.docs-navbar a,
+.docs-navbar .icon,
+.docs-navbar i,
+.docs-navbar svg,
+.docs-navbar .docs-right a,
+.docs-navbar .docs-right .docs-icon,
+.docs-navbar .docs-right > *,
+html.theme--documenter-dark .docs-navbar a,
+html.theme--documenter-dark .docs-navbar .docs-right a,
+html.theme--documenter-dark .docs-navbar .docs-right .docs-icon,
+.docs-settings-button,
+.docs-navbar .fa,
+.docs-navbar .fas,
+.docs-navbar .fab {
+    color: var(--cafe-latte) !important;
+    fill: var(--cafe-latte);
+}
+
+.docs-navbar a:hover,
+.docs-navbar .docs-right a:hover,
+html.theme--documenter-dark .docs-navbar a:hover,
+html.theme--documenter-dark .docs-navbar .docs-right a:hover {
+    color: var(--cafe-amber) !important;
+}
+
+/* Breadcrumb current page */
+.docs-navbar .breadcrumb .is-active a,
+.docs-navbar .breadcrumb li.is-active {
+    color: var(--cafe-cream) !important;
+}
+
+.docs-navbar .breadcrumb li + li::before {
+    color: var(--cafe-muted) !important;
+}
+
+/* Hamburger (mobile) */
+.docs-navbar .docs-sidebar-button {
+    color: var(--cafe-cream) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Content area
+   ═══════════════════════════════════════════════════════════════════════ */
+#documenter .docs-main {
+    background-color: var(--cafe-midnight) !important;
+}
+
+
+/* ── Headings — Bebas Neue throughout, descending scale ──────────────── */
+.content h1,
+#documenter .docs-main article h1,
+html.theme--documenter-dark .content h1 {
+    font-family: "Bebas Neue", Impact, sans-serif !important;
+    color: var(--cafe-amber) !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    border-bottom: 2px solid var(--cafe-border-strong) !important;
+    padding-bottom: 0.3em;
+    margin-bottom: 0.8em;
+    font-size: 2.4em !important;
+    line-height: 1.1;
+    text-shadow: none;
+}
+
+.content h2,
+#documenter .docs-main article h2,
+html.theme--documenter-dark .content h2 {
+    font-family: "Bebas Neue", Impact, sans-serif !important;
+    color: var(--cafe-amber) !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    border-bottom: 1px solid var(--cafe-border) !important;
+    padding-bottom: 0.2em;
+    font-size: 1.7em !important;
+    line-height: 1.2;
+    text-shadow: none;
+}
+
+.content h3,
+#documenter .docs-main article h3,
+html.theme--documenter-dark .content h3 {
+    font-family: "Inter", -apple-system, sans-serif !important;
+    color: var(--cafe-gold) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-weight: 600 !important;
+    font-size: 1.25em !important;
+    line-height: 1.4;
+    border-bottom: none !important;
+    text-shadow: none;
+}
+
+.content h4,
+#documenter .docs-main article h4,
+html.theme--documenter-dark .content h4 {
+    font-family: "Inter", -apple-system, sans-serif !important;
+    color: var(--cafe-copper) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    font-size: 0.95em !important;
+    border-bottom: none !important;
+}
+
+.content h5, .content h6,
+#documenter .docs-main article h5,
+#documenter .docs-main article h6 {
+    font-family: "Inter", -apple-system, sans-serif !important;
+    color: var(--cafe-latte) !important;
+    font-weight: 600 !important;
+    border-bottom: none !important;
+}
+
+/* Heading anchor links */
+.content h1 .docs-heading-anchor,
+.content h2 .docs-heading-anchor,
+.content h3 .docs-heading-anchor,
+.content h4 .docs-heading-anchor {
+    color: inherit !important;
+}
+
+.content .docs-heading-anchor-permalink {
+    color: var(--cafe-muted) !important;
+}
+
+.content .docs-heading-anchor-permalink:hover {
+    color: var(--cafe-copper) !important;
+}
+
+
+/* ── Body text ───────────────────────────────────────────────────────── */
+.content p,
+#documenter .docs-main article p,
+html.theme--documenter-dark .content p {
+    color: var(--cafe-cream) !important;
+    line-height: 1.7;
+    font-size: 1.05rem;
+}
+
+.content strong,
+#documenter .docs-main article strong {
+    color: var(--cafe-gold) !important;
+    font-weight: 700;
+}
+
+.content em,
+#documenter .docs-main article em {
+    color: var(--cafe-cream);
+    font-style: italic;
+}
+
+
+/* ── Links ───────────────────────────────────────────────────────────── */
+.content a,
+#documenter .docs-main article a,
+html.theme--documenter-dark .content a {
+    color: var(--cafe-copper) !important;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.content a:hover,
+#documenter .docs-main article a:hover,
+html.theme--documenter-dark .content a:hover {
+    color: var(--cafe-gold) !important;
+}
+
+
+/* ── Lists ───────────────────────────────────────────────────────────── */
+.content ul, .content ol {
+    color: var(--cafe-cream);
+}
+
+.content li::marker {
+    color: var(--cafe-amber);
+}
+
+.content li {
+    color: var(--cafe-cream);
+    line-height: 1.6;
+}
+
+
+/* ── Blockquotes ─────────────────────────────────────────────────────── */
+.content blockquote,
+#documenter .docs-main article blockquote {
+    border-left: 3px solid var(--cafe-copper) !important;
+    background: rgba(212, 137, 95, 0.05) !important;
+    color: var(--cafe-latte) !important;
+    font-style: italic;
+    padding: 1em 1.5em !important;
+    margin: 1.5em 0;
+    border-radius: 0 4px 4px 0;
+}
+
+
+/* ── Horizontal rules ────────────────────────────────────────────────── */
+.content hr {
+    background-color: var(--cafe-border) !important;
+    height: 1px !important;
+    border: none !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Code — neutral charcoal ground, warm syntax
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Inline code — quiet, not shouty */
+.content code,
+#documenter .docs-main article code,
+html.theme--documenter-dark .content code {
+    font-family: "Fira Code", Menlo, Consolas, Monaco, monospace !important;
+    color: var(--cafe-warm-glow) !important;
+    background: rgba(20, 20, 20, 0.6) !important;
+    padding: 0.15em 0.4em !important;
+    border-radius: 3px !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    font-size: 0.87em !important;
+}
+
+/* Code blocks — dark editor panel */
+.content pre,
+#documenter .docs-main article pre,
+html.theme--documenter-dark .content pre {
+    background: var(--cafe-charcoal) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 8px !important;
+    padding: 1.2em 1.4em !important;
+    margin: 1.2em 0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    overflow-x: auto;
+}
+
+/* Reset inline styles inside blocks */
+.content pre code,
+#documenter .docs-main article pre code,
+html.theme--documenter-dark .content pre code {
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    color: var(--cafe-cream) !important;
+    font-size: 0.87rem !important;
+    line-height: 1.55;
+    box-shadow: none;
+}
+
+/* Copy button */
+.content pre .copy-button,
+.content pre button,
+html.theme--documenter-dark pre .copy-button {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--cafe-muted) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 4px;
+}
+
+.content pre .copy-button:hover,
+.content pre button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--cafe-cream) !important;
+}
+
+/* Horizontal scrollbar inside code */
+.content pre::-webkit-scrollbar {
+    height: 6px;
+}
+.content pre::-webkit-scrollbar-track {
+    background: transparent;
+}
+.content pre::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+
+/* ── Syntax highlighting ─────────────────────────────────────────────── */
+.hljs {
+    background: var(--cafe-charcoal) !important;
+    color: var(--cafe-cream) !important;
+}
+
+/* Keywords — soft purple (using, for, end, function, if, return, etc.) */
+.hljs-keyword, .hljs-selector-tag {
+    color: var(--syn-keyword) !important;
+    font-weight: 500;
+}
+
+/* Built-ins / types — muted blue (Symbol, String, Int64, Vector, etc.) */
+.hljs-built_in, .hljs-name {
+    color: var(--syn-builtin) !important;
+}
+
+/* Strings — warm sage green */
+.hljs-string, .hljs-attr {
+    color: var(--syn-string) !important;
+}
+
+/* Comments — grey, italic */
+.hljs-comment, .hljs-quote {
+    color: var(--syn-comment) !important;
+    font-style: italic;
+}
+
+/* Macros (@warn, @test, etc.) — dusty rose */
+.hljs-meta {
+    color: var(--syn-meta) !important;
+    font-style: italic;
+}
+
+/* Function names — warm copper */
+.hljs-function, .hljs-title.function_, .hljs-title {
+    color: var(--syn-function) !important;
+}
+
+/* Class/type names — muted blue */
+.hljs-title.class_ {
+    color: var(--syn-type) !important;
+}
+
+/* Numbers — neon pink */
+.hljs-number, .hljs-literal {
+    color: var(--syn-number) !important;
+}
+
+/* Type annotations */
+.hljs-type, .hljs-class .hljs-title {
+    color: var(--syn-type) !important;
+}
+
+/* Parameters / variables */
+.hljs-params {
+    color: var(--syn-variable) !important;
+}
+
+.hljs-symbol, .hljs-bullet {
+    color: var(--syn-function) !important;
+}
+
+.hljs-variable, .hljs-template-variable {
+    color: var(--syn-variable) !important;
+}
+
+/* Operators */
+.hljs-operator {
+    color: var(--syn-operator) !important;
+}
+
+/* Diff */
+.hljs-addition {
+    color: var(--syn-string) !important;
+    background: rgba(181, 199, 138, 0.08) !important;
+}
+
+.hljs-deletion {
+    color: var(--cafe-neon) !important;
+    background: rgba(255, 107, 157, 0.06) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Docstring blocks
+   ═══════════════════════════════════════════════════════════════════════ */
+.content .docstring,
+#documenter .docstring,
+html.theme--documenter-dark .docstring {
+    background-color: var(--cafe-surface) !important;
+    border: 1px solid var(--cafe-border) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    margin: 1.5em 0 !important;
+    overflow: hidden;
+}
+
+#documenter .docstring header,
+.content .docstring > header,
+html.theme--documenter-dark .docstring > header {
+    background-color: rgba(255, 184, 108, 0.08) !important;
+    border-bottom: 1px solid var(--cafe-border) !important;
+    padding: 0.6em 1em !important;
+}
+
+#documenter .docstring header a,
+.docstring-binding,
+html.theme--documenter-dark .docstring header a {
+    font-family: "Fira Code", monospace !important;
+    color: var(--cafe-amber) !important;
+    font-weight: 500 !important;
+    font-size: 1.02em;
+}
+
+/* Collapse toggle — Documenter uses a Font Awesome ::before chevron on summary
+   whose color defaults to blue. Override with maximum specificity. */
+html.theme--documenter-dark details.docstring > summary::before,
+details.docstring > summary::before,
+.docstring > summary::before {
+    color: var(--cafe-muted) !important;
+}
+
+html.theme--documenter-dark details.docstring > summary:hover::before,
+details.docstring > summary:hover::before,
+.docstring > summary:hover::before {
+    color: var(--cafe-copper) !important;
+}
+
+/* Also catch the JS-injected toggle button if present */
+#documenter .docstring header .docstring-article-toggle-button,
+html.theme--documenter-dark .docstring header .docstring-article-toggle-button,
+.docstring-article-toggle-button,
+a.docstring-article-toggle-button {
+    color: var(--cafe-muted) !important;
+}
+
+.docstring-article-toggle-button:hover {
+    color: var(--cafe-copper) !important;
+}
+
+/* Native disclosure triangle */
+.docstring > summary::marker,
+details.docstring > summary::marker {
+    color: var(--cafe-muted) !important;
+}
+
+.docstring > summary::-webkit-details-marker {
+    color: var(--cafe-muted) !important;
+}
+
+.docstring-category,
+html.theme--documenter-dark .docstring-category {
+    font-family: "Inter", -apple-system, sans-serif !important;
+    color: var(--cafe-latte) !important;
+    font-style: italic;
+    font-size: 0.95em !important;
+}
+
+#documenter .docstring section {
+    padding: 0.8em 1em !important;
+}
+
+#documenter .docstring section p,
+html.theme--documenter-dark .docstring section p {
+    color: var(--cafe-cream) !important;
+}
+
+/* Source link on docstrings */
+a.docs-sourcelink,
+html.theme--documenter-dark a.docs-sourcelink {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--cafe-muted) !important;
+    border-color: var(--cafe-border) !important;
+}
+
+a.docs-sourcelink:hover {
+    color: var(--cafe-copper) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Admonitions
+   ═══════════════════════════════════════════════════════════════════════ */
+.content .admonition,
+#documenter .admonition,
+html.theme--documenter-dark .admonition {
+    border-radius: 8px !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--cafe-border) !important;
+    overflow: hidden;
+    background: var(--cafe-surface) !important;
+}
+
+.content .admonition .admonition-header,
+#documenter .admonition .admonition-header {
+    font-family: "Bebas Neue", Impact, sans-serif !important;
+    letter-spacing: 0.05em !important;
+    font-size: 1em;
+    padding: 0.5em 1em !important;
+}
+
+.content .admonition .admonition-body,
+#documenter .admonition .admonition-body {
+    padding: 0.8em 1em !important;
+    color: var(--cafe-cream) !important;
+    background: transparent !important;
+}
+
+/* Info */
+.admonition.is-info {
+    border-left: 3px solid var(--cafe-copper) !important;
+}
+.admonition.is-info > .admonition-header {
+    background: rgba(212, 137, 95, 0.15) !important;
+    color: var(--cafe-copper) !important;
+}
+
+/* Warning */
+.admonition.is-warning {
+    border-left: 3px solid var(--cafe-gold) !important;
+}
+.admonition.is-warning > .admonition-header {
+    background: rgba(244, 213, 141, 0.12) !important;
+    color: var(--cafe-gold) !important;
+}
+
+/* Danger */
+.admonition.is-danger {
+    border-left: 3px solid var(--cafe-neon) !important;
+}
+.admonition.is-danger > .admonition-header {
+    background: rgba(255, 107, 157, 0.12) !important;
+    color: var(--cafe-neon) !important;
+}
+
+/* Success / Tip */
+.admonition.is-success {
+    border-left: 3px solid #8bba6a !important;
+}
+.admonition.is-success > .admonition-header {
+    background: rgba(139, 186, 106, 0.1) !important;
+    color: #a8d48a !important;
+}
+
+/* Compat */
+.admonition.is-compat {
+    border-left: 3px solid var(--cafe-latte) !important;
+}
+.admonition.is-compat > .admonition-header {
+    background: rgba(184, 168, 153, 0.1) !important;
+    color: var(--cafe-latte) !important;
+}
+
+/* Default / Note */
+.admonition.is-default,
+.admonition.is-note {
+    border-left: 3px solid var(--cafe-muted) !important;
+}
+.admonition.is-default > .admonition-header,
+.admonition.is-note > .admonition-header {
+    background: rgba(122, 107, 94, 0.12) !important;
+    color: var(--cafe-latte) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Tables
+   ═══════════════════════════════════════════════════════════════════════ */
+.content table,
+html.theme--documenter-dark .content table {
+    background-color: transparent !important;
+    color: var(--cafe-cream) !important;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.content table thead,
+html.theme--documenter-dark .content table thead {
+    background-color: rgba(255, 184, 108, 0.06) !important;
+}
+
+.content table th,
+html.theme--documenter-dark .content table th {
+    font-family: "Bebas Neue", Impact, sans-serif !important;
+    color: var(--cafe-amber) !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 400 !important;
+    font-size: 1.02em;
+    border-bottom: 2px solid var(--cafe-border-strong) !important;
+    border-color: var(--cafe-border-strong) !important;
+    padding: 0.6em 0.8em !important;
+}
+
+.content table td,
+html.theme--documenter-dark .content table td {
+    border-color: var(--cafe-border) !important;
+    padding: 0.5em 0.8em !important;
+    color: var(--cafe-cream) !important;
+}
+
+.content table tbody tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+.content table tbody tr:hover {
+    background-color: rgba(255, 184, 108, 0.04) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Search modal
+   ═══════════════════════════════════════════════════════════════════════ */
+#documenter .search-modal .modal-background {
+    background-color: rgba(10, 8, 6, 0.85) !important;
+}
+
+#documenter .search-modal .modal-card,
+html.theme--documenter-dark .search-modal .modal-card {
+    background-color: var(--cafe-sidebar) !important;
+    border: 1px solid var(--cafe-border) !important;
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+#documenter .search-modal .modal-card-head {
+    background-color: var(--cafe-surface) !important;
+    border-bottom: 1px solid var(--cafe-border) !important;
+}
+
+#documenter .search-modal input,
+#documenter #search-query-input {
+    background-color: var(--cafe-charcoal) !important;
+    color: var(--cafe-cream) !important;
+    border: 1px solid var(--cafe-border) !important;
+    font-family: "Inter", -apple-system, sans-serif !important;
+    font-size: 1.1rem;
+    border-radius: 6px;
+}
+
+#documenter .search-modal input::placeholder {
+    color: var(--cafe-muted) !important;
+}
+
+#documenter .search-modal input:focus {
+    border-color: var(--cafe-copper) !important;
+    box-shadow: 0 0 0 2px rgba(212, 137, 95, 0.15) !important;
+    outline: none;
+}
+
+#documenter .search-modal .search-result-title {
+    color: var(--cafe-amber) !important;
+}
+
+#documenter .search-modal .search-result a {
+    color: var(--cafe-copper) !important;
+}
+
+#documenter .search-modal .search-result {
+    border-bottom-color: var(--cafe-border) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Footer & pagination
+   ═══════════════════════════════════════════════════════════════════════ */
+#documenter .docs-main footer,
+#documenter footer,
+html.theme--documenter-dark footer {
+    background-color: transparent !important;
+    border-top: 1px solid var(--cafe-border) !important;
+    color: var(--cafe-muted) !important;
+    font-size: 0.9rem;
+}
+
+#documenter footer a,
+html.theme--documenter-dark footer a {
+    color: var(--cafe-copper) !important;
+}
+
+#documenter footer a:hover {
+    color: var(--cafe-gold) !important;
+}
+
+/* Prev/next page links */
+.docs-main .content nav.pagination,
+html.theme--documenter-dark .pagination-link,
+html.theme--documenter-dark .pagination-previous,
+html.theme--documenter-dark .pagination-next {
+    border-color: var(--cafe-border) !important;
+}
+
+.docs-main .content nav.pagination a,
+.pagination-previous, .pagination-next, .pagination-link,
+html.theme--documenter-dark .pagination-previous,
+html.theme--documenter-dark .pagination-next {
+    color: var(--cafe-copper) !important;
+    border: 1px solid var(--cafe-border) !important;
+    background: transparent !important;
+}
+
+.docs-main .content nav.pagination a:hover,
+.pagination-previous:hover, .pagination-next:hover {
+    color: var(--cafe-amber) !important;
+    border-color: var(--cafe-border-strong) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Selection
+   ═══════════════════════════════════════════════════════════════════════ */
+::selection {
+    background: rgba(255, 184, 108, 0.25);
+    color: var(--cafe-cream);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Scrollbar
+   ═══════════════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--cafe-midnight);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) var(--cafe-midnight);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Focus states
+   ═══════════════════════════════════════════════════════════════════════ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--cafe-copper) !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(212, 137, 95, 0.15);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Ambient glow — very subtle pendant light
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+    #documenter .docs-main::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 300px;
+        background: radial-gradient(
+            ellipse at 50% 0%,
+            rgba(255, 184, 108, 0.025),
+            transparent 65%
+        );
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    #documenter .docs-main > * {
+        position: relative;
+        z-index: 1;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Buttons & form elements
+   ═══════════════════════════════════════════════════════════════════════ */
+.button,
+#documenter .button,
+html.theme--documenter-dark .button {
+    background-color: transparent !important;
+    color: var(--cafe-cream) !important;
+    border: 1px solid var(--cafe-border) !important;
+    font-family: "Inter", -apple-system, sans-serif !important;
+    transition: all 0.2s ease;
+}
+
+.button:hover,
+#documenter .button:hover {
+    border-color: var(--cafe-border-strong) !important;
+    color: var(--cafe-amber) !important;
+}
+
+/* Bulma-primary-colored buttons */
+.button.is-primary,
+html.theme--documenter-dark .button.is-primary {
+    background-color: rgba(255, 184, 108, 0.12) !important;
+    color: var(--cafe-amber) !important;
+    border-color: rgba(255, 184, 108, 0.25) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Misc overrides
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Tags */
+.tag, .content .tag,
+html.theme--documenter-dark .tag:not(body) {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--cafe-latte) !important;
+    font-family: "Fira Code", monospace;
+    font-size: 0.8em !important;
+}
+
+/* Breadcrumb separator */
+.breadcrumb li + li::before {
+    color: var(--cafe-muted) !important;
+}
+
+/* Modal overlays */
+.modal-background {
+    background-color: rgba(10, 8, 6, 0.85) !important;
+}
+
+/* Collapse toggles */
+details summary {
+    color: var(--cafe-copper);
+    cursor: pointer;
+}
+
+details summary:hover {
+    color: var(--cafe-amber);
+}
+
+/* Outdated-docs banner */
+#documenter .docs-main > .docs-version-selector {
+    background-color: rgba(244, 213, 141, 0.08) !important;
+    border-bottom: 1px solid var(--cafe-border) !important;
+    color: var(--cafe-gold) !important;
+}
+
+/* Anchor link hash symbol */
+.content .docs-heading-anchor::before {
+    color: var(--cafe-muted) !important;
+}
