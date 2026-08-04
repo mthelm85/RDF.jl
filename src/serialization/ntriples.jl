@@ -621,9 +621,10 @@ end
 # ── Convenience I/O ───────────────────────────────────────────────────────────
 
 """
-    rdf_read(path::AbstractString) → Graph | Dataset
+    rdf_read(path::AbstractString; format=nothing) → Graph | Dataset
 
-Read an RDF file from `path`, choosing the parser by file extension:
+Read an RDF file from `path`, choosing the parser by file extension (or the
+explicit `format` keyword, which takes a `MIME` value):
 
 | Extension | Format | Return type |
 |-----------|--------|-------------|
@@ -631,21 +632,50 @@ Read an RDF file from `path`, choosing the parser by file extension:
 | `.ttl` | Turtle 1.1 | `Graph` |
 | `.nq` | N-Quads | `Dataset` |
 | `.jsonld`, `.json-ld` | JSON-LD 1.1 | `Dataset` |
+| `.rdf`, `.owl`, `.xml` | RDF/XML (requires EzXML.jl) | `Graph` |
+
+Pass `format` to override extension-based detection, e.g.
+`rdf_read("data.xml"; format=MIME"application/rdf+xml"())`.
 
 For fine-grained control (streaming, base IRI, etc.) use `Base.read(io, mime, T)`
 directly.
 """
-function rdf_read(path::AbstractString)::Union{Graph, Dataset}
-    if endswith(path, ".nt")
-        return open(io -> Base.read(io, _MIME_NT(), Graph), path)
-    elseif endswith(path, ".nq")
-        return open(io -> Base.read(io, MIME"application/n-quads"(), Dataset), path)
-    elseif endswith(path, ".ttl")
-        return open(io -> Base.read(io, MIME"text/turtle"(), Graph), path)
-    elseif endswith(path, ".jsonld") || endswith(path, ".json-ld")
-        return open(io -> Base.read(io, MIME"application/ld+json"(), Dataset), path)
+function rdf_read(path::AbstractString;
+                  format::Union{MIME, Nothing}=nothing)::Union{Graph, Dataset}
+    mime = format !== nothing ? format : _rdf_mime_from_path(path)
+    return _rdf_read_with_mime(path, mime)
+end
+
+function _rdf_mime_from_path(path::AbstractString)::MIME
+    lp = lowercase(path)
+    endswith(lp, ".nt")      && return _MIME_NT()
+    endswith(lp, ".nq")      && return MIME"application/n-quads"()
+    endswith(lp, ".ttl")     && return MIME"text/turtle"()
+    endswith(lp, ".jsonld")  && return MIME"application/ld+json"()
+    endswith(lp, ".json-ld") && return MIME"application/ld+json"()
+    endswith(lp, ".rdf")     && return MIME"application/rdf+xml"()
+    endswith(lp, ".owl")     && return MIME"application/rdf+xml"()
+    endswith(lp, ".xml")     && return MIME"application/rdf+xml"()
+    throw(ArgumentError(
+        "Cannot infer RDF format from path $(repr(path)). " *
+        "Pass `format=MIME\"text/turtle\"()` explicitly, or convert the " *
+        "file to Turtle / N-Triples first."))
+end
+
+# Graph-producing formats
+function _rdf_read_with_mime(path::AbstractString, mime::MIME)::Graph
+    open(path, "r") do io
+        Base.read(io, mime, Graph)
     end
-    error("Cannot detect RDF format from extension: $path")
+end
+
+# Dataset-producing formats
+function _rdf_read_with_mime(path::AbstractString,
+                              mime::Union{MIME"application/n-quads",
+                                          MIME"application/ld+json"})::Dataset
+    open(path, "r") do io
+        Base.read(io, mime, Dataset)
+    end
 end
 
 """

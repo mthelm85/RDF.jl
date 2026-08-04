@@ -347,7 +347,8 @@ function RDF._vocab_load_http(source::AbstractString;
     accept = if format !== nothing
         string(format)   # e.g. "text/turtle"
     else
-        "text/turtle;q=1.0, application/n-triples;q=0.9, application/ld+json;q=0.7"
+        "text/turtle;q=1.0, application/n-triples;q=0.9, " *
+        "application/rdf+xml;q=0.8, application/ld+json;q=0.7"
     end
 
     headers = Pair{String,String}[
@@ -365,6 +366,16 @@ function RDF._vocab_load_http(source::AbstractString;
     elseif _ct_contains(ct, "ld+json") || _ct_contains(ct, "application/json")
         ds = Base.read(io, MIME"application/ld+json"(), Dataset)
         RDF._dataset_to_graph(ds)
+    elseif _ct_contains(ct, "rdf+xml") || _ct_contains(ct, "application/xml")
+        # RDF/XML — requires EzXML.jl extension.  Give a clear error if the
+        # parser isn't loaded rather than falling through to Turtle.
+        if !hasmethod(Base.read, Tuple{IO, MIME"application/rdf+xml", Type{Graph}})
+            error(
+                "Server returned RDF/XML (Content-Type: $(ct)) but no RDF/XML " *
+                "parser is loaded.  Add `using EzXML` before calling " *
+                "load_vocabulary to enable RDF/XML support.")
+        end
+        Base.read(io, MIME"application/rdf+xml"(), Graph)
     else
         # Turtle is the default / most common for vocabulary endpoints
         Base.read(io, MIME"text/turtle"(), Graph)

@@ -106,7 +106,12 @@ end
 
 # Resolve `ref` against `base` per RFC 3986 §5.2.2.
 function _ttl_resolve(base::String, ref::String)::String
-    isempty(ref)  && return base
+    # An empty reference resolves to the base with its fragment stripped
+    # (RFC 3986 §5.2.2: R has no fragment ⇒ T.fragment = R.fragment = ∅).
+    if isempty(ref)
+        fi = findfirst('#', base)
+        return fi === nothing ? base : base[1:prevind(base, fi)]
+    end
     isempty(base) && return ref
     match(r"^[A-Za-z][A-Za-z0-9+\-.]*:", ref) !== nothing && return ref
 
@@ -122,6 +127,9 @@ function _ttl_resolve(base::String, ref::String)::String
 
     tp = if startswith(rp, "/")
         _ttl_remove_dots(rp)
+    elseif ba !== nothing && isempty(bp)
+        # RFC 3986 §5.2.3 merge: authority with empty path ⇒ prepend "/"
+        _ttl_remove_dots("/" * rp)
     else
         idx = findlast('/', bp)
         _ttl_remove_dots(idx !== nothing ? bp[1:idx] * rp : rp)

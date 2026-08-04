@@ -37,5 +37,6 @@ using Test
     include("test_jsonld.jl")
     include("test_w3c_jsonld.jl")
     include("test_vocabulary.jl")
+    include("test_w3c_rdfxml.jl")
     include("test_aqua.jl")
 end

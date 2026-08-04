@@ -290,6 +290,9 @@ function _vocab_mime_from_path(path::AbstractString)::MIME
     endswith(lp, ".jsonld")  && return MIME"application/ld+json"()
     endswith(lp, ".json-ld") && return MIME"application/ld+json"()
     endswith(lp, ".json")    && return MIME"application/ld+json"()
+    endswith(lp, ".rdf")     && return MIME"application/rdf+xml"()
+    endswith(lp, ".owl")     && return MIME"application/rdf+xml"()
+    endswith(lp, ".xml")     && return MIME"application/rdf+xml"()
     throw(ArgumentError(
         "Cannot infer RDF format from path $(repr(path)). " *
         "Pass `format=MIME\"text/turtle\"()` explicitly, or convert the " *
