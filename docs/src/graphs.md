@@ -352,6 +352,33 @@ println("Alice→Bob via: ", edge_predicates(rdfdg, alice_v, bob_v))
 println(resolve_vertex(rdfdg, argmax(pr)))
 ```
 
+### ML / Embedding — `indexed_triples`
+
+```@docs
+indexed_triples
+IndexMap
+```
+
+Encode an RDF graph as a dense integer matrix for knowledge-graph embedding
+models (TransE, DistMult, RotatE, ComplEx, etc.):
+
+```julia
+result = indexed_triples(g)
+
+# Feed to an embedding model
+X           = result.triples        # N×3 Matrix{Int}
+n_entities  = length(result.entities)
+n_relations = length(result.relations)
+
+# Decode an integer triple back to RDF terms
+s = result.entities[X[1, 1]]     # subject
+p = result.relations[X[1, 2]]    # predicate
+o = result.entities[X[1, 3]]     # object
+
+# Look up a specific term's index
+alice_idx = result.entities[ex.alice]
+```
+
 ---
 
 ## Triples and Quads
