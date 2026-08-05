@@ -1,5 +1,64 @@
 using SimpleWeightedGraphs: SimpleWeightedDiGraph
 
+# ── IndexMap ─────────────────────────────────────────────────────────────────
+#
+# A bijective mapping between RDFTerms and contiguous 1-based integers,
+# designed for ML/knowledge-graph-embedding pipelines that require dense
+# integer indexing (TransE, DistMult, RotatE, etc.).
+
+"""
+    IndexMap
+
+A bijective mapping between `RDFTerm` values and contiguous `1:N` integers.
+Supports forward lookup (term → index) and reverse lookup (index → term).
+
+Returned by [`indexed_triples`](@ref) as the `entities` and `relations` maps.
+
+```julia
+result = indexed_triples(g)
+idx  = result.entities[ex.alice]   # forward: term → Int
+term = result.entities[1]          # reverse: Int → RDFTerm
+haskey(result.entities, ex.alice)   # membership test
+length(result.entities)            # number of mapped terms
+```
+"""
+struct IndexMap
+    terms::Vector{RDFTerm}           # index → term (1-based)
+    term_to_idx::Dict{RDFTerm,Int}   # term → index
+end
+
+"""
+    IndexMap()
+
+Create an empty `IndexMap`.
+"""
+IndexMap() = IndexMap(RDFTerm[], Dict{RDFTerm,Int}())
+
+Base.length(m::IndexMap) = length(m.terms)
+
+"""
+    m[i::Integer] -> RDFTerm
+
+Reverse lookup: return the `RDFTerm` at index `i`.
+"""
+Base.getindex(m::IndexMap, i::Integer) = m.terms[i]
+
+"""
+    m[term::RDFTerm] -> Int
+
+Forward lookup: return the contiguous integer index for `term`.
+Throws `KeyError` if `term` is not in the map.
+"""
+Base.getindex(m::IndexMap, t::RDFTerm) = m.term_to_idx[t]
+
+Base.haskey(m::IndexMap, t::RDFTerm) = haskey(m.term_to_idx, t)
+
+Base.keys(m::IndexMap) = m.terms
+
+function Base.show(io::IO, m::IndexMap)
+    print(io, "IndexMap(", length(m), " term", length(m) == 1 ? "" : "s", ")")
+end
+
 # ── to_digraph ────────────────────────────────────────────────────────────────
 #
 # Project an RDF Graph onto a Graphs.jl SimpleDiGraph, with an accompanying
@@ -332,4 +391,93 @@ function edge_predicates(g::RDFDiGraph, u::Int, v::Int)
         push!(preds, resolve_term(p_id)::IRI)
     end
     preds
+end
+
+# ── indexed_triples ──────────────────────────────────────────────────────────
+#
+# Produce an integer-encoded representation of an RDF graph for knowledge-graph
+# embedding models (TransE, DistMult, RotatE, ComplEx, etc.).  Entities
+# (subjects/objects) and relations (predicates) get separate, contiguous 1:N
+# index spaces.  The result is a single N×3 Matrix{Int} plus two IndexMap
+# dictionaries for decoding.
+
+"""
+    indexed_triples(g::Graph) -> (triples::Matrix{Int}, entities::IndexMap, relations::IndexMap)
+
+Encode every triple in `g` as a row `[subject_idx, relation_idx, object_idx]`
+in a dense `N×3` `Matrix{Int}`.  Entity and relation indices are **separate**
+contiguous `1:N` spaces — the standard input format for knowledge-graph
+embedding models.
+
+Returns a named tuple with:
+- `triples`   — `N×3 Matrix{Int}`, one row per triple
+- `entities`  — [`IndexMap`](@ref) for subjects/objects (term ↔ integer)
+- `relations` — [`IndexMap`](@ref) for predicates (term ↔ integer)
+
+```julia
+result = indexed_triples(g)
+
+# Feed to an embedding model
+X = result.triples          # N×3 Matrix{Int}
+n_entities  = length(result.entities)
+n_relations = length(result.relations)
+
+# Decode back
+s = result.entities[X[1, 1]]    # subject of first triple
+p = result.relations[X[1, 2]]   # predicate of first triple
+o = result.entities[X[1, 3]]    # object of first triple
+
+# Look up a specific entity's index
+alice_idx = result.entities[ex.alice]
+```
+
+See also: [`IndexMap`](@ref), [`to_digraph`](@ref), [`eachid`](@ref).
+"""
+function indexed_triples(g::Graph)
+    # Internal ID → contiguous index (separate spaces for entities and relations)
+    ent_id_to_idx = Dict{UInt32,Int}()
+    rel_id_to_idx = Dict{UInt32,Int}()
+    ent_ids = UInt32[]   # contiguous index → internal term ID
+    rel_ids = UInt32[]
+
+    # Collect raw integer triples in a single pass
+    raw = NTuple{3,Int}[]
+
+    for (s_id, p_id, o_id) in eachid(g)
+        # Assign entity indices on first encounter
+        if !haskey(ent_id_to_idx, s_id)
+            push!(ent_ids, s_id)
+            ent_id_to_idx[s_id] = length(ent_ids)
+        end
+        if !haskey(ent_id_to_idx, o_id)
+            push!(ent_ids, o_id)
+            ent_id_to_idx[o_id] = length(ent_ids)
+        end
+        # Assign relation index on first encounter
+        if !haskey(rel_id_to_idx, p_id)
+            push!(rel_ids, p_id)
+            rel_id_to_idx[p_id] = length(rel_ids)
+        end
+        push!(raw, (ent_id_to_idx[s_id], rel_id_to_idx[p_id], ent_id_to_idx[o_id]))
+    end
+
+    # Build the N×3 matrix
+    n = length(raw)
+    triples = Matrix{Int}(undef, n, 3)
+    for (i, (s, p, o)) in enumerate(raw)
+        triples[i, 1] = s
+        triples[i, 2] = p
+        triples[i, 3] = o
+    end
+
+    # Build IndexMap objects by resolving internal IDs to RDFTerms
+    ent_terms = RDFTerm[resolve_term(id) for id in ent_ids]
+    ent_map   = Dict{RDFTerm,Int}(t => i for (i, t) in enumerate(ent_terms))
+    entities  = IndexMap(ent_terms, ent_map)
+
+    rel_terms = RDFTerm[resolve_term(id) for id in rel_ids]
+    rel_map   = Dict{RDFTerm,Int}(t => i for (i, t) in enumerate(rel_terms))
+    relations = IndexMap(rel_terms, rel_map)
+
+    (triples=triples, entities=entities, relations=relations)
 end

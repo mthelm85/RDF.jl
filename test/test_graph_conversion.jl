@@ -688,4 +688,152 @@ end
 
     end
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # 8. indexed_triples — ML/embedding-ready integer encoding
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @testset "indexed_triples" begin
+
+        @testset "empty graph → empty matrix and maps" begin
+            result = indexed_triples(Graph())
+            @test size(result.triples) == (0, 3)
+            @test length(result.entities)  == 0
+            @test length(result.relations) == 0
+        end
+
+        @testset "single triple → 1×3 matrix, 2 entities, 1 relation" begin
+            g = Graph()
+            push!(g, Triple(_ex.alice, _foaf.knows, _ex.bob))
+            result = indexed_triples(g)
+            @test size(result.triples) == (1, 3)
+            @test length(result.entities)  == 2   # alice, bob
+            @test length(result.relations) == 1   # foaf:knows
+        end
+
+        @testset "social graph — correct dimensions" begin
+            result = indexed_triples(_social_graph())
+            # 5 triples
+            @test size(result.triples, 1) == 5
+            @test size(result.triples, 2) == 3
+            # 4 unique entities (alice, bob, carol, Person)
+            @test length(result.entities) == 4
+            # 2 unique predicates (foaf:knows, rdf:type)
+            @test length(result.relations) == 2
+        end
+
+        @testset "indices are contiguous 1:N" begin
+            result = indexed_triples(_social_graph())
+            # All entity indices appear in 1:length(entities)
+            eidxs = Set(result.triples[:, 1]) ∪ Set(result.triples[:, 3])
+            @test eidxs ⊆ Set(1:length(result.entities))
+            # All relation indices appear in 1:length(relations)
+            ridxs = Set(result.triples[:, 2])
+            @test ridxs ⊆ Set(1:length(result.relations))
+        end
+
+        @testset "round-trip: reconstruct original triples" begin
+            g = _social_graph()
+            result = indexed_triples(g)
+            reconstructed = Set{Triple}()
+            for row in 1:size(result.triples, 1)
+                s = result.entities[result.triples[row, 1]]
+                p = result.relations[result.triples[row, 2]]
+                o = result.entities[result.triples[row, 3]]
+                push!(reconstructed, Triple(s, p::IRI, o))
+            end
+            original = Set{Triple}(collect(g))
+            @test reconstructed == original
+        end
+
+        @testset "entity and relation index spaces are separate" begin
+            g = Graph()
+            push!(g, Triple(_ex.alice, _foaf.knows, _ex.bob))
+            result = indexed_triples(g)
+            # Both maps have index 1, but they refer to different things
+            e1 = result.entities[1]
+            r1 = result.relations[1]
+            @test e1 != r1   # entity 1 ≠ relation 1
+        end
+
+        @testset "IndexMap forward lookup (term → index)" begin
+            result = indexed_triples(_social_graph())
+            idx = result.entities[_ex.alice]
+            @test idx isa Int
+            @test 1 <= idx <= length(result.entities)
+        end
+
+        @testset "IndexMap reverse lookup (index → term)" begin
+            result = indexed_triples(_social_graph())
+            term = result.entities[1]
+            @test term isa RDFTerm
+        end
+
+        @testset "IndexMap haskey" begin
+            result = indexed_triples(_social_graph())
+            @test haskey(result.entities, _ex.alice)
+            @test haskey(result.entities, _ex.bob)
+            @test !haskey(result.entities, _ex.nonexistent)
+            @test haskey(result.relations, _foaf.knows)
+            @test !haskey(result.relations, _ex.nonexistent)
+        end
+
+        @testset "IndexMap forward and reverse are inverses" begin
+            result = indexed_triples(_social_graph())
+            for i in 1:length(result.entities)
+                term = result.entities[i]
+                @test result.entities[term] == i
+            end
+            for i in 1:length(result.relations)
+                term = result.relations[i]
+                @test result.relations[term] == i
+            end
+        end
+
+        @testset "literal objects included in entity map" begin
+            result = indexed_triples(_literal_graph())
+            @test haskey(result.entities, Literal("Alice"))
+            @test haskey(result.entities, Literal(30))
+        end
+
+        @testset "blank nodes included in entity map" begin
+            g = Graph()
+            b = blank!(g)
+            push!(g, Triple(b, rdf.type, _ex.Person))
+            result = indexed_triples(g)
+            @test haskey(result.entities, b)
+        end
+
+        @testset "self-loop triple" begin
+            result = indexed_triples(_selfloop_graph())
+            @test size(result.triples) == (1, 3)
+            @test length(result.entities) == 1   # alice only
+            # subject index == object index (same entity)
+            @test result.triples[1, 1] == result.triples[1, 3]
+        end
+
+        @testset "chain graph — unique entities and order" begin
+            result = indexed_triples(_chain_graph())
+            @test size(result.triples, 1) == 3           # 3 triples
+            @test length(result.entities)  == 4           # a, b, c, d
+            @test length(result.relations) == 1           # ex:next
+        end
+
+        @testset "multi-predicate pair → separate rows, separate relations" begin
+            result = indexed_triples(_multi_pred_graph())
+            @test size(result.triples, 1) == 2           # 2 triples
+            @test length(result.entities)  == 2           # alice, bob
+            @test length(result.relations) == 2           # foaf:knows, foaf:age
+            # Both rows should have the same entity indices but different relation indices
+            @test result.triples[1, 1] == result.triples[2, 1]  # same subject
+            @test result.triples[1, 3] == result.triples[2, 3]  # same object
+            @test result.triples[1, 2] != result.triples[2, 2]  # different predicate
+        end
+
+        @testset "Matrix{Int} element type" begin
+            result = indexed_triples(_social_graph())
+            @test eltype(result.triples) == Int
+        end
+
+    end
+
 end

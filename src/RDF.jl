@@ -97,6 +97,9 @@ export term_id        # RDFTerm    → UInt32 ID  (0 if not interned)
 export to_digraph, to_weighted_digraph
 export RDFDiGraph, vertex_id, resolve_vertex, edge_predicates
 
+# ML / knowledge-graph-embedding integration
+export indexed_triples, IndexMap
+
 # Serialization
 export parse_triples, rdf_read, rdf_write
 
@@ -191,6 +194,12 @@ using PrecompileTools: @setup_workload, @compile_workload
         knn(_ei, Float32[1, 0, 0]; k=1)
         retrieve(g, _ei, Float32[1, 0, 0]; k=1, hops=1)
         to_prompt(describe_schema(g); prefixes=Dict("pc" => "http://precompile.invalid/"))
+
+        # indexed_triples (ML / KGE)
+        _it = indexed_triples(g)
+        _it.entities[_pc.s1]
+        _it.entities[1]
+        haskey(_it.entities, _pc.s1)
 
         # SHACL
         shg = Graph()
