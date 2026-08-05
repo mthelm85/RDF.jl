@@ -424,7 +424,8 @@ html.theme--documenter-dark .content a:hover {
 #documenter .docs-main article code,
 html.theme--documenter-dark .content code {
     font-family: "Fira Code", Menlo, Consolas, Monaco, monospace !important;
-    color: var(--cafe-warm-glow) !important;
+    /* color: var(--cafe-warm-glow) !important; */
+    color: var(--syn-keyword) !important;
     background: rgba(20, 20, 20, 0.6) !important;
     padding: 0.15em 0.4em !important;
     border-radius: 3px !important;
