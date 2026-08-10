@@ -1213,15 +1213,17 @@ function _ttl_parse(s::String, base::String)::Vector{Triple}
 end
 
 function Base.read(io::IO, ::_MIME_TTL, ::Type{Graph})::Graph
-    s = String(Base.read(io))
-    g = Graph()
-    for t in _ttl_parse(s, ""); push!(g, t); end
-    g
+    bulk_load!(Graph(), _ttl_parse(String(Base.read(io)), ""))
 end
 
 function Base.read(io::IO, ::_MIME_TTL, ::Type{Graph}, base::AbstractString)::Graph
-    s = String(Base.read(io))
-    g = Graph()
-    for t in _ttl_parse(s, String(base)); push!(g, t); end
-    g
+    bulk_load!(Graph(), _ttl_parse(String(Base.read(io)), String(base)))
+end
+
+function Base.read(io::IO, ::_MIME_TTL, ::Type{Vector{Triple}})::Vector{Triple}
+    _ttl_parse(String(Base.read(io)), "")
+end
+
+function Base.read(io::IO, ::_MIME_TTL, ::Type{Vector{Triple}}, base::AbstractString)::Vector{Triple}
+    _ttl_parse(String(Base.read(io)), String(base))
 end
