@@ -31,7 +31,7 @@ RDFXMLExt = "EzXML"
 [compat]
 Base64 = "1"
 Bumper = "0.7.2"
-DataStructures = "0.18"
+DataStructures = "0.18, 0.19"
 Dates = "1"
 EzXML = "1"
 Graphs = "1"
