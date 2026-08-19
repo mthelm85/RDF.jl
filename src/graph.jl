@@ -31,7 +31,7 @@ end
 
 # ── Mutation ──────────────────────────────────────────────────────────────────
 
-Base.append!(g::Graph, ts) = (foreach(t -> push!(g, t), ts); g)
+Base.append!(g::Graph, ts) = bulk_load!(g, ts)
 
 """
     bulk_load!(g::Graph, triples) -> g
@@ -113,28 +113,17 @@ end
 # ── Set operations ────────────────────────────────────────────────────────────
 
 function Base.union(g1::Graph, g2::Graph)
-    result = Graph()
-    for t in g1; push!(result, t); end
-    for t in _rename_blanks(g2, result.blank_nodes)
-        push!(result, t)
-    end
+    result = bulk_load!(Graph(), g1)
+    bulk_load!(result, _rename_blanks(g2, result.blank_nodes))
     result
 end
 
 function Base.intersect(g1::Graph, g2::Graph)
-    result = Graph()
-    for t in g1
-        t in g2 && push!(result, t)
-    end
-    result
+    bulk_load!(Graph(), (t for t in g1 if t in g2))
 end
 
 function Base.setdiff(g1::Graph, g2::Graph)
-    result = Graph()
-    for t in g1
-        t ∉ g2 && push!(result, t)
-    end
-    result
+    bulk_load!(Graph(), (t for t in g1 if t ∉ g2))
 end
 
 """
@@ -144,9 +133,7 @@ Merge all triples from `g2` into `g1` in-place. Blank nodes from `g2` that
 collide with blank nodes already in `g1` are renamed to fresh identifiers.
 """
 function merge!(g1::Graph, g2::Graph)
-    for t in _rename_blanks(g2, g1.blank_nodes)
-        push!(g1, t)
-    end
+    bulk_load!(g1, _rename_blanks(g2, g1.blank_nodes))
     g1
 end
 
@@ -192,11 +179,7 @@ function _rename_blanks(g::Graph, existing_ids::Set{UInt64})
     collisions = intersect(g.blank_nodes, existing_ids)
     isempty(collisions) && return g
     mapping = Dict{UInt64, BlankNode}(id => _mint_blank_node() for id in collisions)
-    result = Graph()
-    for t in g
-        push!(result, _remap_triple(t, mapping))
-    end
-    result
+    bulk_load!(Graph(), (_remap_triple(t, mapping) for t in g))
 end
 
 function _remap_triple(t::Triple, m::Dict{UInt64, BlankNode})
@@ -310,12 +293,8 @@ skolemize(g; base="http://example.org/.well-known/genid/")
 ```
 """
 function skolemize(g::Graph; base::String)
-    result = Graph()
     mapping = Dict{UInt64, IRI}()
-    for t in g
-        push!(result, _skolem_triple(t, base, mapping))
-    end
-    result
+    bulk_load!(Graph(), (_skolem_triple(t, base, mapping) for t in g))
 end
 
 function _skolem_triple(t::Triple, base::String, m::Dict{UInt64,IRI})
@@ -338,11 +317,7 @@ Reverse of [`skolemize`](@ref): replace IRIs whose value starts with `base`
 with fresh blank nodes.
 """
 function deskolemize(g::Graph; base::String)
-    result = Graph()
-    for t in g
-        push!(result, _deskolem_triple(t, base))
-    end
-    result
+    bulk_load!(Graph(), (_deskolem_triple(t, base) for t in g))
 end
 
 function _deskolem_triple(t::Triple, base::String)

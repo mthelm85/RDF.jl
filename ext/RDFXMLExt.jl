@@ -80,14 +80,22 @@ Mutable state threaded through the recursive-descent walk of the DOM.
                    used to reject duplicates.
 """
 mutable struct _RDFXMLParser
-    graph::RDF.Graph
+    graph::Vector{RDF.Triple}
+    blank_nodes::Set{UInt64}
     base::String
     blank_map::Dict{String, RDF.BlankNode}
     used_ids::Set{String}
 end
 
 _RDFXMLParser(base::String) =
-    _RDFXMLParser(RDF.Graph(), base, Dict{String, RDF.BlankNode}(), Set{String}())
+    _RDFXMLParser(RDF.Triple[], Set{UInt64}(), base,
+                  Dict{String, RDF.BlankNode}(), Set{String}())
+
+function _blank!(p::_RDFXMLParser)::RDF.BlankNode
+    blank = RDF._mint_blank_node()
+    push!(p.blank_nodes, blank.id)
+    blank
+end
 
 # ── Small helpers ─────────────────────────────────────────────────────────────
 
@@ -204,7 +212,7 @@ function _get_blank!(p::_RDFXMLParser, nodeid::String)::RDF.BlankNode
     _valid_ncname(nodeid) ||
         throw(RDF.ParseError("rdf:nodeID value $(repr(nodeid)) is not a valid XML NCName", 0, 0, _MIME_RDFXML()))
     get!(p.blank_map, nodeid) do
-        RDF.blank!(p.graph)
+        _blank!(p)
     end
 end
 
@@ -423,7 +431,7 @@ function _parse_node_element!(p::_RDFXMLParser, el, parent_lang::String, parent_
     elseif nodeid_val !== nothing
         _get_blank!(p, nodeid_val)
     else
-        RDF.blank!(p.graph)
+        _blank!(p)
     end
 
     # A typed node element (anything other than rdf:Description) asserts
@@ -574,7 +582,7 @@ function _parse_property_element!(p::_RDFXMLParser, subject, predicate::RDF.IRI,
         if parse_type == "Resource"
             # Implicit blank node; this element's own children become ITS
             # property elements (form 4, §7.2.18).
-            obj = RDF.blank!(p.graph)
+            obj = _blank!(p)
             push!(p.graph, RDF.Triple(subject, predicate, obj))
             _reify!(p, id_val, base, subject, predicate, obj)
             _parse_property_element_list!(p, obj, pel, lang, base)
@@ -588,7 +596,7 @@ function _parse_property_element!(p::_RDFXMLParser, subject, predicate::RDF.IRI,
                 push!(p.graph, RDF.Triple(subject, predicate, obj))
                 _reify!(p, id_val, base, subject, predicate, obj)
             else
-                head = RDF.blank!(p.graph)
+                head = _blank!(p)
                 push!(p.graph, RDF.Triple(subject, predicate, head))
                 _reify!(p, id_val, base, subject, predicate, head)
                 cur = head
@@ -597,7 +605,7 @@ function _parse_property_element!(p::_RDFXMLParser, subject, predicate::RDF.IRI,
                     child_subject = _parse_node_element!(p, child, lang, base)
                     push!(p.graph, RDF.Triple(cur, _IRI_FIRST, child_subject))
                     if i < n
-                        nxt = RDF.blank!(p.graph)
+                        nxt = _blank!(p)
                         push!(p.graph, RDF.Triple(cur, _IRI_REST, nxt))
                         cur = nxt
                     else
@@ -662,7 +670,7 @@ function _parse_property_element!(p::_RDFXMLParser, subject, predicate::RDF.IRI,
         elseif nodeid_val !== nothing
             _get_blank!(p, nodeid_val)
         elseif type_val !== nothing || !isempty(prop_attrs)
-            RDF.blank!(p.graph)
+            _blank!(p)
         else
             _mk_literal("", lang)
         end
@@ -708,7 +716,9 @@ function _parse_rdfxml(bytes::Vector{UInt8}, base::String)::RDF.Graph
         _parse_node_element!(p, root_el, root_lang, root_base)
     end
 
-    p.graph
+    g = RDF.bulk_load!(RDF.Graph(), p.graph)
+    union!(g.blank_nodes, p.blank_nodes)
+    g
 end
 
 # ── Public API ─────────────────────────────────────────────────────────────────

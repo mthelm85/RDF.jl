@@ -205,11 +205,7 @@ end
 # Used by load_vocabulary (file) and by RDFHTTPExt (remote).
 # Merges all named graphs and the default graph into a single Graph.
 function _dataset_to_graph(ds::Dataset)::Graph
-    g = Graph()
-    for q in quads(ds)
-        push!(g, Triple(q.subject, q.predicate, q.object))
-    end
-    g
+    bulk_load!(Graph(), (Triple(q.subject, q.predicate, q.object) for q in quads(ds)))
 end
 
 # ── Loading ────────────────────────────────────────────────────────────────────

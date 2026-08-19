@@ -2733,7 +2733,7 @@ function _sp_execute_construct(q::SpConstructQuery, ctx::_SpEvalCtx)::Graph
     limit  = q.limit  !== nothing ? min(q.limit, total - offset) : (total - offset)
     sols = sols[offset+1:offset+limit]
 
-    result = Graph()
+    triples = Triple[]
     template = q.template !== nothing ? q.template : begin
         # CONSTRUCT WHERE: template = WHERE pattern triples
         if q.pattern isa SpBGP
@@ -2769,10 +2769,10 @@ function _sp_execute_construct(q::SpConstructQuery, ctx::_SpEvalCtx)::Graph
             s_term isa SubjectTerm || continue
             p_term isa IRI         || continue
             o_term isa ObjectTerm  || continue
-            push!(result, Triple(s_term::SubjectTerm, p_term::IRI, o_term::ObjectTerm))
+            push!(triples, Triple(s_term::SubjectTerm, p_term::IRI, o_term::ObjectTerm))
         end
     end
-    result
+    bulk_load!(Graph(), triples)
 end
 
 function _sp_instantiate_term(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution,
@@ -2824,7 +2824,7 @@ end
 # ── DESCRIBE execution ────────────────────────────────────────────────────────
 
 function _sp_execute_describe(q::SpDescribeQuery, ctx::_SpEvalCtx)::Graph
-    result = Graph()
+    triples = Triple[]
     resources = RDFTerm[]
 
     if q.star
@@ -2861,10 +2861,10 @@ function _sp_execute_describe(q::SpDescribeQuery, ctx::_SpEvalCtx)::Graph
         r in seen && continue; push!(seen, r)
         r isa SubjectTerm || continue
         for t in match(ctx.active_graph; subject=r::SubjectTerm)
-            push!(result, t)
+            push!(triples, t)
         end
     end
-    result
+    bulk_load!(Graph(), triples)
 end
 
 # ── Public-facing execution functions ─────────────────────────────────────────

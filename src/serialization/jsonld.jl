@@ -1749,17 +1749,22 @@ const _RDF_DIRECTION_MODE = Ref{Union{String,Nothing}}(nothing)
 
 function _jsonld_to_rdf(expanded::Vector{Any}, base::Union{String,Nothing};
                         rdfdir::Union{String,Nothing}=nothing)::Dataset
-    ds = Dataset()
+    default_triples = Triple[]
+    named_triples = Dict{GraphName,Vector{Triple}}()
     blank_map = Dict{String,BlankNode}()
     prev = _RDF_DIRECTION_MODE[]
     _RDF_DIRECTION_MODE[] = rdfdir
     try
         for node in expanded
             node isa AbstractDict || continue
-            _process_node!(ds.default_graph, node, ds, blank_map; top_level=true)
+            _process_node!(default_triples, node, named_triples, blank_map; top_level=true)
         end
     finally
         _RDF_DIRECTION_MODE[] = prev
+    end
+    ds = Dataset(default_graph=bulk_load!(Graph(), default_triples))
+    for (name, triples) in named_triples
+        ds[name] = bulk_load!(Graph(), triples)
     end
     ds
 end
@@ -1793,10 +1798,11 @@ function _id_to_term(id_str::String, blank_map::Dict{String,BlankNode})::Union{I
     end
 end
 
-# Emit a node's triples into `graph`, returning the subject term (or nothing
+# Emit a node's triples into `triples`, returning the subject term (or nothing
 # if the node has an unusable @id).  Handles @type, properties, @reverse, and
 # @graph (named graphs).
-function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
+function _process_node!(triples::Vector{Triple}, node::AbstractDict,
+                        named_triples::Dict{GraphName,Vector{Triple}},
                         blank_map::Dict{String,BlankNode}; top_level::Bool=false)
     d = Dict{String,Any}(String(k) => v for (k, v) in node)
 
@@ -1808,12 +1814,12 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
     # fresh named graph keyed by a blank node.
     if haskey(d, "@graph") && length(d) == 1
         if top_level
-            _process_graph_contents!(graph, d["@graph"], ds, blank_map)
+            _process_graph_contents!(triples, d["@graph"], named_triples, blank_map)
             return nothing
         end
         gname = _mint_blank_node()
-        ng = get!(() -> Graph(), ds.named_graphs, gname)
-        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        ng = get!(() -> Triple[], named_triples, gname)
+        _process_graph_contents!(ng, d["@graph"], named_triples, blank_map)
         return gname
     end
 
@@ -1834,7 +1840,7 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
             t isa AbstractString || continue
             obj = _id_to_term(String(t), blank_map)
             obj isa Union{IRI,BlankNode} || continue
-            push!(graph, Triple(subj, IRI(_JRDF_TYPE), obj))
+            push!(triples, Triple(subj, IRI(_JRDF_TYPE), obj))
         end
     end
 
@@ -1852,9 +1858,9 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
 
         values isa AbstractArray || (values = Any[values])
         for vo in values
-            obj = _val_to_rdf(vo, graph, ds, blank_map)
+            obj = _val_to_rdf(vo, triples, named_triples, blank_map)
             obj === nothing && continue
-            push!(graph, Triple(subj, pred_iri, obj))
+            push!(triples, Triple(subj, pred_iri, obj))
         end
     end
 
@@ -1869,9 +1875,9 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
                 values isa AbstractArray || (values = Any[values])
                 for vo in values
                     vo isa AbstractDict || continue
-                    rev_subj = _process_node!(graph, vo, ds, blank_map)
+                    rev_subj = _process_node!(triples, vo, named_triples, blank_map)
                     rev_subj isa Union{IRI,BlankNode} || continue
-                    push!(graph, Triple(rev_subj, pred_iri, subj))
+                    push!(triples, Triple(rev_subj, pred_iri, subj))
                 end
             end
         end
@@ -1880,13 +1886,13 @@ function _process_node!(graph::Graph, node::AbstractDict, ds::Dataset,
     # @graph on a node that is itself a node (has an @id or other content):
     # the contents form a named graph keyed by this node's subject.
     if haskey(d, "@graph")
-        ng = get!(() -> Graph(), ds.named_graphs, subj)
-        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        ng = get!(() -> Triple[], named_triples, subj)
+        _process_graph_contents!(ng, d["@graph"], named_triples, blank_map)
     end
 
     # @included nodes are emitted as independent nodes in the same graph.
     if haskey(d, "@included")
-        _process_graph_contents!(graph, d["@included"], ds, blank_map)
+        _process_graph_contents!(triples, d["@included"], named_triples, blank_map)
     end
 
     return subj
@@ -1894,14 +1900,18 @@ end
 
 # Process the value of an @graph key (a node object or array of node objects)
 # into the given graph.
-function _process_graph_contents!(graph::Graph, contents, ds::Dataset, blank_map::Dict{String,BlankNode})
+function _process_graph_contents!(triples::Vector{Triple}, contents,
+                                  named_triples::Dict{GraphName,Vector{Triple}},
+                                  blank_map::Dict{String,BlankNode})
     nodes = contents isa AbstractArray ? contents : Any[contents]
     for sn in nodes
-        sn isa AbstractDict && _process_node!(graph, sn, ds, blank_map)
+        sn isa AbstractDict && _process_node!(triples, sn, named_triples, blank_map)
     end
 end
 
-function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,BlankNode})::Union{IRI,BlankNode,Literal,Nothing}
+function _val_to_rdf(vo, triples::Vector{Triple},
+                     named_triples::Dict{GraphName,Vector{Triple}},
+                     blank_map::Dict{String,BlankNode})::Union{IRI,BlankNode,Literal,Nothing}
     vo isa AbstractDict || return nothing
     d = Dict{String,Any}(String(k) => v for (k, v) in vo)
 
@@ -1909,7 +1919,7 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
     if haskey(d, "@list")
         items = d["@list"]
         items isa AbstractArray || (items = Any[items])
-        return _build_rdf_list(items, graph, ds, blank_map)
+        return _build_rdf_list(items, triples, named_triples, blank_map)
     end
 
     # Graph object (e.g. from an @container: @graph term): emit its contents
@@ -1918,16 +1928,16 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
     if haskey(d, "@graph")
         gname = haskey(d, "@id") ? _id_to_term(String(d["@id"]), blank_map) : nothing
         gname === nothing && (gname = _mint_blank_node())
-        ng = get!(() -> Graph(), ds.named_graphs, gname)
-        _process_graph_contents!(ng, d["@graph"], ds, blank_map)
+        ng = get!(() -> Triple[], named_triples, gname)
+        _process_graph_contents!(ng, d["@graph"], named_triples, blank_map)
         # Any extra properties of the graph object (e.g. a property-valued index)
         # are emitted on the graph name in the current graph.
         for (p, vals) in d
             (p == "@graph" || p == "@id" || startswith(p, "@") || !_is_valid_iri(p)) && continue
             pi = IRI(p)
             for vob in (vals isa AbstractArray ? vals : Any[vals])
-                o = _val_to_rdf(vob, graph, ds, blank_map)
-                o === nothing || push!(graph, Triple(gname, pi, o))
+                o = _val_to_rdf(vob, triples, named_triples, blank_map)
+                o === nothing || push!(triples, Triple(gname, pi, o))
             end
         end
         return gname
@@ -1942,7 +1952,7 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
     if haskey(d, "@id") && !haskey(d, "@value")
         subj = _id_to_term(String(d["@id"]), blank_map)
         subj === nothing && return nothing
-        _process_node!(graph, d, ds, blank_map)
+        _process_node!(triples, d, named_triples, blank_map)
         return subj
     end
 
@@ -1963,10 +1973,10 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
                 return Literal(string(raw_val), IRI(_I18N_BASE * lang_s * "_" * dir_s))
             elseif mode == "compound-literal"
                 bn = _mint_blank_node()
-                push!(graph, Triple(bn, IRI(_JRDF_VALUE), Literal(string(raw_val))))
+                push!(triples, Triple(bn, IRI(_JRDF_VALUE), Literal(string(raw_val))))
                 lang === nothing ||
-                    push!(graph, Triple(bn, IRI(_JRDF_LANGUAGE), Literal(lang_s)))
-                push!(graph, Triple(bn, IRI(_JRDF_DIRECTION), Literal(dir_s)))
+                    push!(triples, Triple(bn, IRI(_JRDF_LANGUAGE), Literal(lang_s)))
+                push!(triples, Triple(bn, IRI(_JRDF_DIRECTION), Literal(dir_s)))
                 return bn
             end
         end
@@ -2014,7 +2024,7 @@ function _val_to_rdf(vo, graph::Graph, ds::Dataset, blank_map::Dict{String,Blank
         d_with_id = copy(d)
         d_with_id["@id"] = "_:anon_$(bnode.id)"
         blank_map["anon_$(bnode.id)"] = bnode
-        _process_node!(graph, d_with_id, ds, blank_map)
+        _process_node!(triples, d_with_id, named_triples, blank_map)
         return bnode
     end
 
@@ -2133,22 +2143,24 @@ function _jsonld_raw_to_lexical(raw, dtype::String)::String
     string(raw)
 end
 
-function _build_rdf_list(items::AbstractArray, graph::Graph, ds::Dataset, blank_map::Dict{String,BlankNode})::Union{IRI,BlankNode}
+function _build_rdf_list(items::AbstractArray, triples::Vector{Triple},
+                         named_triples::Dict{GraphName,Vector{Triple}},
+                         blank_map::Dict{String,BlankNode})::Union{IRI,BlankNode}
     isempty(items) && return IRI(_JRDF_NIL)
     head   = _mint_blank_node()
     current = head
     n = length(items)
     for (i, item) in enumerate(items)
-        obj = _val_to_rdf(item, graph, ds, blank_map)
+        obj = _val_to_rdf(item, triples, named_triples, blank_map)
         # A dropped member (e.g. an invalid IRI) yields no rdf:first triple, but
         # the list node and its rdf:rest chain are still emitted.
-        obj === nothing || push!(graph, Triple(current, IRI(_JRDF_FIRST), obj))
+        obj === nothing || push!(triples, Triple(current, IRI(_JRDF_FIRST), obj))
         if i < n
             next_node = _mint_blank_node()
-            push!(graph, Triple(current, IRI(_JRDF_REST), next_node))
+            push!(triples, Triple(current, IRI(_JRDF_REST), next_node))
             current = next_node
         else
-            push!(graph, Triple(current, IRI(_JRDF_REST), IRI(_JRDF_NIL)))
+            push!(triples, Triple(current, IRI(_JRDF_REST), IRI(_JRDF_NIL)))
         end
     end
     head
@@ -2197,13 +2209,11 @@ function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
     ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base,
                    contexts=contexts, load_remote_contexts=load_remote_contexts,
                    rdfdirection=rdfdirection, expandcontext=expandcontext)
-    g = ds.default_graph
+    triples = Triple[t for t in ds.default_graph]
     for (_, ng) in ds.named_graphs
-        for t in ng
-            push!(g, t)
-        end
+        append!(triples, ng)
     end
-    g
+    bulk_load!(Graph(), triples)
 end
 
 """
