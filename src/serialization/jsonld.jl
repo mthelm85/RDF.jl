@@ -7,7 +7,9 @@ Supports:
 - `Base.write(io, MIME"application/ld+json"(), g::Graph; context=nothing)` — serialize Graph
 - `Base.write(io, MIME"application/ld+json"(), ds::Dataset; context=nothing)` — serialize Dataset
 
-Remote context loading is not supported. Inline contexts only.
+Remote context loading is available when HTTP.jl is loaded and the caller passes
+`load_remote_contexts=true`. Remote contexts are cached by URI for five minutes
+by default; pass `remote_context_cache_ttl=0` to disable that cache for a read.
 """
 
 const _MIME_JSONLD = MIME"application/ld+json"
@@ -84,6 +86,24 @@ end
 const _JSONLD_CTX_CACHE  = LRU{Any,Tuple{Any,_JsonLDContext}}(maxsize=512)
 const _JSONLD_CTX_HITS   = Ref(0)
 const _JSONLD_CTX_MISSES = Ref(0)
+
+# Remote contexts are fetched through the optional HTTP extension. Keep their
+# parsed JSON values briefly so repeated documents avoid both network requests
+# and context recompilation. Caller-provided `contexts` are never stored here.
+const _JSONLD_REMOTE_CTX_CACHE = LRU{String,Tuple{Float64,Any}}(maxsize=512)
+const _JSONLD_REMOTE_CTX_CACHE_TTL = 300.0
+
+_jsonld_remote_ctx_cache_reset!() = (empty!(_JSONLD_REMOTE_CTX_CACHE); nothing)
+
+function _cached_remote_context(loader, iri::String, ttl::Float64)
+    ttl == 0 && return loader(iri)
+    now = time()
+    cached = get(_JSONLD_REMOTE_CTX_CACHE, iri, nothing)
+    cached !== nothing && cached[1] > now && return cached[2]
+    context = loader(iri)
+    context === nothing || (_JSONLD_REMOTE_CTX_CACHE[iri] = (now + ttl, context))
+    context
+end
 
 # Reverse index (@id → term definition) for _find_term_def_by_id, which otherwise
 # linearly scans every term per property during RDF conversion — O(terms) per
@@ -2180,8 +2200,8 @@ Parse a JSON-LD document from `io` and return all triples as a single Graph
 const _JSONLD_REMOTE_LOADER = Ref{Any}(nothing)
 
 # Build a context loader from the `contexts` map/callable and the
-# `load_remote_contexts` flag.  Returns iri -> context value | nothing.
-function _build_jsonld_loader(contexts, load_remote::Bool)
+# `load_remote_contexts` flag. Returns iri -> context value | nothing.
+function _build_jsonld_loader(contexts, load_remote::Bool, remote_cache_ttl::Float64)
     base_loader = if contexts isa AbstractDict
         iri -> get(contexts, String(iri), nothing)
     elseif contexts !== nothing
@@ -2197,17 +2217,19 @@ function _build_jsonld_loader(contexts, load_remote::Bool)
         f === nothing && throw(ParseError(
             "load_remote_contexts=true requires HTTP.jl: run `using HTTP`",
             0, 0, _MIME_JSONLD()))
-        f(iri)
+        _cached_remote_context(f, String(iri), remote_cache_ttl)
     end
 end
 
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Graph};
                    base::Union{AbstractString,Nothing}=nothing,
                    contexts=nothing, load_remote_contexts::Bool=false,
+                   remote_context_cache_ttl::Real=_JSONLD_REMOTE_CTX_CACHE_TTL,
                    rdfdirection::Union{AbstractString,Nothing}=nothing,
                    expandcontext=nothing)::Graph
     ds = Base.read(io, _MIME_JSONLD(), Dataset; base=base,
                    contexts=contexts, load_remote_contexts=load_remote_contexts,
+                   remote_context_cache_ttl=remote_context_cache_ttl,
                    rdfdirection=rdfdirection, expandcontext=expandcontext)
     triples = Triple[t for t in ds.default_graph]
     for (_, ng) in ds.named_graphs
@@ -2224,15 +2246,19 @@ Parse a JSON-LD document from `io` and return a Dataset (preserving named graphs
 function Base.read(io::IO, ::_MIME_JSONLD, ::Type{Dataset};
                    base::Union{AbstractString,Nothing}=nothing,
                    contexts=nothing, load_remote_contexts::Bool=false,
+                   remote_context_cache_ttl::Real=_JSONLD_REMOTE_CTX_CACHE_TTL,
                    rdfdirection::Union{AbstractString,Nothing}=nothing,
                    expandcontext=nothing)::Dataset
+    ttl = Float64(remote_context_cache_ttl)
+    (isnan(ttl) || ttl < 0) && throw(ArgumentError(
+        "remote_context_cache_ttl must be non-negative seconds"))
     bytes = Base.read(io)
     doc  = try
         JSON.parse(bytes)
     catch e
         throw(ParseError("Invalid JSON: $e", 0, 0, _MIME_JSONLD()))
     end
-    ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts))
+    ctx      = _JsonLDContext(_build_jsonld_loader(contexts, load_remote_contexts, ttl))
     base !== nothing && (ctx.base = String(base); ctx.docbase = String(base))
     # expandContext option: a context applied to the document before expansion
     # (a string is treated as a context reference, resolved/loaded as usual).

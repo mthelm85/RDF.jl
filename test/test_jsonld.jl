@@ -428,3 +428,36 @@ end # @testset "JSON-LD"
     @test RDF._ordered_json_eq(p1, p2)
     @test !RDF._ordered_json_eq(p1, p3)
 end
+
+  @testset "JSON-LD remote context cache" begin
+    mime = MIME"application/ld+json"()
+    document = """{"@context":"https://contexts.example/schema","@id":"http://example.org/x","ex:name":"Alice"}"""
+    expected = Triple(IRI("http://example.org/x"), IRI("http://example.org/name"), Literal("Alice"))
+    previous_loader = RDF._JSONLD_REMOTE_LOADER[]
+    fetches = Ref(0)
+    RDF._jsonld_remote_ctx_cache_reset!()
+    RDF._JSONLD_REMOTE_LOADER[] = function (iri)
+      @test iri == "https://contexts.example/schema"
+      fetches[] += 1
+      Dict("ex" => "http://example.org/")
+    end
+
+    try
+      g1 = read(IOBuffer(document), mime, Graph; load_remote_contexts=true)
+      g2 = read(IOBuffer(document), mime, Graph; load_remote_contexts=true)
+      @test expected in g1 && expected in g2
+      @test fetches[] == 1
+
+      g3 = read(IOBuffer(document), mime, Graph; load_remote_contexts=true,
+            remote_context_cache_ttl=0)
+      @test expected in g3
+      @test fetches[] == 2
+
+      @test_throws ArgumentError read(IOBuffer(document), mime, Graph;
+                       load_remote_contexts=true,
+                       remote_context_cache_ttl=-1)
+    finally
+      RDF._JSONLD_REMOTE_LOADER[] = previous_loader
+      RDF._jsonld_remote_ctx_cache_reset!()
+    end
+  end
