@@ -1,3 +1,7 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+MaterialDocs = "10bdffc8-969c-4dd4-83f3-742518eccd6b"
 RDF = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
+
+[sources.MaterialDocs]
+url = "https://github.com/mthelm85/MaterialDocs.jl.git"

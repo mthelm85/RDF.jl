@@ -1,5 +1,6 @@
 using RDF
 using Documenter
+using MaterialDocs
 
 DocMeta.setdocmeta!(RDF, :DocTestSetup, :(using RDF); recursive=true)
 
@@ -8,11 +9,7 @@ makedocs(;
     authors="Matthew Helm",
     sitename="RDF.jl",
     checkdocs = :exports,   # only warn about public API, not internal AST types
-    format=Documenter.HTML(;
-        canonical="https://mthelm85.github.io/RDF.jl",
-        edit_link="main",
-        assets=["assets/custom.css"],
-    ),
+    format=Material3(dark_mode=:light),
     pages=[
         "Home"                    => "index.md",
         "Terms"                   => "terms.md",

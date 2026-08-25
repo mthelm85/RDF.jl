@@ -36,3 +36,5 @@ Thumbs.db
 CLAUDE.md
 
 examples/
+.vscode/
+dev/
