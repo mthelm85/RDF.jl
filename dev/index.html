@@ -1,5 +1,86 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Home · RDF.jl</title><meta name="title" content="Home · RDF.jl"/><meta property="og:title" content="Home · RDF.jl"/><meta property="twitter:title" content="Home · RDF.jl"/><meta name="description" content="Documentation for RDF.jl."/><meta property="og:description" content="Documentation for RDF.jl."/><meta property="twitter:description" content="Documentation for RDF.jl."/><meta property="og:url" content="https://mthelm85.github.io/RDF.jl/"/><meta property="twitter:url" content="https://mthelm85.github.io/RDF.jl/"/><link rel="canonical" href="https://mthelm85.github.io/RDF.jl/"/><script data-outdated-warner src="assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="assets/documenter.js"></script><script src="search_index.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="assets/themeswap.js"></script><link href="assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href>RDF.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li class="is-active"><a class="tocitem" href>Home</a><ul class="internal"><li><a class="tocitem" href="#Features"><span>Features</span></a></li><li><a class="tocitem" href="#Installation"><span>Installation</span></a></li><li><a class="tocitem" href="#Quick-start"><span>Quick start</span></a></li><li><a class="tocitem" href="#Built-in-vocabularies"><span>Built-in vocabularies</span></a></li></ul></li><li><a class="tocitem" href="terms/">Terms</a></li><li><a class="tocitem" href="graphs/">Graphs &amp; Datasets</a></li><li><a class="tocitem" href="serialization/">Serialization</a></li><li><a class="tocitem" href="querying/">Querying</a></li><li><a class="tocitem" href="ai/">AI &amp; GraphRAG</a></li><li><a class="tocitem" href="vocabulary/">Vocabulary API</a></li><li><a class="tocitem" href="inference/">Inference &amp; Validation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Home</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Home</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/index.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="RDF.jl"><a class="docs-heading-anchor" href="#RDF.jl">RDF.jl</a><a id="RDF.jl-1"></a><a class="docs-heading-anchor-permalink" href="#RDF.jl" title="Permalink"></a></h1><p>A full-featured <strong>RDF 1.2</strong> library for Julia with a conformant <strong>SPARQL 1.1 and 1.2</strong> engine (657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing), including full RDF-star support — triple terms, reified triples, annotation syntax, and directional language tags.</p><p>Graphs are backed by a <strong>hexastore index</strong> — six sorted arrays covering every (s, p, o) permutation — giving O(log n) pattern matching on any combination of subject, predicate, and object.</p><h2 id="Features"><a class="docs-heading-anchor" href="#Features">Features</a><a id="Features-1"></a><a class="docs-heading-anchor-permalink" href="#Features" title="Permalink"></a></h2><ul><li><strong>SPARQL 1.1 + 1.2</strong> — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED, SERVICE; plus RDF-star triple terms, reified triples, and annotation blocks</li><li><strong>Cost-based query optimization</strong> — basic graph patterns are reordered automatically using exact O(log n) hexastore cardinalities</li><li><strong>Remote SPARQL endpoints</strong> — <code>sparql(url, query)</code>, <code>SERVICE</code> federation, and <code>RemoteGraph</code> when HTTP.jl is loaded</li><li><strong>Turtle 1.2 / N-Triples / N-Quads</strong> — parsers and serializers</li><li><strong>JSON-LD 1.1</strong> — parser and serializer, inline and remote contexts</li><li><strong>SPARQL result formats</strong> — SPARQL/JSON, SPARQL/XML, CSV, TSV serialization</li><li><strong>AI / GraphRAG primitives</strong> — RDF-star fact annotation (<code>annotate!</code> / <code>annotations</code>), subgraph extraction (<code>cbd</code> / <code>ego_graph</code>), token-budgeted LLM context (<code>to_context</code>), and schema introspection for text-to-SPARQL (<code>describe_schema</code> / <code>to_prompt</code>)</li><li><strong>Semantic retrieval</strong> — an <code>EmbeddingIndex</code> maps terms to embedding vectors and finds the nearest to a query vector (<code>knn</code>); <code>retrieve</code> runs the whole GraphRAG loop — query vector → nearest entities → subgraph → context — in one call</li><li><strong>SHACL Core validation</strong> — <code>validate_shapes</code> / <code>conforms</code>; doubles as an LLM-extraction guardrail (<code>conforming</code> keeps only valid facts)</li><li><strong>Named graphs / Datasets</strong> — full SPARQL dataset semantics</li><li><strong>RDFS inference</strong> — forward-chaining closure, entailment check</li><li><strong>Graph isomorphism</strong> — blank-node bijection</li><li><strong>Graphs.jl integration</strong> — convert to <code>SimpleDiGraph</code>, <code>SimpleWeightedDiGraph</code>, or <code>RDFDiGraph</code> and run PageRank, centrality, shortest paths, community detection, and any other Graphs.jl algorithm</li><li><strong>Tables.jl integration</strong> — match results and <code>SolutionSet</code> work directly with DataFrames and any Tables.jl consumer</li><li><strong>Vocabulary API</strong> — load any external ontology or namespace as a <code>Vocabulary</code> with dot-notation term access (<code>vocab.BachelorDegree</code>), <code>rdfs:label</code> / <code>rdfs:comment</code> metadata, and HTTP loading via HTTP.jl</li><li>Built-in vocabulary modules: <code>rdf</code>, <code>rdfs</code>, <code>xsd</code>, <code>owl</code>, <code>skos</code>, <code>dc</code>, <code>dcterms</code>, <code>foaf</code>, <code>schema</code></li></ul><h2 id="Installation"><a class="docs-heading-anchor" href="#Installation">Installation</a><a id="Installation-1"></a><a class="docs-heading-anchor-permalink" href="#Installation" title="Permalink"></a></h2><pre><code class="language-julia hljs">pkg&gt; add RDF</code></pre><h2 id="Quick-start"><a class="docs-heading-anchor" href="#Quick-start">Quick start</a><a id="Quick-start-1"></a><a class="docs-heading-anchor-permalink" href="#Quick-start" title="Permalink"></a></h2><h3 id="Building-a-graph"><a class="docs-heading-anchor" href="#Building-a-graph">Building a graph</a><a id="Building-a-graph-1"></a><a class="docs-heading-anchor-permalink" href="#Building-a-graph" title="Permalink"></a></h3><pre><code class="language-julia hljs">using RDF
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RDF.jl — RDF.jl</title>
+  <link rel="stylesheet" href="./assets/materialdocs.css?v=f1b9674b">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-hamburger" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <span class="md-navbar-title">RDF.jl</span>
+    <span style="flex:1"></span>
+    <button id="md-search-btn" class="md-icon-btn" title="Search (Ctrl+K)" aria-label="Search documentation">🔍</button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="./">Home</a>
+      <a href="./terms/">Terms</a>
+      <a href="./graphs/">Graphs &amp; Datasets</a>
+      <a href="./serialization/">Serialization</a>
+      <a href="./querying/">Querying</a>
+      <a href="./ai/">AI &amp; GraphRAG</a>
+      <a href="./vocabulary/">Vocabulary API</a>
+      <a href="./inference/">Inference &amp; Validation</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="RDF.jl" class="md-heading">RDF.jl<a href="#RDF.jl" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>A full-featured <strong>RDF 1.2</strong> library for Julia with a conformant <strong>SPARQL 1.1 and 1.2</strong> engine (657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing), including full RDF-star support — triple terms, reified triples, annotation syntax, and directional language tags.</p>
+<p>Graphs are backed by a <strong>hexastore index</strong> — six sorted arrays covering every (s, p, o) permutation — giving O(log n) pattern matching on any combination of subject, predicate, and object.</p>
+<h2 id="Features" class="md-heading">Features<a href="#Features" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>SPARQL 1.1 + 1.2</strong> — SELECT, CONSTRUCT, ASK, DESCRIBE; full update language (INSERT, DELETE, LOAD, COPY, …); subqueries, aggregates, property paths, BIND, VALUES, EXISTS/NOT EXISTS, OPTIONAL, UNION, MINUS, GRAPH, FROM/FROM NAMED, SERVICE; plus RDF-star triple terms, reified triples, and annotation blocks</p>
+</li>
+<li><p><strong>Cost-based query optimization</strong> — basic graph patterns are reordered automatically using exact O(log n) hexastore cardinalities</p>
+</li>
+<li><p><strong>Remote SPARQL endpoints</strong> — <code class="md-code-inline">sparql(url, query)</code>, <code class="md-code-inline">SERVICE</code> federation, and <code class="md-code-inline">RemoteGraph</code> when HTTP.jl is loaded</p>
+</li>
+<li><p><strong>Turtle 1.2 / N-Triples / N-Quads</strong> — parsers and serializers</p>
+</li>
+<li><p><strong>JSON-LD 1.1</strong> — parser and serializer, inline and remote contexts</p>
+</li>
+<li><p><strong>SPARQL result formats</strong> — SPARQL/JSON, SPARQL/XML, CSV, TSV serialization</p>
+</li>
+<li><p><strong>AI / GraphRAG primitives</strong> — RDF-star fact annotation (<code class="md-code-inline">annotate!</code> / <code class="md-code-inline">annotations</code>), subgraph extraction (<code class="md-code-inline">cbd</code> / <code class="md-code-inline">ego_graph</code>), token-budgeted LLM context (<code class="md-code-inline">to_context</code>), and schema introspection for text-to-SPARQL (<code class="md-code-inline">describe_schema</code> / <code class="md-code-inline">to_prompt</code>)</p>
+</li>
+<li><p><strong>Semantic retrieval</strong> — an <code class="md-code-inline">EmbeddingIndex</code> maps terms to embedding vectors and finds the nearest to a query vector (<code class="md-code-inline">knn</code>); <code class="md-code-inline">retrieve</code> runs the whole GraphRAG loop — query vector → nearest entities → subgraph → context — in one call</p>
+</li>
+<li><p><strong>SHACL Core validation</strong> — <code class="md-code-inline">validate_shapes</code> / <code class="md-code-inline">conforms</code>; doubles as an LLM-extraction guardrail (<code class="md-code-inline">conforming</code> keeps only valid facts)</p>
+</li>
+<li><p><strong>Named graphs / Datasets</strong> — full SPARQL dataset semantics</p>
+</li>
+<li><p><strong>RDFS inference</strong> — forward-chaining closure, entailment check</p>
+</li>
+<li><p><strong>Graph isomorphism</strong> — blank-node bijection</p>
+</li>
+<li><p><strong>Graphs.jl integration</strong> — convert to <code class="md-code-inline">SimpleDiGraph</code>, <code class="md-code-inline">SimpleWeightedDiGraph</code>, or <code class="md-code-inline">RDFDiGraph</code> and run PageRank, centrality, shortest paths, community detection, and any other Graphs.jl algorithm</p>
+</li>
+<li><p><strong>Tables.jl integration</strong> — match results and <code class="md-code-inline">SolutionSet</code> work directly with DataFrames and any Tables.jl consumer</p>
+</li>
+<li><p><strong>Vocabulary API</strong> — load any external ontology or namespace as a <code class="md-code-inline">Vocabulary</code> with dot-notation term access (<code class="md-code-inline">vocab.BachelorDegree</code>), <code class="md-code-inline">rdfs:label</code> / <code class="md-code-inline">rdfs:comment</code> metadata, and HTTP loading via HTTP.jl</p>
+</li>
+<li><p>Built-in vocabulary modules: <code class="md-code-inline">rdf</code>, <code class="md-code-inline">rdfs</code>, <code class="md-code-inline">xsd</code>, <code class="md-code-inline">owl</code>, <code class="md-code-inline">skos</code>, <code class="md-code-inline">dc</code>, <code class="md-code-inline">dcterms</code>, <code class="md-code-inline">foaf</code>, <code class="md-code-inline">schema</code></p>
+</li>
+</ul>
+<h2 id="Installation" class="md-heading">Installation<a href="#Installation" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">pkg&gt; add RDF</code></pre>
+</div>
+<h2 id="Quick-start" class="md-heading">Quick start<a href="#Quick-start" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<h3 id="Building-a-graph" class="md-heading">Building a graph<a href="#Building-a-graph" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF
 
 ex = Namespace(&quot;http://example.org/&quot;)
 
@@ -17,7 +98,12 @@ end
 
 # Coerce a literal to a Julia value
 age_lit = first(match(g; subject=ex.alice, predicate=foaf.age)).object
-value(Int64, age_lit)  # =&gt; 30</code></pre><h3 id="SPARQL-queries"><a class="docs-heading-anchor" href="#SPARQL-queries">SPARQL queries</a><a id="SPARQL-queries-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL-queries" title="Permalink"></a></h3><pre><code class="language-julia hljs">result = sparql(Dataset(; default_graph=g), &quot;&quot;&quot;
+value(Int64, age_lit)  # =&gt; 30</code></pre>
+</div>
+<h3 id="SPARQL-queries" class="md-heading">SPARQL queries<a href="#SPARQL-queries" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">result = sparql(Dataset(; default_graph=g), &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   SELECT ?name ?age WHERE {
     ?person foaf:name ?name ;
@@ -29,12 +115,22 @@ value(Int64, age_lit)  # =&gt; 30</code></pre><h3 id="SPARQL-queries"><a class="
 for row in result
     println(row[:name], &quot; — age &quot;, row[:age])
 end
-# &quot;Alice&quot; — age 30</code></pre><h3 id="Named-graphs-/-Datasets"><a class="docs-heading-anchor" href="#Named-graphs-/-Datasets">Named graphs / Datasets</a><a id="Named-graphs-/-Datasets-1"></a><a class="docs-heading-anchor-permalink" href="#Named-graphs-/-Datasets" title="Permalink"></a></h3><pre><code class="language-julia hljs">ds = Dataset()
+# &quot;Alice&quot; — age 30</code></pre>
+</div>
+<h3 id="Named-graphs-/-Datasets" class="md-heading">Named graphs / Datasets<a href="#Named-graphs-/-Datasets" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ds = Dataset()
 ds[IRI(&quot;http://example.org/graph1&quot;)] = g
 
 result = sparql(ds, &quot;&quot;&quot;
   SELECT ?g ?s WHERE { GRAPH ?g { ?s a &lt;http://example.org/Person&gt; } }
-&quot;&quot;&quot;)</code></pre><h3 id="Serialization"><a class="docs-heading-anchor" href="#Serialization">Serialization</a><a id="Serialization-1"></a><a class="docs-heading-anchor-permalink" href="#Serialization" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Turtle (parse + write)
+&quot;&quot;&quot;)</code></pre>
+</div>
+<h3 id="Serialization" class="md-heading">Serialization<a href="#Serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Turtle (parse + write)
 g = read(&quot;data.ttl&quot;, MIME&quot;text/turtle&quot;(), Graph)
 write(io, MIME&quot;text/turtle&quot;(), g)
 
@@ -48,7 +144,12 @@ write(io, MIME&quot;application/n-quads&quot;(), ds)
 
 # Convenience: dispatch on file extension (.ttl / .nt / .nq / .jsonld)
 rdf_write(&quot;data.nt&quot;, g)
-g = rdf_read(&quot;data.ttl&quot;)</code></pre><h3 id="SPARQL-result-serialization"><a class="docs-heading-anchor" href="#SPARQL-result-serialization">SPARQL result serialization</a><a id="SPARQL-result-serialization-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL-result-serialization" title="Permalink"></a></h3><pre><code class="language-julia hljs">result = sparql(ds, &quot;SELECT * WHERE { ?s ?p ?o }&quot;)
+g = rdf_read(&quot;data.ttl&quot;)</code></pre>
+</div>
+<h3 id="SPARQL-result-serialization" class="md-heading">SPARQL result serialization<a href="#SPARQL-result-serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">result = sparql(ds, &quot;SELECT * WHERE { ?s ?p ?o }&quot;)
 
 # SPARQL/JSON (for HTTP APIs)
 write(io, MIME&quot;application/sparql-results+json&quot;(), result)
@@ -58,9 +159,72 @@ write(io, MIME&quot;application/sparql-results+xml&quot;(), result)
 
 # CSV / TSV
 write(io, MIME&quot;text/csv&quot;(), result)
-write(io, MIME&quot;text/tab-separated-values&quot;(), result)</code></pre><h3 id="RDFS-inference"><a class="docs-heading-anchor" href="#RDFS-inference">RDFS inference</a><a id="RDFS-inference-1"></a><a class="docs-heading-anchor-permalink" href="#RDFS-inference" title="Permalink"></a></h3><pre><code class="language-julia hljs">infer_rdfs(g)   # returns a new graph with the RDFS closure
+write(io, MIME&quot;text/tab-separated-values&quot;(), result)</code></pre>
+</div>
+<h3 id="RDFS-inference" class="md-heading">RDFS inference<a href="#RDFS-inference" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">infer_rdfs(g)   # returns a new graph with the RDFS closure
 infer_rdfs!(g)  # closes g in place
-entails(g, Triple(ex.alice, rdf.type, ex.Animal))</code></pre><h3 id="Tables.jl-integration"><a class="docs-heading-anchor" href="#Tables.jl-integration">Tables.jl integration</a><a id="Tables.jl-integration-1"></a><a class="docs-heading-anchor-permalink" href="#Tables.jl-integration" title="Permalink"></a></h3><p>Match results and SPARQL <code>SolutionSet</code>s implement the Tables.jl interface with automatic coercion to native Julia types:</p><table><tr><th style="text-align: right">RDF type</th><th style="text-align: right">Julia column type</th></tr><tr><td style="text-align: right"><code>IRI</code></td><td style="text-align: right"><code>String</code> (full URI)</td></tr><tr><td style="text-align: right"><code>BlankNode</code></td><td style="text-align: right"><code>String</code> (<code>&quot;_:b{id}&quot;</code>)</td></tr><tr><td style="text-align: right"><code>xsd:integer</code> and sub-types</td><td style="text-align: right"><code>Int64</code></td></tr><tr><td style="text-align: right"><code>xsd:double</code> / <code>xsd:float</code> / <code>xsd:decimal</code></td><td style="text-align: right"><code>Float64</code></td></tr><tr><td style="text-align: right"><code>xsd:boolean</code></td><td style="text-align: right"><code>Bool</code></td></tr><tr><td style="text-align: right"><code>xsd:date</code></td><td style="text-align: right"><code>Dates.Date</code></td></tr><tr><td style="text-align: right"><code>xsd:dateTime</code></td><td style="text-align: right"><code>Dates.DateTime</code></td></tr><tr><td style="text-align: right"><code>xsd:string</code>, <code>rdf:langString</code>, other literals</td><td style="text-align: right"><code>String</code> (lexical form)</td></tr><tr><td style="text-align: right">Unbound OPTIONAL variable</td><td style="text-align: right"><code>missing</code></td></tr><tr><td style="text-align: right">Heterogeneous column</td><td style="text-align: right"><code>String</code></td></tr></table><pre><code class="language-julia hljs">using DataFrames
+entails(g, Triple(ex.alice, rdf.type, ex.Animal))</code></pre>
+</div>
+<h3 id="Tables.jl-integration" class="md-heading">Tables.jl integration<a href="#Tables.jl-integration" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Match results and SPARQL <code class="md-code-inline">SolutionSet</code>s implement the Tables.jl interface with automatic coercion to native Julia types:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">RDF type</th>
+<th style="text-align:right">Julia column type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">IRI</code></td>
+<td style="text-align:right"><code class="md-code-inline">String</code> (full URI)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">BlankNode</code></td>
+<td style="text-align:right"><code class="md-code-inline">String</code> (<code class="md-code-inline">&quot;_:b{id}&quot;</code>)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:integer</code> and sub-types</td>
+<td style="text-align:right"><code class="md-code-inline">Int64</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:double</code> / <code class="md-code-inline">xsd:float</code> / <code class="md-code-inline">xsd:decimal</code></td>
+<td style="text-align:right"><code class="md-code-inline">Float64</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:boolean</code></td>
+<td style="text-align:right"><code class="md-code-inline">Bool</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:date</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.Date</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:dateTime</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.DateTime</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:string</code>, <code class="md-code-inline">rdf:langString</code>, other literals</td>
+<td style="text-align:right"><code class="md-code-inline">String</code> (lexical form)</td>
+</tr>
+<tr>
+<td style="text-align:right">Unbound OPTIONAL variable</td>
+<td style="text-align:right"><code class="md-code-inline">missing</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Heterogeneous column</td>
+<td style="text-align:right"><code class="md-code-inline">String</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using DataFrames
 
 # match → DataFrame
 df = DataFrame(match(g; predicate=rdf.type))
@@ -71,7 +235,13 @@ df = DataFrame(sparql(ds, &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   SELECT ?name ?age WHERE { ?s foaf:name ?name ; foaf:age ?age }
 &quot;&quot;&quot;))
-# name::String, age::Int64 — ready for analysis</code></pre><h3 id="Vocabulary-API"><a class="docs-heading-anchor" href="#Vocabulary-API">Vocabulary API</a><a id="Vocabulary-API-1"></a><a class="docs-heading-anchor-permalink" href="#Vocabulary-API" title="Permalink"></a></h3><p>Load any external ontology or namespace and access its terms by name:</p><pre><code class="language-julia hljs">using RDF, HTTP
+# name::String, age::Int64 — ready for analysis</code></pre>
+</div>
+<h3 id="Vocabulary-API" class="md-heading">Vocabulary API<a href="#Vocabulary-API" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Load any external ontology or namespace and access its terms by name:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 # Load CTDL from Credential Engine (any Turtle / N-Triples / JSON-LD URL works)
 ctdl = load_vocabulary(&quot;https://credreg.net/ctdl/schema/encoding/turtle&quot;;
@@ -87,9 +257,46 @@ sparql(ds, &quot;&quot;&quot;
 &quot;&quot;&quot;)
 
 # From a local file
-go = load_vocabulary(&quot;go.ttl&quot;; base=&quot;http://purl.obolibrary.org/obo/&quot;)</code></pre><p>See the <a href="vocabulary/">Vocabulary API</a> page for the full reference.</p><h2 id="Built-in-vocabularies"><a class="docs-heading-anchor" href="#Built-in-vocabularies">Built-in vocabularies</a><a id="Built-in-vocabularies-1"></a><a class="docs-heading-anchor-permalink" href="#Built-in-vocabularies" title="Permalink"></a></h2><pre><code class="language-julia hljs">rdf.type          # IRI(&quot;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&quot;)
+go = load_vocabulary(&quot;go.ttl&quot;; base=&quot;http://purl.obolibrary.org/obo/&quot;)</code></pre>
+</div>
+<p>See the <a href="./vocabulary/">Vocabulary API</a> page for the full reference.</p>
+<h2 id="Built-in-vocabularies" class="md-heading">Built-in vocabularies<a href="#Built-in-vocabularies" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">rdf.type          # IRI(&quot;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&quot;)
 rdfs.subClassOf   # IRI(&quot;http://www.w3.org/2000/01/rdf-schema#subClassOf&quot;)
 xsd.integer       # IRI(&quot;http://www.w3.org/2001/XMLSchema#integer&quot;)
 owl.sameAs        # IRI(&quot;http://www.w3.org/2002/07/owl#sameAs&quot;)
 foaf.name         # IRI(&quot;http://xmlns.com/foaf/0.1/name&quot;)
-schema.Person     # IRI(&quot;https://schema.org/Person&quot;)</code></pre></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="terms/">Terms »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 19 August 2026 16:45">Wednesday 19 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+schema.Person     # IRI(&quot;https://schema.org/Person&quot;)</code></pre>
+</div>
+      </article>
+      <footer class="md-footer">
+        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Features">Features</a>
+          <a class="md-toc-link md-toc-h2" href="#Installation">Installation</a>
+          <a class="md-toc-link md-toc-h2" href="#Quick-start">Quick start</a>
+            <a class="md-toc-link md-toc-h3" href="#Building-a-graph">Building a graph</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL-queries">SPARQL queries</a>
+            <a class="md-toc-link md-toc-h3" href="#Named-graphs-/-Datasets">Named graphs / Datasets</a>
+            <a class="md-toc-link md-toc-h3" href="#Serialization">Serialization</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL-result-serialization">SPARQL result serialization</a>
+            <a class="md-toc-link md-toc-h3" href="#RDFS-inference">RDFS inference</a>
+            <a class="md-toc-link md-toc-h3" href="#Tables.jl-integration">Tables.jl integration</a>
+            <a class="md-toc-link md-toc-h3" href="#Vocabulary-API">Vocabulary API</a>
+          <a class="md-toc-link md-toc-h2" href="#Built-in-vocabularies">Built-in vocabularies</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="./assets/materialdocs.js?v=f1b9674b"></script>
+</body>
+</html>

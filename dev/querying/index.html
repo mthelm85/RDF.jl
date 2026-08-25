@@ -1,5 +1,45 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Querying · RDF.jl</title><meta name="title" content="Querying · RDF.jl"/><meta property="og:title" content="Querying · RDF.jl"/><meta property="twitter:title" content="Querying · RDF.jl"/><meta name="description" content="Documentation for RDF.jl."/><meta property="og:description" content="Documentation for RDF.jl."/><meta property="twitter:description" content="Documentation for RDF.jl."/><meta property="og:url" content="https://mthelm85.github.io/RDF.jl/querying/"/><meta property="twitter:url" content="https://mthelm85.github.io/RDF.jl/querying/"/><link rel="canonical" href="https://mthelm85.github.io/RDF.jl/querying/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script><link href="../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">RDF.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../terms/">Terms</a></li><li><a class="tocitem" href="../graphs/">Graphs &amp; Datasets</a></li><li><a class="tocitem" href="../serialization/">Serialization</a></li><li class="is-active"><a class="tocitem" href>Querying</a><ul class="internal"><li><a class="tocitem" href="#Pattern-matching"><span>Pattern matching</span></a></li><li><a class="tocitem" href="#SPARQL-1.1-and-1.2"><span>SPARQL 1.1 and 1.2</span></a></li><li><a class="tocitem" href="#Remote-SPARQL-endpoints"><span>Remote SPARQL endpoints</span></a></li><li><a class="tocitem" href="#SPARQL-result-format-serialization"><span>SPARQL result format serialization</span></a></li><li><a class="tocitem" href="#Supported-SPARQL-1.1-/-1.2-features"><span>Supported SPARQL 1.1 / 1.2 features</span></a></li><li><a class="tocitem" href="#Query-optimization"><span>Query optimization</span></a></li></ul></li><li><a class="tocitem" href="../ai/">AI &amp; GraphRAG</a></li><li><a class="tocitem" href="../vocabulary/">Vocabulary API</a></li><li><a class="tocitem" href="../inference/">Inference &amp; Validation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Querying</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Querying</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/querying.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Querying"><a class="docs-heading-anchor" href="#Querying">Querying</a><a id="Querying-1"></a><a class="docs-heading-anchor-permalink" href="#Querying" title="Permalink"></a></h1><h2 id="Pattern-matching"><a class="docs-heading-anchor" href="#Pattern-matching">Pattern matching</a><a id="Pattern-matching-1"></a><a class="docs-heading-anchor-permalink" href="#Pattern-matching" title="Permalink"></a></h2><p><a href="../graphs/#Base.match"><code>match</code></a>, <a href="../graphs/#RDF.subjects"><code>subjects</code></a>, <a href="../graphs/#RDF.predicates"><code>predicates</code></a>, and <a href="../graphs/#RDF.objects"><code>objects</code></a> are documented in the <a href="../graphs/#Graphs-and-Datasets">Graphs &amp; Datasets</a> page.</p><p><code>match</code> returns a lazy iterator of <code>Triple</code> (for a <code>Graph</code>) or <code>Quad</code> (for a <code>Dataset</code>) values. Any combination of the <code>subject</code>, <code>predicate</code>, and <code>object</code> keyword arguments can be provided; omitting one means &quot;wildcard&quot;.</p><pre><code class="language-julia hljs"># All triples
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Querying — RDF.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a72e2e71">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-hamburger" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <span class="md-navbar-title">RDF.jl</span>
+    <span style="flex:1"></span>
+    <button id="md-search-btn" class="md-icon-btn" title="Search (Ctrl+K)" aria-label="Search documentation">🔍</button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../">Home</a>
+      <a href="../terms/">Terms</a>
+      <a href="../graphs/">Graphs &amp; Datasets</a>
+      <a href="../serialization/">Serialization</a>
+      <a href="../querying/">Querying</a>
+      <a href="../ai/">AI &amp; GraphRAG</a>
+      <a href="../vocabulary/">Vocabulary API</a>
+      <a href="../inference/">Inference &amp; Validation</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="Querying" class="md-heading">Querying<a href="#Querying" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><a href="../graphs/#Base.match"><code class="md-code-inline">match</code></a>, <a href="../graphs/#RDF.subjects"><code class="md-code-inline">subjects</code></a>, <a href="../graphs/#RDF.predicates"><code class="md-code-inline">predicates</code></a>, and <a href="../graphs/#RDF.objects"><code class="md-code-inline">objects</code></a> are documented in the <a href="../graphs/#Graphs-and-Datasets">Graphs &amp; Datasets</a> page.</p>
+<p><code class="md-code-inline">match</code> returns a lazy iterator of <code class="md-code-inline">Triple</code> (for a <code class="md-code-inline">Graph</code>) or <code class="md-code-inline">Quad</code> (for a <code class="md-code-inline">Dataset</code>) values. Any combination of the <code class="md-code-inline">subject</code>, <code class="md-code-inline">predicate</code>, and <code class="md-code-inline">object</code> keyword arguments can be provided; omitting one means &quot;wildcard&quot;.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># All triples
 for t in match(g)
     println(t)
 end
@@ -17,8 +57,139 @@ end
 # By object — who has name &quot;Alice&quot;?
 for t in match(g; predicate=foaf.name, object=Literal(&quot;Alice&quot;))
     println(t.subject)
-end</code></pre><p>Match results implement the Tables.jl interface:</p><pre><code class="language-julia hljs">using DataFrames
-df = DataFrame(match(g; predicate=rdf.type))</code></pre><hr/><h2 id="SPARQL-1.1-and-1.2"><a class="docs-heading-anchor" href="#SPARQL-1.1-and-1.2">SPARQL 1.1 and 1.2</a><a id="SPARQL-1.1-and-1.2-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL-1.1-and-1.2" title="Permalink"></a></h2><p>SPARQL is the W3C standard query language for RDF. RDF.jl implements the full SPARQL 1.1 query and update specification with 100% W3C test suite conformance (657/657 tests passing), plus SPARQL 1.2 / RDF-star — triple terms (<code>&lt;&lt;( s p o )&gt;&gt;</code>), reified triples (<code>&lt;&lt; s p o &gt;&gt;</code>), reifiers (<code>~</code>), annotation blocks (<code>{| … |}</code>), the triple-term builtins (<code>TRIPLE</code>, <code>isTRIPLE</code>, <code>SUBJECT</code>, <code>PREDICATE</code>, <code>OBJECT</code>), and directional language tags (<code>LANGDIR</code>/<code>hasLANG</code>/<code>hasLANGDIR</code>/<code>STRLANGDIR</code>) — passing 263/263 of the applicable W3C SPARQL 1.2 tests (the remainder require TriG input, which is not yet supported).</p><article><details class="docstring" open="true"><summary id="RDF.sparql"><a class="docstring-binding" href="#RDF.sparql"><code>RDF.sparql</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">sparql(g, query; base=nothing) → SolutionSet | Graph | Bool</code></pre><p>Execute a SPARQL 1.1 query against a <code>Graph</code> or <code>Dataset</code>.</p><table><tr><th style="text-align: right">Query form</th><th style="text-align: right">Return type</th></tr><tr><td style="text-align: right">SELECT</td><td style="text-align: right"><code>SolutionSet</code></td></tr><tr><td style="text-align: right">ASK</td><td style="text-align: right"><code>Bool</code></td></tr><tr><td style="text-align: right">CONSTRUCT</td><td style="text-align: right"><code>Graph</code></td></tr><tr><td style="text-align: right">DESCRIBE</td><td style="text-align: right"><code>Graph</code></td></tr></table><p><code>base</code> is an optional absolute IRI used to resolve relative IRIs in the query (e.g. <code>FROM &lt;relative.ttl&gt;</code>). When <code>nothing</code>, relative IRIs in the query that lack a <code>BASE</code> declaration are resolved against an implementation-defined default.</p><p>Throws <code>ParseError</code> on a syntactically invalid query, and <code>RDFError</code> on evaluation errors (e.g. an undeclared prefix).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql.jl#L163-L181">source</a></section><section><div><pre><code class="language-julia hljs">sparql(rg::RemoteGraph, query; kwargs...) → SolutionSet | Bool | Graph</code></pre><p>Execute a SPARQL query against the endpoint behind <code>rg</code>.  Keyword arguments are merged with (and override) those stored in the <code>RemoteGraph</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/remote.jl#L68-L73">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.sparql_parse"><a class="docstring-binding" href="#RDF.sparql_parse"><code>RDF.sparql_parse</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">sparql_parse(src::AbstractString) → SpUnit</code></pre><p>Parse a SPARQL 1.1 query or update string and return the AST. Returns <code>SpQueryUnit</code> for queries and <code>SpUpdateUnit</code> for updates. Throws <code>ParseError</code> on syntax errors.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql/parser.jl#L2786-L2792">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.SolutionSet"><a class="docstring-binding" href="#RDF.SolutionSet"><code>RDF.SolutionSet</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">SolutionSet</code></pre><p>The result of a SPARQL SELECT query: an ordered sequence of solution mappings stored in a column-oriented layout.</p><p>Each row maps a projected variable name (<code>Symbol</code>) to a bound <code>RDFTerm</code>, or <code>nothing</code> if the variable is unbound in that solution (common with OPTIONAL).</p><p>Iteration yields <a href="#RDF.SolutionRow"><code>SolutionRow</code></a> views; individual rows can be accessed by integer index (<code>sol[i]</code>).  Variable values are retrieved with <code>row[:name]</code>.</p><p>The Tables.jl interface (via the RDFTablesExt extension) presents unbound variables as <code>missing</code> so that <code>DataFrame(sol)</code> works naturally.</p><p>For CONSTRUCT / DESCRIBE queries the return type is <code>Graph</code>; for ASK it is <code>Bool</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql.jl#L16-L32">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.SolutionRow"><a class="docstring-binding" href="#RDF.SolutionRow"><code>RDF.SolutionRow</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">SolutionRow</code></pre><p>A lightweight view of a single row in a <a href="#RDF.SolutionSet"><code>SolutionSet</code></a>.</p><p>Supports:</p><ul><li><code>row[:varname]</code>                     — retrieve a binding (<code>RDFTerm</code> or <code>nothing</code>)</li><li><code>get(row, :varname, default)</code>       — retrieve with a default</li><li><code>keys(row)</code>                         — all variable names in the parent <code>SolutionSet</code></li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql.jl#L39-L48">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.read_sparql_json"><a class="docstring-binding" href="#RDF.read_sparql_json"><code>RDF.read_sparql_json</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">read_sparql_json(body::AbstractString) → SolutionSet | Bool</code></pre><p>Parse a W3C SPARQL 1.1 JSON result document (the body of an <code>application/sparql-results+json</code> HTTP response) into a <code>SolutionSet</code> for SELECT results or a <code>Bool</code> for ASK results.</p><p>This is a low-level helper primarily used by the <code>RDFHTTPExt</code> extension for consuming remote SPARQL endpoint responses.  Normal users call <code>sparql(url, query)</code> after loading HTTP.jl.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql/results.jl#L321-L331">source</a></section></details></article><h3 id="SELECT"><a class="docs-heading-anchor" href="#SELECT">SELECT</a><a id="SELECT-1"></a><a class="docs-heading-anchor-permalink" href="#SELECT" title="Permalink"></a></h3><p>Returns a <code>SolutionSet</code> — a columnar store of solution mappings from variable names (<code>Symbol</code>) to <code>RDFTerm</code> values (<code>nothing</code> for unbound / OPTIONAL variables).</p><p>Iterating a <code>SolutionSet</code> yields <a href="#RDF.SolutionRow"><code>SolutionRow</code></a> views; individual rows are accessible by integer index (<code>result[i]</code>).</p><pre><code class="language-julia hljs">result = sparql(ds, &quot;&quot;&quot;
+end</code></pre>
+</div>
+<p>Match results implement the Tables.jl interface:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using DataFrames
+df = DataFrame(match(g; predicate=rdf.type))</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="SPARQL-1.1-and-1.2" class="md-heading">SPARQL 1.1 and 1.2<a href="#SPARQL-1.1-and-1.2" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>SPARQL is the W3C standard query language for RDF. RDF.jl implements the full SPARQL 1.1 query and update specification with 100% W3C test suite conformance (657/657 tests passing), plus SPARQL 1.2 / RDF-star — triple terms (<code class="md-code-inline">&lt;&lt;( s p o )&gt;&gt;</code>), reified triples (<code class="md-code-inline">&lt;&lt; s p o &gt;&gt;</code>), reifiers (<code class="md-code-inline">~</code>), annotation blocks (<code class="md-code-inline">{| … |}</code>), the triple-term builtins (<code class="md-code-inline">TRIPLE</code>, <code class="md-code-inline">isTRIPLE</code>, <code class="md-code-inline">SUBJECT</code>, <code class="md-code-inline">PREDICATE</code>, <code class="md-code-inline">OBJECT</code>), and directional language tags (<code class="md-code-inline">LANGDIR</code>/<code class="md-code-inline">hasLANG</code>/<code class="md-code-inline">hasLANGDIR</code>/<code class="md-code-inline">STRLANGDIR</code>) — passing 263/263 of the applicable W3C SPARQL 1.2 tests (the remainder require TriG input, which is not yet supported).</p>
+<div class="md-docstring" id="RDF.sparql">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.sparql</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql.jl#L163-L181" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sparql(g, query; base=nothing) → SolutionSet | Graph | Bool</code></pre>
+</div>
+<p>Execute a SPARQL 1.1 query against a <code class="md-code-inline">Graph</code> or <code class="md-code-inline">Dataset</code>.</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Query form</th>
+<th style="text-align:right">Return type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">SELECT</td>
+<td style="text-align:right"><code class="md-code-inline">SolutionSet</code></td>
+</tr>
+<tr>
+<td style="text-align:right">ASK</td>
+<td style="text-align:right"><code class="md-code-inline">Bool</code></td>
+</tr>
+<tr>
+<td style="text-align:right">CONSTRUCT</td>
+<td style="text-align:right"><code class="md-code-inline">Graph</code></td>
+</tr>
+<tr>
+<td style="text-align:right">DESCRIBE</td>
+<td style="text-align:right"><code class="md-code-inline">Graph</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="md-code-inline">base</code> is an optional absolute IRI used to resolve relative IRIs in the query (e.g. <code class="md-code-inline">FROM &lt;relative.ttl&gt;</code>). When <code class="md-code-inline">nothing</code>, relative IRIs in the query that lack a <code class="md-code-inline">BASE</code> declaration are resolved against an implementation-defined default.</p>
+<p>Throws <code class="md-code-inline">ParseError</code> on a syntactically invalid query, and <code class="md-code-inline">RDFError</code> on evaluation errors (e.g. an undeclared prefix).</p>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sparql(rg::RemoteGraph, query; kwargs...) → SolutionSet | Bool | Graph</code></pre>
+</div>
+<p>Execute a SPARQL query against the endpoint behind <code class="md-code-inline">rg</code>.  Keyword arguments are merged with (and override) those stored in the <code class="md-code-inline">RemoteGraph</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.sparql_parse">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.sparql_parse</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql/parser.jl#L2786-L2792" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sparql_parse(src::AbstractString) → SpUnit</code></pre>
+</div>
+<p>Parse a SPARQL 1.1 query or update string and return the AST. Returns <code class="md-code-inline">SpQueryUnit</code> for queries and <code class="md-code-inline">SpUpdateUnit</code> for updates. Throws <code class="md-code-inline">ParseError</code> on syntax errors.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.SolutionSet">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.SolutionSet</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql.jl#L16-L32" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SolutionSet</code></pre>
+</div>
+<p>The result of a SPARQL SELECT query: an ordered sequence of solution mappings stored in a column-oriented layout.</p>
+<p>Each row maps a projected variable name (<code class="md-code-inline">Symbol</code>) to a bound <code class="md-code-inline">RDFTerm</code>, or <code class="md-code-inline">nothing</code> if the variable is unbound in that solution (common with OPTIONAL).</p>
+<p>Iteration yields <a href="../querying/#RDF.SolutionRow"><code class="md-code-inline">SolutionRow</code></a> views; individual rows can be accessed by integer index (<code class="md-code-inline">sol[i]</code>).  Variable values are retrieved with <code class="md-code-inline">row[:name]</code>.</p>
+<p>The Tables.jl interface (via the RDFTablesExt extension) presents unbound variables as <code class="md-code-inline">missing</code> so that <code class="md-code-inline">DataFrame(sol)</code> works naturally.</p>
+<p>For CONSTRUCT / DESCRIBE queries the return type is <code class="md-code-inline">Graph</code>; for ASK it is <code class="md-code-inline">Bool</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.SolutionRow">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.SolutionRow</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql.jl#L39-L48" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SolutionRow</code></pre>
+</div>
+<p>A lightweight view of a single row in a <a href="../querying/#RDF.SolutionSet"><code class="md-code-inline">SolutionSet</code></a>.</p>
+<p>Supports:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">row[:varname]</code>                     — retrieve a binding (<code class="md-code-inline">RDFTerm</code> or <code class="md-code-inline">nothing</code>)</p>
+</li>
+<li><p><code class="md-code-inline">get(row, :varname, default)</code>       — retrieve with a default</p>
+</li>
+<li><p><code class="md-code-inline">keys(row)</code>                         — all variable names in the parent <code class="md-code-inline">SolutionSet</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="md-docstring" id="RDF.read_sparql_json">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.read_sparql_json</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql/results.jl#L321-L331" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">read_sparql_json(body::AbstractString) → SolutionSet | Bool</code></pre>
+</div>
+<p>Parse a W3C SPARQL 1.1 JSON result document (the body of an <code class="md-code-inline">application/sparql-results+json</code> HTTP response) into a <code class="md-code-inline">SolutionSet</code> for SELECT results or a <code class="md-code-inline">Bool</code> for ASK results.</p>
+<p>This is a low-level helper primarily used by the <code class="md-code-inline">RDFHTTPExt</code> extension for consuming remote SPARQL endpoint responses.  Normal users call <code class="md-code-inline">sparql(url, query)</code> after loading HTTP.jl.</p>
+</div>
+</div>
+<h3 id="SELECT" class="md-heading">SELECT<a href="#SELECT" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Returns a <code class="md-code-inline">SolutionSet</code> — a columnar store of solution mappings from variable names (<code class="md-code-inline">Symbol</code>) to <code class="md-code-inline">RDFTerm</code> values (<code class="md-code-inline">nothing</code> for unbound / OPTIONAL variables).</p>
+<p>Iterating a <code class="md-code-inline">SolutionSet</code> yields <a href="../querying/#RDF.SolutionRow"><code class="md-code-inline">SolutionRow</code></a> views; individual rows are accessible by integer index (<code class="md-code-inline">result[i]</code>).</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">result = sparql(ds, &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   SELECT ?name ?age WHERE {
     ?person foaf:name ?name ;
@@ -44,13 +215,36 @@ value(Int64, row[:age])       # =&gt; 30
 
 # With DataFrames (unbound variables become `missing`)
 using DataFrames
-df = DataFrame(result)</code></pre><h3 id="ASK"><a class="docs-heading-anchor" href="#ASK">ASK</a><a id="ASK-1"></a><a class="docs-heading-anchor-permalink" href="#ASK" title="Permalink"></a></h3><p>Returns a <code>Bool</code>.</p><pre><code class="language-julia hljs">sparql(ds, &quot;&quot;&quot;
+df = DataFrame(result)</code></pre>
+</div>
+<h3 id="ASK" class="md-heading">ASK<a href="#ASK" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Returns a <code class="md-code-inline">Bool</code>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sparql(ds, &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   ASK { ?s foaf:age 30 }
-&quot;&quot;&quot;)   # =&gt; true or false</code></pre><h3 id="CONSTRUCT"><a class="docs-heading-anchor" href="#CONSTRUCT">CONSTRUCT</a><a id="CONSTRUCT-1"></a><a class="docs-heading-anchor-permalink" href="#CONSTRUCT" title="Permalink"></a></h3><p>Returns a new <code>Graph</code> built from the CONSTRUCT template.</p><pre><code class="language-julia hljs">g2 = sparql(ds, &quot;&quot;&quot;
+&quot;&quot;&quot;)   # =&gt; true or false</code></pre>
+</div>
+<h3 id="CONSTRUCT" class="md-heading">CONSTRUCT<a href="#CONSTRUCT" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Returns a new <code class="md-code-inline">Graph</code> built from the CONSTRUCT template.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">g2 = sparql(ds, &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   CONSTRUCT { ?s foaf:name ?n } WHERE { ?s foaf:name ?n }
-&quot;&quot;&quot;)</code></pre><h3 id="DESCRIBE"><a class="docs-heading-anchor" href="#DESCRIBE">DESCRIBE</a><a id="DESCRIBE-1"></a><a class="docs-heading-anchor-permalink" href="#DESCRIBE" title="Permalink"></a></h3><p>Returns a <code>Graph</code> describing the requested resources.</p><pre><code class="language-julia hljs">g_desc = sparql(ds, &quot;DESCRIBE &lt;http://example.org/alice&gt;&quot;)</code></pre><h3 id="Aggregates,-subqueries,-and-property-paths"><a class="docs-heading-anchor" href="#Aggregates,-subqueries,-and-property-paths">Aggregates, subqueries, and property paths</a><a id="Aggregates,-subqueries,-and-property-paths-1"></a><a class="docs-heading-anchor-permalink" href="#Aggregates,-subqueries,-and-property-paths" title="Permalink"></a></h3><pre><code class="language-julia hljs"># GROUP BY / COUNT
+&quot;&quot;&quot;)</code></pre>
+</div>
+<h3 id="DESCRIBE" class="md-heading">DESCRIBE<a href="#DESCRIBE" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Returns a <code class="md-code-inline">Graph</code> describing the requested resources.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">g_desc = sparql(ds, &quot;DESCRIBE &lt;http://example.org/alice&gt;&quot;)</code></pre>
+</div>
+<h3 id="Aggregates,-subqueries,-and-property-paths" class="md-heading">Aggregates, subqueries, and property paths<a href="#Aggregates,-subqueries,-and-property-paths" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># GROUP BY / COUNT
 sparql(ds, &quot;&quot;&quot;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
   SELECT ?age (COUNT(?person) AS ?n) WHERE {
@@ -72,7 +266,27 @@ sparql(ds, &quot;&quot;&quot;
     { SELECT ?person WHERE { ?person a foaf:Person } LIMIT 5 }
     ?person foaf:name ?name
   }
-&quot;&quot;&quot;)</code></pre><h3 id="SPARQL-UPDATE"><a class="docs-heading-anchor" href="#SPARQL-UPDATE">SPARQL UPDATE</a><a id="SPARQL-UPDATE-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL-UPDATE" title="Permalink"></a></h3><article><details class="docstring" open="true"><summary id="RDF.sparql_update!"><a class="docstring-binding" href="#RDF.sparql_update!"><code>RDF.sparql_update!</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">sparql_update!(ds, update; base=nothing)</code></pre><p>Execute a SPARQL 1.1 Update operation against a <code>Dataset</code>, mutating it in place. Multiple update operations separated by <code>;</code> are supported.</p><p><code>base</code> is an optional absolute IRI used to resolve relative IRIs in the update.</p><p>Throws <code>ParseError</code> on a syntactically invalid update.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/sparql.jl#L194-L203">source</a></section></details></article><pre><code class="language-julia hljs"># INSERT DATA
+&quot;&quot;&quot;)</code></pre>
+</div>
+<h3 id="SPARQL-UPDATE" class="md-heading">SPARQL UPDATE<a href="#SPARQL-UPDATE" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-docstring" id="RDF.sparql_update!">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.sparql_update!</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/sparql.jl#L194-L203" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sparql_update!(ds, update; base=nothing)</code></pre>
+</div>
+<p>Execute a SPARQL 1.1 Update operation against a <code class="md-code-inline">Dataset</code>, mutating it in place. Multiple update operations separated by <code class="md-code-inline">;</code> are supported.</p>
+<p><code class="md-code-inline">base</code> is an optional absolute IRI used to resolve relative IRIs in the update.</p>
+<p>Throws <code class="md-code-inline">ParseError</code> on a syntactically invalid update.</p>
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># INSERT DATA
 sparql_update!(ds, &quot;&quot;&quot;
   PREFIX ex:   &lt;http://example.org/&gt;
   PREFIX foaf: &lt;http://xmlns.com/foaf/0.1/&gt;
@@ -88,7 +302,14 @@ sparql_update!(ds, &quot;&quot;&quot;
 &quot;&quot;&quot;)
 
 # CLEAR a named graph
-sparql_update!(ds, &quot;CLEAR GRAPH &lt;http://example.org/g1&gt;&quot;)</code></pre><hr/><h2 id="Remote-SPARQL-endpoints"><a class="docs-heading-anchor" href="#Remote-SPARQL-endpoints">Remote SPARQL endpoints</a><a id="Remote-SPARQL-endpoints-1"></a><a class="docs-heading-anchor-permalink" href="#Remote-SPARQL-endpoints" title="Permalink"></a></h2><p>Load <a href="https://github.com/JuliaWeb/HTTP.jl">HTTP.jl</a> alongside RDF.jl and the same <code>sparql</code> function works against any remote SPARQL 1.1 endpoint — Wikidata, UniProt, DBpedia, your own triplestore, or anything else that speaks the W3C SPARQL Protocol.</p><pre><code class="language-julia hljs">using RDF, HTTP
+sparql_update!(ds, &quot;CLEAR GRAPH &lt;http://example.org/g1&gt;&quot;)</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="Remote-SPARQL-endpoints" class="md-heading">Remote SPARQL endpoints<a href="#Remote-SPARQL-endpoints" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Load <a href="https://github.com/JuliaWeb/HTTP.jl">HTTP.jl</a> alongside RDF.jl and the same <code class="md-code-inline">sparql</code> function works against any remote SPARQL 1.1 endpoint — Wikidata, UniProt, DBpedia, your own triplestore, or anything else that speaks the W3C SPARQL Protocol.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 # Query Wikidata for chemical elements
 results = sparql(&quot;https://query.wikidata.org/sparql&quot;, &quot;&quot;&quot;
@@ -108,18 +329,145 @@ end
 
 # Into a DataFrame
 using DataFrames
-df = DataFrame(results)</code></pre><p>The return types are identical to local queries:</p><table><tr><th style="text-align: right">Query form</th><th style="text-align: right">Return type</th></tr><tr><td style="text-align: right">SELECT</td><td style="text-align: right"><code>SolutionSet</code></td></tr><tr><td style="text-align: right">ASK</td><td style="text-align: right"><code>Bool</code></td></tr><tr><td style="text-align: right">CONSTRUCT</td><td style="text-align: right"><code>Graph</code></td></tr><tr><td style="text-align: right">DESCRIBE</td><td style="text-align: right"><code>Graph</code></td></tr></table><h3 id="Keyword-options"><a class="docs-heading-anchor" href="#Keyword-options">Keyword options</a><a id="Keyword-options-1"></a><a class="docs-heading-anchor-permalink" href="#Keyword-options" title="Permalink"></a></h3><table><tr><th style="text-align: right">Keyword</th><th style="text-align: right">Default</th><th style="text-align: right">Description</th></tr><tr><td style="text-align: right"><code>timeout</code></td><td style="text-align: right"><code>60</code></td><td style="text-align: right">Read timeout in seconds</td></tr><tr><td style="text-align: right"><code>auth</code></td><td style="text-align: right"><code>nothing</code></td><td style="text-align: right"><code>(&quot;user&quot;,&quot;pass&quot;)</code> for Basic auth; <code>&quot;token&quot;</code> for Bearer</td></tr><tr><td style="text-align: right"><code>prefixes</code></td><td style="text-align: right"><code>Dict()</code></td><td style="text-align: right">Extra <code>PREFIX k =&gt; v</code> declarations prepended to the query</td></tr><tr><td style="text-align: right"><code>default_graph</code></td><td style="text-align: right"><code>nothing</code></td><td style="text-align: right"><code>default-graph-uri</code> SPARQL Protocol parameter</td></tr><tr><td style="text-align: right"><code>named_graph</code></td><td style="text-align: right"><code>nothing</code></td><td style="text-align: right"><code>named-graph-uri</code> SPARQL Protocol parameter</td></tr><tr><td style="text-align: right"><code>method</code></td><td style="text-align: right"><code>:auto</code></td><td style="text-align: right"><code>:get</code>, <code>:post</code>, or <code>:auto</code> (GET ≤ 2 kB, POST otherwise)</td></tr><tr><td style="text-align: right"><code>retries</code></td><td style="text-align: right"><code>2</code></td><td style="text-align: right">Retry attempts on transient 5xx errors</td></tr></table><h3 id="Common-endpoint-URLs"><a class="docs-heading-anchor" href="#Common-endpoint-URLs">Common endpoint URLs</a><a id="Common-endpoint-URLs-1"></a><a class="docs-heading-anchor-permalink" href="#Common-endpoint-URLs" title="Permalink"></a></h3><table><tr><th style="text-align: right">Dataset</th><th style="text-align: right">Endpoint</th></tr><tr><td style="text-align: right">Wikidata</td><td style="text-align: right"><code>https://query.wikidata.org/sparql</code></td></tr><tr><td style="text-align: right">DBpedia</td><td style="text-align: right"><code>https://dbpedia.org/sparql</code></td></tr><tr><td style="text-align: right">UniProt</td><td style="text-align: right"><code>https://sparql.uniprot.org/sparql</code></td></tr><tr><td style="text-align: right">ChEMBL</td><td style="text-align: right"><code>https://chembl.bio2rdf.org/sparql</code></td></tr><tr><td style="text-align: right">Linked Data for Life Sciences</td><td style="text-align: right"><code>https://lod.openlinksw.com/sparql</code></td></tr></table><h3 id="Extra-prefix-shortcuts"><a class="docs-heading-anchor" href="#Extra-prefix-shortcuts">Extra prefix shortcuts</a><a id="Extra-prefix-shortcuts-1"></a><a class="docs-heading-anchor-permalink" href="#Extra-prefix-shortcuts" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Avoid repeating PREFIX declarations in every query
+df = DataFrame(results)</code></pre>
+</div>
+<p>The return types are identical to local queries:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Query form</th>
+<th style="text-align:right">Return type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">SELECT</td>
+<td style="text-align:right"><code class="md-code-inline">SolutionSet</code></td>
+</tr>
+<tr>
+<td style="text-align:right">ASK</td>
+<td style="text-align:right"><code class="md-code-inline">Bool</code></td>
+</tr>
+<tr>
+<td style="text-align:right">CONSTRUCT</td>
+<td style="text-align:right"><code class="md-code-inline">Graph</code></td>
+</tr>
+<tr>
+<td style="text-align:right">DESCRIBE</td>
+<td style="text-align:right"><code class="md-code-inline">Graph</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="Keyword-options" class="md-heading">Keyword options<a href="#Keyword-options" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Keyword</th>
+<th style="text-align:right">Default</th>
+<th style="text-align:right">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">timeout</code></td>
+<td style="text-align:right"><code class="md-code-inline">60</code></td>
+<td style="text-align:right">Read timeout in seconds</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">auth</code></td>
+<td style="text-align:right"><code class="md-code-inline">nothing</code></td>
+<td style="text-align:right"><code class="md-code-inline">(&quot;user&quot;,&quot;pass&quot;)</code> for Basic auth; <code class="md-code-inline">&quot;token&quot;</code> for Bearer</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">prefixes</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dict()</code></td>
+<td style="text-align:right">Extra <code class="md-code-inline">PREFIX k =&gt; v</code> declarations prepended to the query</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">default_graph</code></td>
+<td style="text-align:right"><code class="md-code-inline">nothing</code></td>
+<td style="text-align:right"><code class="md-code-inline">default-graph-uri</code> SPARQL Protocol parameter</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">named_graph</code></td>
+<td style="text-align:right"><code class="md-code-inline">nothing</code></td>
+<td style="text-align:right"><code class="md-code-inline">named-graph-uri</code> SPARQL Protocol parameter</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">method</code></td>
+<td style="text-align:right"><code class="md-code-inline">:auto</code></td>
+<td style="text-align:right"><code class="md-code-inline">:get</code>, <code class="md-code-inline">:post</code>, or <code class="md-code-inline">:auto</code> (GET ≤ 2 kB, POST otherwise)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">retries</code></td>
+<td style="text-align:right"><code class="md-code-inline">2</code></td>
+<td style="text-align:right">Retry attempts on transient 5xx errors</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="Common-endpoint-URLs" class="md-heading">Common endpoint URLs<a href="#Common-endpoint-URLs" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Dataset</th>
+<th style="text-align:right">Endpoint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">Wikidata</td>
+<td style="text-align:right"><code class="md-code-inline">https://query.wikidata.org/sparql</code></td>
+</tr>
+<tr>
+<td style="text-align:right">DBpedia</td>
+<td style="text-align:right"><code class="md-code-inline">https://dbpedia.org/sparql</code></td>
+</tr>
+<tr>
+<td style="text-align:right">UniProt</td>
+<td style="text-align:right"><code class="md-code-inline">https://sparql.uniprot.org/sparql</code></td>
+</tr>
+<tr>
+<td style="text-align:right">ChEMBL</td>
+<td style="text-align:right"><code class="md-code-inline">https://chembl.bio2rdf.org/sparql</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Linked Data for Life Sciences</td>
+<td style="text-align:right"><code class="md-code-inline">https://lod.openlinksw.com/sparql</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="Extra-prefix-shortcuts" class="md-heading">Extra prefix shortcuts<a href="#Extra-prefix-shortcuts" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Avoid repeating PREFIX declarations in every query
 results = sparql(&quot;https://query.wikidata.org/sparql&quot;,
     &quot;SELECT ?item WHERE { ?item wdt:P31 wd:Q11344 } LIMIT 10&quot;;
     prefixes = Dict(
         &quot;wd&quot;  =&gt; &quot;http://www.wikidata.org/entity/&quot;,
-        &quot;wdt&quot; =&gt; &quot;http://www.wikidata.org/prop/direct/&quot;))</code></pre><h3 id="Authentication"><a class="docs-heading-anchor" href="#Authentication">Authentication</a><a id="Authentication-1"></a><a class="docs-heading-anchor-permalink" href="#Authentication" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Basic auth
+        &quot;wdt&quot; =&gt; &quot;http://www.wikidata.org/prop/direct/&quot;))</code></pre>
+</div>
+<h3 id="Authentication" class="md-heading">Authentication<a href="#Authentication" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Basic auth
 sparql(&quot;https://my-endpoint.example/sparql&quot;, query;
        auth = (&quot;username&quot;, &quot;password&quot;))
 
 # Bearer token
 sparql(&quot;https://my-endpoint.example/sparql&quot;, query;
-       auth = &quot;eyJhbGci...&quot;)</code></pre><h3 id="Federated-queries-—-SERVICE"><a class="docs-heading-anchor" href="#Federated-queries-—-SERVICE">Federated queries — SERVICE</a><a id="Federated-queries-—-SERVICE-1"></a><a class="docs-heading-anchor-permalink" href="#Federated-queries-—-SERVICE" title="Permalink"></a></h3><p>With HTTP.jl loaded, the standard SPARQL 1.1 <code>SERVICE</code> clause works inside local queries: the inner pattern is sent to the remote endpoint and the remote solutions are joined with the local ones on their shared variables.</p><pre><code class="language-julia hljs">using RDF, HTTP
+       auth = &quot;eyJhbGci...&quot;)</code></pre>
+</div>
+<h3 id="Federated-queries-—-SERVICE" class="md-heading">Federated queries — SERVICE<a href="#Federated-queries-—-SERVICE" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>With HTTP.jl loaded, the standard SPARQL 1.1 <code class="md-code-inline">SERVICE</code> clause works inside local queries: the inner pattern is sent to the remote endpoint and the remote solutions are joined with the local ones on their shared variables.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 # Join local data with Wikidata
 result = sparql(local_graph, &quot;&quot;&quot;
@@ -131,7 +479,24 @@ result = sparql(local_graph, &quot;&quot;&quot;
       ?city wdt:P1082 ?population               # remote
     }
   }
-&quot;&quot;&quot;)</code></pre><p><code>SERVICE SILENT</code> tolerates failures: if the endpoint is unreachable (or HTTP.jl is not loaded), the outer solutions pass through unchanged with the service variables left unbound. Without <code>SILENT</code>, failures raise an error — never silently empty results.</p><h3 id="RemoteGraph-—-endpoint-backed-graph-view"><a class="docs-heading-anchor" href="#RemoteGraph-—-endpoint-backed-graph-view">RemoteGraph — endpoint-backed graph view</a><a id="RemoteGraph-—-endpoint-backed-graph-view-1"></a><a class="docs-heading-anchor-permalink" href="#RemoteGraph-—-endpoint-backed-graph-view" title="Permalink"></a></h3><article><details class="docstring" open="true"><summary id="RDF.RemoteGraph"><a class="docstring-binding" href="#RDF.RemoteGraph"><code>RDF.RemoteGraph</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">RemoteGraph(endpoint::AbstractString; kwargs...)</code></pre><p>A <strong>read-only</strong>, Graph-like view of a remote SPARQL endpoint.  Pattern matching, counting, membership tests, and iteration are translated into SPARQL Protocol requests, so data never has to fit in local memory:</p><pre><code class="language-julia hljs">using RDF, HTTP
+&quot;&quot;&quot;)</code></pre>
+</div>
+<p><code class="md-code-inline">SERVICE SILENT</code> tolerates failures: if the endpoint is unreachable (or HTTP.jl is not loaded), the outer solutions pass through unchanged with the service variables left unbound. Without <code class="md-code-inline">SILENT</code>, failures raise an error — never silently empty results.</p>
+<h3 id="RemoteGraph-—-endpoint-backed-graph-view" class="md-heading">RemoteGraph — endpoint-backed graph view<a href="#RemoteGraph-—-endpoint-backed-graph-view" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-docstring" id="RDF.RemoteGraph">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.RemoteGraph</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/remote.jl#L22-L54" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">RemoteGraph(endpoint::AbstractString; kwargs...)</code></pre>
+</div>
+<p>A <strong>read-only</strong>, Graph-like view of a remote SPARQL endpoint.  Pattern matching, counting, membership tests, and iteration are translated into SPARQL Protocol requests, so data never has to fit in local memory:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 wikidata = RemoteGraph(&quot;https://query.wikidata.org/sparql&quot;)
 
@@ -145,7 +510,29 @@ end
 Triple(s, p, o) in wikidata
 
 # Forward a full SPARQL query
-sparql(wikidata, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 10&quot;)</code></pre><p>Keyword arguments (<code>auth</code>, <code>headers</code>, <code>timeout</code>, …) are stored and forwarded to every HTTP request — see the remote <code>sparql</code> documentation for the full list.  Requires HTTP.jl (<code>using HTTP</code>).</p><p>Supported operations: <a href="../graphs/#Base.match"><code>match</code></a>, <code>length</code>, <code>isempty</code>, <code>in</code>, iteration (<code>collect</code>), and <a href="#RDF.sparql"><code>sparql</code></a>.  Mutation (<code>push!</code>, <code>delete!</code>) is not supported; use <code>sparql_update!</code> against an update endpoint instead.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/remote.jl#L22-L54">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.RemoteEndpointError"><a class="docstring-binding" href="#RDF.RemoteEndpointError"><code>RDF.RemoteEndpointError</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">RemoteEndpointError &lt;: RDFError</code></pre><p>A remote SPARQL endpoint operation failed: the HTTP transport is unavailable, the endpoint returned an error status or an unparseable response, or a federated <code>SERVICE</code> clause could not be evaluated.  <code>endpoint</code> is the endpoint URL (or a placeholder such as <code>&quot;(variable)&quot;</code> when no concrete URL exists).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/errors.jl#L25-L32">source</a></section></details></article><p><a href="#RDF.RemoteGraph"><code>RemoteGraph</code></a> wraps an endpoint in the familiar Graph API, translating operations into SPARQL Protocol requests so the data never has to fit in local memory:</p><pre><code class="language-julia hljs">using RDF, HTTP
+sparql(wikidata, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 10&quot;)</code></pre>
+</div>
+<p>Keyword arguments (<code class="md-code-inline">auth</code>, <code class="md-code-inline">headers</code>, <code class="md-code-inline">timeout</code>, …) are stored and forwarded to every HTTP request — see the remote <code class="md-code-inline">sparql</code> documentation for the full list.  Requires HTTP.jl (<code class="md-code-inline">using HTTP</code>).</p>
+<p>Supported operations: <a href="../graphs/#Base.match"><code class="md-code-inline">match</code></a>, <code class="md-code-inline">length</code>, <code class="md-code-inline">isempty</code>, <code class="md-code-inline">in</code>, iteration (<code class="md-code-inline">collect</code>), and <a href="../querying/#RDF.sparql"><code class="md-code-inline">sparql</code></a>.  Mutation (<code class="md-code-inline">push!</code>, <code class="md-code-inline">delete!</code>) is not supported; use <code class="md-code-inline">sparql_update!</code> against an update endpoint instead.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.RemoteEndpointError">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.RemoteEndpointError</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/errors.jl#L25-L32" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">RemoteEndpointError &lt;: RDFError</code></pre>
+</div>
+<p>A remote SPARQL endpoint operation failed: the HTTP transport is unavailable, the endpoint returned an error status or an unparseable response, or a federated <code class="md-code-inline">SERVICE</code> clause could not be evaluated.  <code class="md-code-inline">endpoint</code> is the endpoint URL (or a placeholder such as <code class="md-code-inline">&quot;(variable)&quot;</code> when no concrete URL exists).</p>
+</div>
+</div>
+<p><a href="../querying/#RDF.RemoteGraph"><code class="md-code-inline">RemoteGraph</code></a> wraps an endpoint in the familiar Graph API, translating operations into SPARQL Protocol requests so the data never has to fit in local memory:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 wd = RemoteGraph(&quot;https://query.wikidata.org/sparql&quot;)
 
@@ -154,7 +541,180 @@ instance_of   = IRI(&quot;http://www.wikidata.org/prop/direct/P31&quot;)
 
 match(wd; subject=douglas_adams, predicate=instance_of)  # SELECT under the hood
 Triple(douglas_adams, instance_of, IRI(&quot;http://www.wikidata.org/entity/Q5&quot;)) in wd  # ASK
-sparql(wd, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 5&quot;)       # direct forwarding</code></pre><p><code>RemoteGraph</code> is read-only; supported operations are <code>match</code>, <code>length</code>, <code>isempty</code>, <code>in</code>, iteration, and <code>sparql</code>. Keyword arguments given to the constructor (<code>auth</code>, <code>headers</code>, <code>timeout</code>, …) are forwarded with every request.</p><hr/><h2 id="SPARQL-result-format-serialization"><a class="docs-heading-anchor" href="#SPARQL-result-format-serialization">SPARQL result format serialization</a><a id="SPARQL-result-format-serialization-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL-result-format-serialization" title="Permalink"></a></h2><p><code>SolutionSet</code> can be serialized to any of the four W3C standard result formats.</p><h3 id="SPARQL/JSON"><a class="docs-heading-anchor" href="#SPARQL/JSON">SPARQL/JSON</a><a id="SPARQL/JSON-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL/JSON" title="Permalink"></a></h3><pre><code class="language-julia hljs">io = IOBuffer()
+sparql(wd, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 5&quot;)       # direct forwarding</code></pre>
+</div>
+<p><code class="md-code-inline">RemoteGraph</code> is read-only; supported operations are <code class="md-code-inline">match</code>, <code class="md-code-inline">length</code>, <code class="md-code-inline">isempty</code>, <code class="md-code-inline">in</code>, iteration, and <code class="md-code-inline">sparql</code>. Keyword arguments given to the constructor (<code class="md-code-inline">auth</code>, <code class="md-code-inline">headers</code>, <code class="md-code-inline">timeout</code>, …) are forwarded with every request.</p>
+<hr class="md-hr">
+<h2 id="SPARQL-result-format-serialization" class="md-heading">SPARQL result format serialization<a href="#SPARQL-result-format-serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">SolutionSet</code> can be serialized to any of the four W3C standard result formats.</p>
+<h3 id="SPARQL/JSON" class="md-heading">SPARQL/JSON<a href="#SPARQL/JSON" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">io = IOBuffer()
 write(io, MIME&quot;application/sparql-results+json&quot;(), result)   # SELECT
-write(io, MIME&quot;application/sparql-results+json&quot;(), true)     # ASK</code></pre><p>Output follows the <a href="https://www.w3.org/TR/sparql11-results-json/">W3C SPARQL 1.1 JSON format</a>.</p><h3 id="SPARQL/XML"><a class="docs-heading-anchor" href="#SPARQL/XML">SPARQL/XML</a><a id="SPARQL/XML-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL/XML" title="Permalink"></a></h3><pre><code class="language-julia hljs">write(io, MIME&quot;application/sparql-results+xml&quot;(), result)
-write(io, MIME&quot;application/sparql-results+xml&quot;(), false)</code></pre><p>Output follows the <a href="https://www.w3.org/TR/rdf-sparql-XMLres/">W3C SPARQL 1.1 XML format</a>.</p><h3 id="SPARQL/CSV"><a class="docs-heading-anchor" href="#SPARQL/CSV">SPARQL/CSV</a><a id="SPARQL/CSV-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL/CSV" title="Permalink"></a></h3><pre><code class="language-julia hljs">write(io, MIME&quot;text/csv&quot;(), result)</code></pre><p>Fields containing commas or double-quotes are quoted per RFC 4180. Unbound variables produce empty fields.</p><h3 id="SPARQL/TSV"><a class="docs-heading-anchor" href="#SPARQL/TSV">SPARQL/TSV</a><a id="SPARQL/TSV-1"></a><a class="docs-heading-anchor-permalink" href="#SPARQL/TSV" title="Permalink"></a></h3><pre><code class="language-julia hljs">write(io, MIME&quot;text/tab-separated-values&quot;(), result)</code></pre><p>Header uses <code>?</code>-prefixed variable names; term values use N-Triples syntax (<code>&lt;iri&gt;</code>, <code>_:bnode</code>, <code>&quot;literal&quot;^^&lt;dt&gt;</code>).</p><hr/><h2 id="Supported-SPARQL-1.1-/-1.2-features"><a class="docs-heading-anchor" href="#Supported-SPARQL-1.1-/-1.2-features">Supported SPARQL 1.1 / 1.2 features</a><a id="Supported-SPARQL-1.1-/-1.2-features-1"></a><a class="docs-heading-anchor-permalink" href="#Supported-SPARQL-1.1-/-1.2-features" title="Permalink"></a></h2><table><tr><th style="text-align: right">Feature</th><th style="text-align: right">Supported</th></tr><tr><td style="text-align: right">SELECT, CONSTRUCT, ASK, DESCRIBE</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">OPTIONAL, UNION, MINUS</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">FILTER (all functions and operators)</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">BIND, VALUES</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">GROUP BY, HAVING, aggregates</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">ORDER BY, LIMIT, OFFSET, DISTINCT, REDUCED</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">Subqueries</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">Property paths (<code>/</code>, `</td><td style="text-align: right"><code>,</code>*<code>,</code>+<code>,</code>?<code>,</code>^<code>,</code>!`)</td></tr><tr><td style="text-align: right">EXISTS / NOT EXISTS</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">GRAPH, FROM, FROM NAMED</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">INSERT DATA, DELETE DATA</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">INSERT/DELETE with WHERE</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">LOAD, CLEAR, DROP, COPY, MOVE, ADD</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">Built-in functions (str, lang, datatype, isIRI, isLiteral, …)</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">Numeric, string, date/time functions</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">Hash functions (MD5, SHA1, SHA256, SHA384, SHA512)</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right">SERVICE / SERVICE SILENT (federated queries)</td><td style="text-align: right">✅ requires HTTP.jl</td></tr><tr><td style="text-align: right"><strong>SPARQL 1.2</strong>: triple terms <code>&lt;&lt;( s p o )&gt;&gt;</code> (patterns, VALUES, expressions)</td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right"><strong>SPARQL 1.2</strong>: reified triples <code>&lt;&lt; s p o &gt;&gt;</code>, reifiers <code>~</code>, annotation blocks <code>{| … |}</code></td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right"><strong>SPARQL 1.2</strong>: <code>TRIPLE</code>, <code>isTRIPLE</code>, <code>SUBJECT</code>, <code>PREDICATE</code>, <code>OBJECT</code></td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right"><strong>SPARQL 1.2</strong>: directional language tags, <code>LANGDIR</code>, <code>hasLANG</code>, <code>hasLANGDIR</code>, <code>STRLANGDIR</code></td><td style="text-align: right">✅</td></tr><tr><td style="text-align: right"><strong>SPARQL 1.2</strong>: <code>VERSION</code> declaration</td><td style="text-align: right">✅</td></tr></table><h2 id="Query-optimization"><a class="docs-heading-anchor" href="#Query-optimization">Query optimization</a><a id="Query-optimization-1"></a><a class="docs-heading-anchor-permalink" href="#Query-optimization" title="Permalink"></a></h2><p>The SPARQL engine reorders the triple patterns inside each basic graph pattern before evaluation, so the order you write patterns in does not affect performance (or results). The optimizer uses <strong>exact</strong> cardinalities — the hexastore answers &quot;how many triples match this pattern?&quot; in O(log n) with two binary searches — and greedily evaluates the most selective pattern first, preferring patterns that share a variable with the already-bound set so that Cartesian products are avoided. No statistics, configuration, or query hints are needed.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../serialization/">« Serialization</a><a class="docs-footer-nextpage" href="../ai/">AI &amp; GraphRAG »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 19 August 2026 16:45">Wednesday 19 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+write(io, MIME&quot;application/sparql-results+json&quot;(), true)     # ASK</code></pre>
+</div>
+<p>Output follows the <a href="https://www.w3.org/TR/sparql11-results-json/">W3C SPARQL 1.1 JSON format</a>.</p>
+<h3 id="SPARQL/XML" class="md-heading">SPARQL/XML<a href="#SPARQL/XML" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">write(io, MIME&quot;application/sparql-results+xml&quot;(), result)
+write(io, MIME&quot;application/sparql-results+xml&quot;(), false)</code></pre>
+</div>
+<p>Output follows the <a href="https://www.w3.org/TR/rdf-sparql-XMLres/">W3C SPARQL 1.1 XML format</a>.</p>
+<h3 id="SPARQL/CSV" class="md-heading">SPARQL/CSV<a href="#SPARQL/CSV" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">write(io, MIME&quot;text/csv&quot;(), result)</code></pre>
+</div>
+<p>Fields containing commas or double-quotes are quoted per RFC 4180. Unbound variables produce empty fields.</p>
+<h3 id="SPARQL/TSV" class="md-heading">SPARQL/TSV<a href="#SPARQL/TSV" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">write(io, MIME&quot;text/tab-separated-values&quot;(), result)</code></pre>
+</div>
+<p>Header uses <code class="md-code-inline">?</code>-prefixed variable names; term values use N-Triples syntax (<code class="md-code-inline">&lt;iri&gt;</code>, <code class="md-code-inline">_:bnode</code>, <code class="md-code-inline">&quot;literal&quot;^^&lt;dt&gt;</code>).</p>
+<hr class="md-hr">
+<h2 id="Supported-SPARQL-1.1-/-1.2-features" class="md-heading">Supported SPARQL 1.1 / 1.2 features<a href="#Supported-SPARQL-1.1-/-1.2-features" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Feature</th>
+<th style="text-align:right">Supported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">SELECT, CONSTRUCT, ASK, DESCRIBE</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">OPTIONAL, UNION, MINUS</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">FILTER (all functions and operators)</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">BIND, VALUES</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">GROUP BY, HAVING, aggregates</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">ORDER BY, LIMIT, OFFSET, DISTINCT, REDUCED</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">Subqueries</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">Property paths (<code class="md-code-inline">/</code>, `</td>
+<td style="text-align:right"><code class="md-code-inline">,</code>*<code class="md-code-inline">,</code>+<code class="md-code-inline">,</code>?<code class="md-code-inline">,</code>^<code class="md-code-inline">,</code>!`)</td>
+</tr>
+<tr>
+<td style="text-align:right">EXISTS / NOT EXISTS</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">GRAPH, FROM, FROM NAMED</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">INSERT DATA, DELETE DATA</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">INSERT/DELETE with WHERE</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">LOAD, CLEAR, DROP, COPY, MOVE, ADD</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">Built-in functions (str, lang, datatype, isIRI, isLiteral, …)</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">Numeric, string, date/time functions</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">Hash functions (MD5, SHA1, SHA256, SHA384, SHA512)</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right">SERVICE / SERVICE SILENT (federated queries)</td>
+<td style="text-align:right">✅ requires HTTP.jl</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>SPARQL 1.2</strong>: triple terms <code class="md-code-inline">&lt;&lt;( s p o )&gt;&gt;</code> (patterns, VALUES, expressions)</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>SPARQL 1.2</strong>: reified triples <code class="md-code-inline">&lt;&lt; s p o &gt;&gt;</code>, reifiers <code class="md-code-inline">~</code>, annotation blocks <code class="md-code-inline">{| … |}</code></td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>SPARQL 1.2</strong>: <code class="md-code-inline">TRIPLE</code>, <code class="md-code-inline">isTRIPLE</code>, <code class="md-code-inline">SUBJECT</code>, <code class="md-code-inline">PREDICATE</code>, <code class="md-code-inline">OBJECT</code></td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>SPARQL 1.2</strong>: directional language tags, <code class="md-code-inline">LANGDIR</code>, <code class="md-code-inline">hasLANG</code>, <code class="md-code-inline">hasLANGDIR</code>, <code class="md-code-inline">STRLANGDIR</code></td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>SPARQL 1.2</strong>: <code class="md-code-inline">VERSION</code> declaration</td>
+<td style="text-align:right">✅</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="Query-optimization" class="md-heading">Query optimization<a href="#Query-optimization" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>The SPARQL engine reorders the triple patterns inside each basic graph pattern before evaluation, so the order you write patterns in does not affect performance (or results). The optimizer uses <strong>exact</strong> cardinalities — the hexastore answers &quot;how many triples match this pattern?&quot; in O(log n) with two binary searches — and greedily evaluates the most selective pattern first, preferring patterns that share a variable with the already-bound set so that Cartesian products are avoided. No statistics, configuration, or query hints are needed.</p>
+      </article>
+      <footer class="md-footer">
+        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Pattern-matching">Pattern matching</a>
+          <a class="md-toc-link md-toc-h2" href="#SPARQL-1.1-and-1.2">SPARQL 1.1 and 1.2</a>
+            <a class="md-toc-link md-toc-h3" href="#SELECT">SELECT</a>
+            <a class="md-toc-link md-toc-h3" href="#ASK">ASK</a>
+            <a class="md-toc-link md-toc-h3" href="#CONSTRUCT">CONSTRUCT</a>
+            <a class="md-toc-link md-toc-h3" href="#DESCRIBE">DESCRIBE</a>
+            <a class="md-toc-link md-toc-h3" href="#Aggregates,-subqueries,-and-property-paths">Aggregates, subqueries, and property paths</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL-UPDATE">SPARQL UPDATE</a>
+          <a class="md-toc-link md-toc-h2" href="#Remote-SPARQL-endpoints">Remote SPARQL endpoints</a>
+            <a class="md-toc-link md-toc-h3" href="#Keyword-options">Keyword options</a>
+            <a class="md-toc-link md-toc-h3" href="#Common-endpoint-URLs">Common endpoint URLs</a>
+            <a class="md-toc-link md-toc-h3" href="#Extra-prefix-shortcuts">Extra prefix shortcuts</a>
+            <a class="md-toc-link md-toc-h3" href="#Authentication">Authentication</a>
+            <a class="md-toc-link md-toc-h3" href="#Federated-queries-—-SERVICE">Federated queries — SERVICE</a>
+            <a class="md-toc-link md-toc-h3" href="#RemoteGraph-—-endpoint-backed-graph-view">RemoteGraph — endpoint-backed graph view</a>
+          <a class="md-toc-link md-toc-h2" href="#SPARQL-result-format-serialization">SPARQL result format serialization</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL/JSON">SPARQL/JSON</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL/XML">SPARQL/XML</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL/CSV">SPARQL/CSV</a>
+            <a class="md-toc-link md-toc-h3" href="#SPARQL/TSV">SPARQL/TSV</a>
+          <a class="md-toc-link md-toc-h2" href="#Supported-SPARQL-1.1-/-1.2-features">Supported SPARQL 1.1 / 1.2 features</a>
+          <a class="md-toc-link md-toc-h2" href="#Query-optimization">Query optimization</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../assets/materialdocs.js?v=a72e2e71"></script>
+</body>
+</html>

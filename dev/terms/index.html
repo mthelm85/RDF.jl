@@ -1,22 +1,309 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Terms · RDF.jl</title><meta name="title" content="Terms · RDF.jl"/><meta property="og:title" content="Terms · RDF.jl"/><meta property="twitter:title" content="Terms · RDF.jl"/><meta name="description" content="Documentation for RDF.jl."/><meta property="og:description" content="Documentation for RDF.jl."/><meta property="twitter:description" content="Documentation for RDF.jl."/><meta property="og:url" content="https://mthelm85.github.io/RDF.jl/terms/"/><meta property="twitter:url" content="https://mthelm85.github.io/RDF.jl/terms/"/><link rel="canonical" href="https://mthelm85.github.io/RDF.jl/terms/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script><link href="../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">RDF.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Terms</a><ul class="internal"><li><a class="tocitem" href="#Type-hierarchy"><span>Type hierarchy</span></a></li><li><a class="tocitem" href="#IRI"><span>IRI</span></a></li><li><a class="tocitem" href="#BlankNode"><span>BlankNode</span></a></li><li><a class="tocitem" href="#Literal"><span>Literal</span></a></li><li><a class="tocitem" href="#TripleTerm"><span>TripleTerm</span></a></li><li><a class="tocitem" href="#Triple-and-Quad"><span>Triple and Quad</span></a></li><li><a class="tocitem" href="#Type-aliases"><span>Type aliases</span></a></li><li><a class="tocitem" href="#Namespace-helper"><span>Namespace helper</span></a></li><li><a class="tocitem" href="#Built-in-vocabulary-modules"><span>Built-in vocabulary modules</span></a></li></ul></li><li><a class="tocitem" href="../graphs/">Graphs &amp; Datasets</a></li><li><a class="tocitem" href="../serialization/">Serialization</a></li><li><a class="tocitem" href="../querying/">Querying</a></li><li><a class="tocitem" href="../ai/">AI &amp; GraphRAG</a></li><li><a class="tocitem" href="../vocabulary/">Vocabulary API</a></li><li><a class="tocitem" href="../inference/">Inference &amp; Validation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Terms</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Terms</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/terms.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="RDF-Terms"><a class="docs-heading-anchor" href="#RDF-Terms">RDF Terms</a><a id="RDF-Terms-1"></a><a class="docs-heading-anchor-permalink" href="#RDF-Terms" title="Permalink"></a></h1><p>RDF data is built from three kinds of terms. All three are subtypes of <code>RDFTerm</code>.</p><article><details class="docstring" open="true"><summary id="RDF.RDFTerm"><a class="docstring-binding" href="#RDF.RDFTerm"><code>RDF.RDFTerm</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">RDFTerm</code></pre><p>Abstract supertype for all RDF terms: <code>IRI</code>, <code>BlankNode</code>, <code>Literal</code>, and <code>TripleTerm</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L1-L5">source</a></section></details></article><h2 id="Type-hierarchy"><a class="docs-heading-anchor" href="#Type-hierarchy">Type hierarchy</a><a id="Type-hierarchy-1"></a><a class="docs-heading-anchor-permalink" href="#Type-hierarchy" title="Permalink"></a></h2><pre><code class="nohighlight hljs">RDFTerm
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RDF Terms — RDF.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a07a768b">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-hamburger" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <span class="md-navbar-title">RDF.jl</span>
+    <span style="flex:1"></span>
+    <button id="md-search-btn" class="md-icon-btn" title="Search (Ctrl+K)" aria-label="Search documentation">🔍</button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../">Home</a>
+      <a href="../terms/">Terms</a>
+      <a href="../graphs/">Graphs &amp; Datasets</a>
+      <a href="../serialization/">Serialization</a>
+      <a href="../querying/">Querying</a>
+      <a href="../ai/">AI &amp; GraphRAG</a>
+      <a href="../vocabulary/">Vocabulary API</a>
+      <a href="../inference/">Inference &amp; Validation</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="RDF-Terms" class="md-heading">RDF Terms<a href="#RDF-Terms" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>RDF data is built from three kinds of terms. All three are subtypes of <code class="md-code-inline">RDFTerm</code>.</p>
+<div class="md-docstring" id="RDF.RDFTerm">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.RDFTerm</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L1-L5" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">RDFTerm</code></pre>
+</div>
+<p>Abstract supertype for all RDF terms: <code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, <code class="md-code-inline">Literal</code>, and <code class="md-code-inline">TripleTerm</code>.</p>
+</div>
+</div>
+<h2 id="Type-hierarchy" class="md-heading">Type hierarchy<a href="#Type-hierarchy" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code>RDFTerm
 ├── IRI
 ├── BlankNode
 ├── Literal
-└── TripleTerm   (RDF-star — embedded triples in subject or object position)</code></pre><h2 id="IRI"><a class="docs-heading-anchor" href="#IRI">IRI</a><a id="IRI-1"></a><a class="docs-heading-anchor-permalink" href="#IRI" title="Permalink"></a></h2><p>An absolute IRI (RFC 3987). IRIs identify resources and are used as subjects, predicates, and objects.</p><article><details class="docstring" open="true"><summary id="RDF.IRI"><a class="docstring-binding" href="#RDF.IRI"><code>RDF.IRI</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">IRI(s::AbstractString) &lt;: RDFTerm</code></pre><p>An absolute IRI (RFC 3987). Must begin with a scheme (e.g. <code>http:</code>) and contain no unencoded spaces. Use the <code>iri&quot;&quot;</code> string macro for compile-time validation.</p><pre><code class="language-julia hljs">IRI(&quot;http://example.org/Alice&quot;)
-iri&quot;http://schema.org/Person&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L25-L35">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.@iri_str"><a class="docstring-binding" href="#RDF.@iri_str"><code>RDF.@iri_str</code></a> — <span class="docstring-category">Macro</span></summary><section><div><pre><code class="language-julia hljs">iri&quot;http://example.org/foo&quot;</code></pre><p>String macro that constructs an <code>IRI</code> and validates the value at compile time. Equivalent to <code>IRI(s)</code> but catches invalid IRIs before the program runs.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L58-L63">source</a></section></details></article><h3 id="Construction"><a class="docs-heading-anchor" href="#Construction">Construction</a><a id="Construction-1"></a><a class="docs-heading-anchor-permalink" href="#Construction" title="Permalink"></a></h3><pre><code class="language-julia hljs">IRI(&quot;http://example.org/Alice&quot;)    # runtime validation
-iri&quot;http://schema.org/Person&quot;      # compile-time validation</code></pre><p>Validation rules: must begin with a scheme (<code>http:</code>, <code>urn:</code>, etc.) and must not contain unencoded spaces. IRIs are interned globally — two <code>IRI</code> values with the same string are <code>===</code>.</p><h2 id="BlankNode"><a class="docs-heading-anchor" href="#BlankNode">BlankNode</a><a id="BlankNode-1"></a><a class="docs-heading-anchor-permalink" href="#BlankNode" title="Permalink"></a></h2><p>A blank node represents an unnamed resource local to a graph. Blank nodes should be created via <a href="#RDF.blank!"><code>blank!</code></a> to guarantee unique identifiers.</p><article><details class="docstring" open="true"><summary id="RDF.BlankNode"><a class="docstring-binding" href="#RDF.BlankNode"><code>RDF.BlankNode</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">BlankNode &lt;: RDFTerm</code></pre><p>An RDF blank node identified by an opaque <code>UInt64</code> id. Blank nodes should be created via <a href="#RDF.blank!"><code>blank!</code></a> rather than constructed directly, to ensure ids are unique within the graph.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L71-L77">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.blank!"><a class="docstring-binding" href="#RDF.blank!"><code>RDF.blank!</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">blank!(g::Graph) -&gt; BlankNode
-blank!(g::Graph, n::Int) -&gt; Vector{BlankNode}</code></pre><p>Mint one or more fresh blank nodes registered to graph <code>g</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/graph.jl#L338-L343">source</a></section></details></article><pre><code class="language-julia hljs">g  = Graph()
+└── TripleTerm   (RDF-star — embedded triples in subject or object position)</code></pre>
+</div>
+<h2 id="IRI" class="md-heading">IRI<a href="#IRI" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>An absolute IRI (RFC 3987). IRIs identify resources and are used as subjects, predicates, and objects.</p>
+<div class="md-docstring" id="RDF.IRI">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.IRI</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L25-L35" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">IRI(s::AbstractString) &lt;: RDFTerm</code></pre>
+</div>
+<p>An absolute IRI (RFC 3987). Must begin with a scheme (e.g. <code class="md-code-inline">http:</code>) and contain no unencoded spaces. Use the <code class="md-code-inline">iri&quot;&quot;</code> string macro for compile-time validation.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">IRI(&quot;http://example.org/Alice&quot;)
+iri&quot;http://schema.org/Person&quot;</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="RDF.@iri_str">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.@iri_str</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L58-L63" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">iri&quot;http://example.org/foo&quot;</code></pre>
+</div>
+<p>String macro that constructs an <code class="md-code-inline">IRI</code> and validates the value at compile time. Equivalent to <code class="md-code-inline">IRI(s)</code> but catches invalid IRIs before the program runs.</p>
+</div>
+</div>
+<h3 id="Construction" class="md-heading">Construction<a href="#Construction" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">IRI(&quot;http://example.org/Alice&quot;)    # runtime validation
+iri&quot;http://schema.org/Person&quot;      # compile-time validation</code></pre>
+</div>
+<p>Validation rules: must begin with a scheme (<code class="md-code-inline">http:</code>, <code class="md-code-inline">urn:</code>, etc.) and must not contain unencoded spaces. IRIs are interned globally — two <code class="md-code-inline">IRI</code> values with the same string are <code class="md-code-inline">===</code>.</p>
+<h2 id="BlankNode" class="md-heading">BlankNode<a href="#BlankNode" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>A blank node represents an unnamed resource local to a graph. Blank nodes should be created via <a href="../terms/#RDF.blank!"><code class="md-code-inline">blank!</code></a> to guarantee unique identifiers.</p>
+<div class="md-docstring" id="RDF.BlankNode">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.BlankNode</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L71-L77" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">BlankNode &lt;: RDFTerm</code></pre>
+</div>
+<p>An RDF blank node identified by an opaque <code class="md-code-inline">UInt64</code> id. Blank nodes should be created via <a href="../terms/#RDF.blank!"><code class="md-code-inline">blank!</code></a> rather than constructed directly, to ensure ids are unique within the graph.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.blank!">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.blank!</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/graph.jl#L338-L343" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">blank!(g::Graph) -&gt; BlankNode
+blank!(g::Graph, n::Int) -&gt; Vector{BlankNode}</code></pre>
+</div>
+<p>Mint one or more fresh blank nodes registered to graph <code class="md-code-inline">g</code>.</p>
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">g  = Graph()
 b1 = blank!(g)         # mint one blank node belonging to g
-b2, b3 = blank!(g, 2)  # mint two at once</code></pre><h2 id="Literal"><a class="docs-heading-anchor" href="#Literal">Literal</a><a id="Literal-1"></a><a class="docs-heading-anchor-permalink" href="#Literal" title="Permalink"></a></h2><p>A typed value with a lexical form, datatype IRI, and optional language tag.</p><article><details class="docstring" open="true"><summary id="RDF.Literal"><a class="docstring-binding" href="#RDF.Literal"><code>RDF.Literal</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">Literal &lt;: RDFTerm</code></pre><p>An RDF literal with a lexical form, datatype IRI, and optional language tag.</p><p>Common constructors:</p><ul><li><code>Literal(&quot;hello&quot;)</code> — plain string (<code>xsd:string</code>)</li><li><code>Literal(&quot;hello&quot;; lang=&quot;en&quot;)</code> — language-tagged string (<code>rdf:langString</code>)</li><li><code>Literal(&quot;hello&quot;; lang=&quot;ar&quot;, dir=&quot;rtl&quot;)</code> — directional string (<code>rdf:dirLangString</code>, RDF 1.2)</li><li><code>Literal(&quot;hello&quot;, IRI(&quot;...&quot;))</code> — explicit datatype</li><li><code>Literal(42)</code> → <code>xsd:integer</code>, <code>Literal(3.14)</code> → <code>xsd:double</code>, <code>Literal(true)</code> → <code>xsd:boolean</code></li><li><code>Literal(Date(2024,1,1))</code> → <code>xsd:date</code></li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L95-L107">source</a></section></details></article><h3 id="Common-constructors"><a class="docs-heading-anchor" href="#Common-constructors">Common constructors</a><a id="Common-constructors-1"></a><a class="docs-heading-anchor-permalink" href="#Common-constructors" title="Permalink"></a></h3><table><tr><th style="text-align: right">Expression</th><th style="text-align: right">Datatype</th></tr><tr><td style="text-align: right"><code>Literal(&quot;hello&quot;)</code></td><td style="text-align: right"><code>xsd:string</code></td></tr><tr><td style="text-align: right"><code>Literal(&quot;hello&quot;; lang=&quot;en&quot;)</code></td><td style="text-align: right"><code>rdf:langString</code></td></tr><tr><td style="text-align: right"><code>Literal(&quot;hello&quot;; lang=&quot;ar&quot;, dir=&quot;rtl&quot;)</code></td><td style="text-align: right"><code>rdf:dirLangString</code> (RDF 1.2)</td></tr><tr><td style="text-align: right"><code>Literal(&quot;hello&quot;, IRI(&quot;...&quot;))</code></td><td style="text-align: right">explicit datatype</td></tr><tr><td style="text-align: right"><code>Literal(42)</code></td><td style="text-align: right"><code>xsd:integer</code></td></tr><tr><td style="text-align: right"><code>Literal(3.14)</code></td><td style="text-align: right"><code>xsd:double</code></td></tr><tr><td style="text-align: right"><code>Literal(true)</code></td><td style="text-align: right"><code>xsd:boolean</code></td></tr><tr><td style="text-align: right"><code>Literal(Date(2024,1,1))</code></td><td style="text-align: right"><code>xsd:date</code></td></tr><tr><td style="text-align: right"><code>Literal(DateTime(2024,1,1,12,0,0))</code></td><td style="text-align: right"><code>xsd:dateTime</code></td></tr></table><h3 id="Coercing-a-literal-to-a-Julia-value"><a class="docs-heading-anchor" href="#Coercing-a-literal-to-a-Julia-value">Coercing a literal to a Julia value</a><a id="Coercing-a-literal-to-a-Julia-value-1"></a><a class="docs-heading-anchor-permalink" href="#Coercing-a-literal-to-a-Julia-value" title="Permalink"></a></h3><article><details class="docstring" open="true"><summary id="RDF.value"><a class="docstring-binding" href="#RDF.value"><code>RDF.value</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">value(lit::Literal)
-value(T::Type, lit::Literal)</code></pre><p>Parse the lexical form of <code>lit</code> to a Julia value.</p><p>The <strong>one-argument form</strong> infers the target type from the datatype IRI:</p><table><tr><th style="text-align: right">XSD / RDF datatype</th><th style="text-align: right">Julia type</th></tr><tr><td style="text-align: right"><code>xsd:string</code>, <code>rdf:langString</code>, <code>rdf:dirLangString</code></td><td style="text-align: right"><code>String</code></td></tr><tr><td style="text-align: right"><code>xsd:boolean</code></td><td style="text-align: right"><code>Bool</code></td></tr><tr><td style="text-align: right"><code>xsd:integer</code> and all integer subtypes</td><td style="text-align: right"><code>Int64</code> (or <code>BigInt</code> if too large)</td></tr><tr><td style="text-align: right"><code>xsd:double</code></td><td style="text-align: right"><code>Float64</code></td></tr><tr><td style="text-align: right"><code>xsd:float</code></td><td style="text-align: right"><code>Float32</code></td></tr><tr><td style="text-align: right"><code>xsd:decimal</code></td><td style="text-align: right"><code>BigFloat</code> (finite-precision approximation)</td></tr><tr><td style="text-align: right"><code>xsd:date</code></td><td style="text-align: right"><code>Dates.Date</code></td></tr><tr><td style="text-align: right"><code>xsd:dateTime</code>, <code>xsd:dateTimeStamp</code></td><td style="text-align: right"><code>Dates.DateTime</code> (timezone stripped)</td></tr></table><p>The <strong>two-argument form</strong> additionally converts the result to <code>T</code> using Julia&#39;s <code>convert</code>. This means numeric widening works naturally:</p><pre><code class="language-julia hljs">value(Literal(42))              # =&gt; 42  (Int64)
+b2, b3 = blank!(g, 2)  # mint two at once</code></pre>
+</div>
+<h2 id="Literal" class="md-heading">Literal<a href="#Literal" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>A typed value with a lexical form, datatype IRI, and optional language tag.</p>
+<div class="md-docstring" id="RDF.Literal">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.Literal</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L95-L107" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Literal &lt;: RDFTerm</code></pre>
+</div>
+<p>An RDF literal with a lexical form, datatype IRI, and optional language tag.</p>
+<p>Common constructors:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">Literal(&quot;hello&quot;)</code> — plain string (<code class="md-code-inline">xsd:string</code>)</p>
+</li>
+<li><p><code class="md-code-inline">Literal(&quot;hello&quot;; lang=&quot;en&quot;)</code> — language-tagged string (<code class="md-code-inline">rdf:langString</code>)</p>
+</li>
+<li><p><code class="md-code-inline">Literal(&quot;hello&quot;; lang=&quot;ar&quot;, dir=&quot;rtl&quot;)</code> — directional string (<code class="md-code-inline">rdf:dirLangString</code>, RDF 1.2)</p>
+</li>
+<li><p><code class="md-code-inline">Literal(&quot;hello&quot;, IRI(&quot;...&quot;))</code> — explicit datatype</p>
+</li>
+<li><p><code class="md-code-inline">Literal(42)</code> → <code class="md-code-inline">xsd:integer</code>, <code class="md-code-inline">Literal(3.14)</code> → <code class="md-code-inline">xsd:double</code>, <code class="md-code-inline">Literal(true)</code> → <code class="md-code-inline">xsd:boolean</code></p>
+</li>
+<li><p><code class="md-code-inline">Literal(Date(2024,1,1))</code> → <code class="md-code-inline">xsd:date</code></p>
+</li>
+</ul>
+</div>
+</div>
+<h3 id="Common-constructors" class="md-heading">Common constructors<a href="#Common-constructors" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Expression</th>
+<th style="text-align:right">Datatype</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(&quot;hello&quot;)</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:string</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(&quot;hello&quot;; lang=&quot;en&quot;)</code></td>
+<td style="text-align:right"><code class="md-code-inline">rdf:langString</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(&quot;hello&quot;; lang=&quot;ar&quot;, dir=&quot;rtl&quot;)</code></td>
+<td style="text-align:right"><code class="md-code-inline">rdf:dirLangString</code> (RDF 1.2)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(&quot;hello&quot;, IRI(&quot;...&quot;))</code></td>
+<td style="text-align:right">explicit datatype</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(42)</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:integer</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(3.14)</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:double</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(true)</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:boolean</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(Date(2024,1,1))</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:date</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">Literal(DateTime(2024,1,1,12,0,0))</code></td>
+<td style="text-align:right"><code class="md-code-inline">xsd:dateTime</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="Coercing-a-literal-to-a-Julia-value" class="md-heading">Coercing a literal to a Julia value<a href="#Coercing-a-literal-to-a-Julia-value" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-docstring" id="RDF.value">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.value</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/literal_values.jl#L29-L61" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">value(lit::Literal)
+value(T::Type, lit::Literal)</code></pre>
+</div>
+<p>Parse the lexical form of <code class="md-code-inline">lit</code> to a Julia value.</p>
+<p>The <strong>one-argument form</strong> infers the target type from the datatype IRI:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">XSD / RDF datatype</th>
+<th style="text-align:right">Julia type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:string</code>, <code class="md-code-inline">rdf:langString</code>, <code class="md-code-inline">rdf:dirLangString</code></td>
+<td style="text-align:right"><code class="md-code-inline">String</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:boolean</code></td>
+<td style="text-align:right"><code class="md-code-inline">Bool</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:integer</code> and all integer subtypes</td>
+<td style="text-align:right"><code class="md-code-inline">Int64</code> (or <code class="md-code-inline">BigInt</code> if too large)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:double</code></td>
+<td style="text-align:right"><code class="md-code-inline">Float64</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:float</code></td>
+<td style="text-align:right"><code class="md-code-inline">Float32</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:decimal</code></td>
+<td style="text-align:right"><code class="md-code-inline">BigFloat</code> (finite-precision approximation)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:date</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.Date</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:dateTime</code>, <code class="md-code-inline">xsd:dateTimeStamp</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.DateTime</code> (timezone stripped)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <strong>two-argument form</strong> additionally converts the result to <code class="md-code-inline">T</code> using Julia&#39;s <code class="md-code-inline">convert</code>. This means numeric widening works naturally:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">value(Literal(42))              # =&gt; 42  (Int64)
 value(Int64,   Literal(42))     # =&gt; 42
 value(Float64, Literal(42))     # =&gt; 42.0   (Int64 → Float64 via convert)
-value(Int64,   Literal(3.14))   # throws LiteralValueError (inexact)</code></pre><p>Throws <code>LiteralValueError</code> if the lexical form cannot be parsed or if the resulting value cannot be <code>convert</code>ed to <code>T</code>.  See <a href="#RDF.tryvalue"><code>tryvalue</code></a> for a non-throwing variant.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/literal_values.jl#L29-L61">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.tryvalue"><a class="docstring-binding" href="#RDF.tryvalue"><code>RDF.tryvalue</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">tryvalue(lit::Literal)
-tryvalue(T::Type, lit::Literal)</code></pre><p>Like <a href="#RDF.value"><code>value</code></a> but returns <code>nothing</code> instead of throwing on failure.</p><pre><code class="language-julia hljs">tryvalue(Literal(42))               # =&gt; 42
+value(Int64,   Literal(3.14))   # throws LiteralValueError (inexact)</code></pre>
+</div>
+<p>Throws <code class="md-code-inline">LiteralValueError</code> if the lexical form cannot be parsed or if the resulting value cannot be <code class="md-code-inline">convert</code>ed to <code class="md-code-inline">T</code>.  See <a href="../terms/#RDF.tryvalue"><code class="md-code-inline">tryvalue</code></a> for a non-throwing variant.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.tryvalue">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.tryvalue</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/literal_values.jl#L124-L136" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">tryvalue(lit::Literal)
+tryvalue(T::Type, lit::Literal)</code></pre>
+</div>
+<p>Like <a href="../terms/#RDF.value"><code class="md-code-inline">value</code></a> but returns <code class="md-code-inline">nothing</code> instead of throwing on failure.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">tryvalue(Literal(42))               # =&gt; 42
 tryvalue(Float64, Literal(42))      # =&gt; 42.0
 tryvalue(Int64,   Literal(3.14))    # =&gt; nothing  (inexact)
-tryvalue(Int64,   Literal(&quot;oops&quot;, xsd.integer))  # =&gt; nothing</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/literal_values.jl#L124-L136">source</a></section></details></article><pre><code class="language-julia hljs">lit = Literal(42)
+tryvalue(Int64,   Literal(&quot;oops&quot;, xsd.integer))  # =&gt; nothing</code></pre>
+</div>
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">lit = Literal(42)
 
 # One-argument: infer Julia type from the RDF datatype
 value(lit)              # =&gt; 42  (Int64, because xsd:integer)
@@ -30,21 +317,204 @@ value(Int64,   Literal(3.14))   # throws LiteralValueError (inexact)
 tryvalue(lit)                          # =&gt; 42
 tryvalue(Float64, lit)                 # =&gt; 42.0
 tryvalue(Int64,   Literal(3.14))       # =&gt; nothing
-tryvalue(Int64,   Literal(&quot;oops&quot;, xsd.integer))  # =&gt; nothing</code></pre><p>The natural Julia type for each RDF datatype:</p><table><tr><th style="text-align: right">RDF datatype</th><th style="text-align: right">Julia type</th></tr><tr><td style="text-align: right"><code>xsd:string</code>, <code>rdf:langString</code></td><td style="text-align: right"><code>String</code></td></tr><tr><td style="text-align: right"><code>xsd:boolean</code></td><td style="text-align: right"><code>Bool</code></td></tr><tr><td style="text-align: right"><code>xsd:integer</code> and all integer subtypes</td><td style="text-align: right"><code>Int64</code> (or <code>BigInt</code> if too large)</td></tr><tr><td style="text-align: right"><code>xsd:double</code></td><td style="text-align: right"><code>Float64</code></td></tr><tr><td style="text-align: right"><code>xsd:float</code></td><td style="text-align: right"><code>Float32</code></td></tr><tr><td style="text-align: right"><code>xsd:decimal</code></td><td style="text-align: right"><code>BigFloat</code> (finite-precision approximation)</td></tr><tr><td style="text-align: right"><code>xsd:date</code></td><td style="text-align: right"><code>Dates.Date</code></td></tr><tr><td style="text-align: right"><code>xsd:dateTime</code>, <code>xsd:dateTimeStamp</code></td><td style="text-align: right"><code>Dates.DateTime</code> (timezone stripped)</td></tr></table><p>The two-argument <code>value(T, lit)</code> uses Julia&#39;s <code>convert</code>, so any numeric widening that <code>convert</code> supports works (e.g. <code>Int64</code> → <code>Float64</code>, <code>Float32</code> → <code>Float64</code>). Abstract supertypes like <code>Number</code> or <code>AbstractFloat</code> work too.</p><h2 id="TripleTerm"><a class="docs-heading-anchor" href="#TripleTerm">TripleTerm</a><a id="TripleTerm-1"></a><a class="docs-heading-anchor-permalink" href="#TripleTerm" title="Permalink"></a></h2><p><code>TripleTerm</code> (RDF-star) allows an embedded triple to appear in both <strong>subject</strong> and <strong>object</strong> positions, enabling statement-level annotations without blank-node reification.</p><article><details class="docstring" open="true"><summary id="RDF.TripleTerm"><a class="docstring-binding" href="#RDF.TripleTerm"><code>RDF.TripleTerm</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">TripleTerm(subject, predicate, object) &lt;: RDFTerm</code></pre><p>An RDF-star triple term — an embedded triple used as an RDF term in either subject or object position. Enables statement-level annotations (e.g. via <code>rdf:reifies</code>) without blank-node reification.</p><p>The subject may be an <code>IRI</code>, <code>BlankNode</code>, or nested <code>TripleTerm</code>; the predicate must be an <code>IRI</code>; the object may be any <code>ObjectTerm</code>.</p><pre><code class="language-julia hljs">tt = TripleTerm(iri&quot;http://example.org/bob&quot;, rdf.type, iri&quot;http://example.org/Person&quot;)
+tryvalue(Int64,   Literal(&quot;oops&quot;, xsd.integer))  # =&gt; nothing</code></pre>
+</div>
+<p>The natural Julia type for each RDF datatype:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">RDF datatype</th>
+<th style="text-align:right">Julia type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:string</code>, <code class="md-code-inline">rdf:langString</code></td>
+<td style="text-align:right"><code class="md-code-inline">String</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:boolean</code></td>
+<td style="text-align:right"><code class="md-code-inline">Bool</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:integer</code> and all integer subtypes</td>
+<td style="text-align:right"><code class="md-code-inline">Int64</code> (or <code class="md-code-inline">BigInt</code> if too large)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:double</code></td>
+<td style="text-align:right"><code class="md-code-inline">Float64</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:float</code></td>
+<td style="text-align:right"><code class="md-code-inline">Float32</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:decimal</code></td>
+<td style="text-align:right"><code class="md-code-inline">BigFloat</code> (finite-precision approximation)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:date</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.Date</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">xsd:dateTime</code>, <code class="md-code-inline">xsd:dateTimeStamp</code></td>
+<td style="text-align:right"><code class="md-code-inline">Dates.DateTime</code> (timezone stripped)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The two-argument <code class="md-code-inline">value(T, lit)</code> uses Julia&#39;s <code class="md-code-inline">convert</code>, so any numeric widening that <code class="md-code-inline">convert</code> supports works (e.g. <code class="md-code-inline">Int64</code> → <code class="md-code-inline">Float64</code>, <code class="md-code-inline">Float32</code> → <code class="md-code-inline">Float64</code>). Abstract supertypes like <code class="md-code-inline">Number</code> or <code class="md-code-inline">AbstractFloat</code> work too.</p>
+<h2 id="TripleTerm" class="md-heading">TripleTerm<a href="#TripleTerm" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">TripleTerm</code> (RDF-star) allows an embedded triple to appear in both <strong>subject</strong> and <strong>object</strong> positions, enabling statement-level annotations without blank-node reification.</p>
+<div class="md-docstring" id="RDF.TripleTerm">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.TripleTerm</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L246-L265" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">TripleTerm(subject, predicate, object) &lt;: RDFTerm</code></pre>
+</div>
+<p>An RDF-star triple term — an embedded triple used as an RDF term in either subject or object position. Enables statement-level annotations (e.g. via <code class="md-code-inline">rdf:reifies</code>) without blank-node reification.</p>
+<p>The subject may be an <code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, or nested <code class="md-code-inline">TripleTerm</code>; the predicate must be an <code class="md-code-inline">IRI</code>; the object may be any <code class="md-code-inline">ObjectTerm</code>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">tt = TripleTerm(iri&quot;http://example.org/bob&quot;, rdf.type, iri&quot;http://example.org/Person&quot;)
 
 # As object (most common — rdf:reifies annotation)
 push!(g, Triple(iri&quot;http://example.org/claim&quot;, rdf.reifies, tt))
 
 # As subject
-push!(g, Triple(tt, iri&quot;http://example.org/certainty&quot;, Literal(0.9)))</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L246-L265">source</a></section></details></article><pre><code class="language-julia hljs">tt = TripleTerm(ex.alice, ex.age, Literal(30))
-push!(g, Triple(ex.claim, rdf.reifies, tt))</code></pre><h2 id="Triple-and-Quad"><a class="docs-heading-anchor" href="#Triple-and-Quad">Triple and Quad</a><a id="Triple-and-Quad-1"></a><a class="docs-heading-anchor-permalink" href="#Triple-and-Quad" title="Permalink"></a></h2><p>A <code>Triple</code> has three fields: <code>subject::SubjectTerm</code>, <code>predicate::IRI</code>, <code>object::ObjectTerm</code>. See <a href="../graphs/#RDF.Triple"><code>Triple</code></a> in the Graphs &amp; Datasets page for the full API.</p><p>A <code>Quad</code> is a named-graph extension — <code>(subject, predicate, object, graph)</code> — used when iterating <a href="../graphs/#Dataset"><code>Dataset</code></a> quads.</p><h2 id="Type-aliases"><a class="docs-heading-anchor" href="#Type-aliases">Type aliases</a><a id="Type-aliases-1"></a><a class="docs-heading-anchor-permalink" href="#Type-aliases" title="Permalink"></a></h2><table><tr><th style="text-align: right">Alias</th><th style="text-align: right">Allowed types</th></tr><tr><td style="text-align: right"><code>SubjectTerm</code></td><td style="text-align: right"><code>IRI</code>, <code>BlankNode</code>, <code>TripleTerm</code></td></tr><tr><td style="text-align: right"><code>PredicateTerm</code></td><td style="text-align: right"><code>IRI</code></td></tr><tr><td style="text-align: right"><code>ObjectTerm</code></td><td style="text-align: right"><code>IRI</code>, <code>BlankNode</code>, <code>Literal</code>, <code>TripleTerm</code></td></tr><tr><td style="text-align: right"><code>GraphName</code></td><td style="text-align: right"><code>IRI</code>, <code>BlankNode</code></td></tr></table><article><details class="docstring" open="true"><summary id="RDF.SubjectTerm"><a class="docstring-binding" href="#RDF.SubjectTerm"><code>RDF.SubjectTerm</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">SubjectTerm</code></pre><p>Union type for valid RDF subject positions: <code>IRI</code>, <code>BlankNode</code>, or <code>TripleTerm</code> (RDF-star embedded triple).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L288-L293">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.PredicateTerm"><a class="docstring-binding" href="#RDF.PredicateTerm"><code>RDF.PredicateTerm</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">PredicateTerm</code></pre><p>Alias for <code>IRI</code>; only IRIs are valid in the predicate position.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L296-L300">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.ObjectTerm"><a class="docstring-binding" href="#RDF.ObjectTerm"><code>RDF.ObjectTerm</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">ObjectTerm</code></pre><p>Union type for valid RDF object positions: <code>IRI</code>, <code>BlankNode</code>, <code>Literal</code>, or <code>TripleTerm</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L303-L307">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.GraphName"><a class="docstring-binding" href="#RDF.GraphName"><code>RDF.GraphName</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">GraphName</code></pre><p>Union type for RDF graph names: <code>IRI</code> or <code>BlankNode</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/terms.jl#L310-L314">source</a></section></details></article><h2 id="Namespace-helper"><a class="docs-heading-anchor" href="#Namespace-helper">Namespace helper</a><a id="Namespace-helper-1"></a><a class="docs-heading-anchor-permalink" href="#Namespace-helper" title="Permalink"></a></h2><p><a href="#RDF.Namespace"><code>Namespace</code></a> provides a convenient shorthand for constructing IRIs within a common prefix.</p><article><details class="docstring" open="true"><summary id="RDF.Namespace"><a class="docstring-binding" href="#RDF.Namespace"><code>RDF.Namespace</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">Namespace(base::String)</code></pre><p>A namespace prefix for constructing <code>IRI</code>s using dot notation or bracket indexing.</p><pre><code class="language-julia hljs">ex  = Namespace(&quot;http://example.org/&quot;)
+push!(g, Triple(tt, iri&quot;http://example.org/certainty&quot;, Literal(0.9)))</code></pre>
+</div>
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">tt = TripleTerm(ex.alice, ex.age, Literal(30))
+push!(g, Triple(ex.claim, rdf.reifies, tt))</code></pre>
+</div>
+<h2 id="Triple-and-Quad" class="md-heading">Triple and Quad<a href="#Triple-and-Quad" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>A <code class="md-code-inline">Triple</code> has three fields: <code class="md-code-inline">subject::SubjectTerm</code>, <code class="md-code-inline">predicate::IRI</code>, <code class="md-code-inline">object::ObjectTerm</code>. See <a href="../graphs/#RDF.Triple"><code class="md-code-inline">Triple</code></a> in the Graphs &amp; Datasets page for the full API.</p>
+<p>A <code class="md-code-inline">Quad</code> is a named-graph extension — <code class="md-code-inline">(subject, predicate, object, graph)</code> — used when iterating <a href="../graphs/#Dataset"><code class="md-code-inline">Dataset</code></a> quads.</p>
+<h2 id="Type-aliases" class="md-heading">Type aliases<a href="#Type-aliases" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Alias</th>
+<th style="text-align:right">Allowed types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">SubjectTerm</code></td>
+<td style="text-align:right"><code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, <code class="md-code-inline">TripleTerm</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">PredicateTerm</code></td>
+<td style="text-align:right"><code class="md-code-inline">IRI</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">ObjectTerm</code></td>
+<td style="text-align:right"><code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, <code class="md-code-inline">Literal</code>, <code class="md-code-inline">TripleTerm</code></td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">GraphName</code></td>
+<td style="text-align:right"><code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="md-docstring" id="RDF.SubjectTerm">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.SubjectTerm</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L288-L293" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SubjectTerm</code></pre>
+</div>
+<p>Union type for valid RDF subject positions: <code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, or <code class="md-code-inline">TripleTerm</code> (RDF-star embedded triple).</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.PredicateTerm">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.PredicateTerm</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L296-L300" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">PredicateTerm</code></pre>
+</div>
+<p>Alias for <code class="md-code-inline">IRI</code>; only IRIs are valid in the predicate position.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.ObjectTerm">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.ObjectTerm</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L303-L307" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ObjectTerm</code></pre>
+</div>
+<p>Union type for valid RDF object positions: <code class="md-code-inline">IRI</code>, <code class="md-code-inline">BlankNode</code>, <code class="md-code-inline">Literal</code>, or <code class="md-code-inline">TripleTerm</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.GraphName">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.GraphName</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/terms.jl#L310-L314" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">GraphName</code></pre>
+</div>
+<p>Union type for RDF graph names: <code class="md-code-inline">IRI</code> or <code class="md-code-inline">BlankNode</code>.</p>
+</div>
+</div>
+<h2 id="Namespace-helper" class="md-heading">Namespace helper<a href="#Namespace-helper" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><a href="../terms/#RDF.Namespace"><code class="md-code-inline">Namespace</code></a> provides a convenient shorthand for constructing IRIs within a common prefix.</p>
+<div class="md-docstring" id="RDF.Namespace">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.Namespace</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/namespaces.jl#L1-L11" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Namespace(base::String)</code></pre>
+</div>
+<p>A namespace prefix for constructing <code class="md-code-inline">IRI</code>s using dot notation or bracket indexing.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex  = Namespace(&quot;http://example.org/&quot;)
 ex.Alice          # =&gt; IRI(&quot;http://example.org/Alice&quot;)
-ex[&quot;first-name&quot;]  # =&gt; IRI(&quot;http://example.org/first-name&quot;)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/namespaces.jl#L1-L11">source</a></section></details></article><pre><code class="language-julia hljs">ex   = Namespace(&quot;http://example.org/&quot;)
+ex[&quot;first-name&quot;]  # =&gt; IRI(&quot;http://example.org/first-name&quot;)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex   = Namespace(&quot;http://example.org/&quot;)
 foaf = Namespace(&quot;http://xmlns.com/foaf/0.1/&quot;)
 
 ex.alice            # =&gt; IRI(&quot;http://example.org/alice&quot;)
 foaf.name           # =&gt; IRI(&quot;http://xmlns.com/foaf/0.1/name&quot;)
-ex[&quot;with spaces&quot;]   # =&gt; IRI(&quot;http://example.org/with%20spaces&quot;)</code></pre><h2 id="Built-in-vocabulary-modules"><a class="docs-heading-anchor" href="#Built-in-vocabulary-modules">Built-in vocabulary modules</a><a id="Built-in-vocabulary-modules-1"></a><a class="docs-heading-anchor-permalink" href="#Built-in-vocabulary-modules" title="Permalink"></a></h2><p>Prefix modules expose every term from common namespaces as named constants:</p><pre><code class="language-julia hljs">rdf.type          # IRI(&quot;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&quot;)
+ex[&quot;with spaces&quot;]   # =&gt; IRI(&quot;http://example.org/with%20spaces&quot;)</code></pre>
+</div>
+<h2 id="Built-in-vocabulary-modules" class="md-heading">Built-in vocabulary modules<a href="#Built-in-vocabulary-modules" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Prefix modules expose every term from common namespaces as named constants:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">rdf.type          # IRI(&quot;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&quot;)
 rdfs.subClassOf   # IRI(&quot;http://www.w3.org/2000/01/rdf-schema#subClassOf&quot;)
 xsd.integer       # IRI(&quot;http://www.w3.org/2001/XMLSchema#integer&quot;)
 owl.sameAs        # IRI(&quot;http://www.w3.org/2002/07/owl#sameAs&quot;)
@@ -52,4 +522,36 @@ skos.prefLabel    # IRI(&quot;http://www.w3.org/2004/02/skos/core#prefLabel&quot
 dc.title          # IRI(&quot;http://purl.org/dc/elements/1.1/title&quot;)
 dcterms.creator   # IRI(&quot;http://purl.org/dc/terms/creator&quot;)
 foaf.name         # IRI(&quot;http://xmlns.com/foaf/0.1/name&quot;)
-schema.Person     # IRI(&quot;https://schema.org/Person&quot;)</code></pre><p>Available modules: <code>rdf</code>, <code>rdfs</code>, <code>xsd</code>, <code>owl</code>, <code>skos</code>, <code>dc</code>, <code>dcterms</code>, <code>foaf</code>, <code>schema</code>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../graphs/">Graphs &amp; Datasets »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 19 August 2026 16:45">Wednesday 19 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+schema.Person     # IRI(&quot;https://schema.org/Person&quot;)</code></pre>
+</div>
+<p>Available modules: <code class="md-code-inline">rdf</code>, <code class="md-code-inline">rdfs</code>, <code class="md-code-inline">xsd</code>, <code class="md-code-inline">owl</code>, <code class="md-code-inline">skos</code>, <code class="md-code-inline">dc</code>, <code class="md-code-inline">dcterms</code>, <code class="md-code-inline">foaf</code>, <code class="md-code-inline">schema</code>.</p>
+      </article>
+      <footer class="md-footer">
+        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Type-hierarchy">Type hierarchy</a>
+          <a class="md-toc-link md-toc-h2" href="#IRI">IRI</a>
+            <a class="md-toc-link md-toc-h3" href="#Construction">Construction</a>
+          <a class="md-toc-link md-toc-h2" href="#BlankNode">BlankNode</a>
+          <a class="md-toc-link md-toc-h2" href="#Literal">Literal</a>
+            <a class="md-toc-link md-toc-h3" href="#Common-constructors">Common constructors</a>
+            <a class="md-toc-link md-toc-h3" href="#Coercing-a-literal-to-a-Julia-value">Coercing a literal to a Julia value</a>
+          <a class="md-toc-link md-toc-h2" href="#TripleTerm">TripleTerm</a>
+          <a class="md-toc-link md-toc-h2" href="#Triple-and-Quad">Triple and Quad</a>
+          <a class="md-toc-link md-toc-h2" href="#Type-aliases">Type aliases</a>
+          <a class="md-toc-link md-toc-h2" href="#Namespace-helper">Namespace helper</a>
+          <a class="md-toc-link md-toc-h2" href="#Built-in-vocabulary-modules">Built-in vocabulary modules</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../assets/materialdocs.js?v=a07a768b"></script>
+</body>
+</html>

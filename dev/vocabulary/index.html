@@ -1,5 +1,111 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Vocabulary API · RDF.jl</title><meta name="title" content="Vocabulary API · RDF.jl"/><meta property="og:title" content="Vocabulary API · RDF.jl"/><meta property="twitter:title" content="Vocabulary API · RDF.jl"/><meta name="description" content="Documentation for RDF.jl."/><meta property="og:description" content="Documentation for RDF.jl."/><meta property="twitter:description" content="Documentation for RDF.jl."/><meta property="og:url" content="https://mthelm85.github.io/RDF.jl/vocabulary/"/><meta property="twitter:url" content="https://mthelm85.github.io/RDF.jl/vocabulary/"/><link rel="canonical" href="https://mthelm85.github.io/RDF.jl/vocabulary/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script><link href="../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">RDF.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../terms/">Terms</a></li><li><a class="tocitem" href="../graphs/">Graphs &amp; Datasets</a></li><li><a class="tocitem" href="../serialization/">Serialization</a></li><li><a class="tocitem" href="../querying/">Querying</a></li><li><a class="tocitem" href="../ai/">AI &amp; GraphRAG</a></li><li class="is-active"><a class="tocitem" href>Vocabulary API</a><ul class="internal"><li><a class="tocitem" href="#Quick-start"><span>Quick start</span></a></li><li><a class="tocitem" href="#Construction"><span>Construction</span></a></li><li><a class="tocitem" href="#The-base-keyword"><span>The <code>base</code> keyword</span></a></li><li><a class="tocitem" href="#Term-access"><span>Term access</span></a></li><li><a class="tocitem" href="#Using-vocabulary-terms-in-queries"><span>Using vocabulary terms in queries</span></a></li><li><a class="tocitem" href="#Scientific-domain-vocabularies"><span>Scientific domain vocabularies</span></a></li></ul></li><li><a class="tocitem" href="../inference/">Inference &amp; Validation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Vocabulary API</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Vocabulary API</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/vocabulary.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Vocabulary-API"><a class="docs-heading-anchor" href="#Vocabulary-API">Vocabulary API</a><a id="Vocabulary-API-1"></a><a class="docs-heading-anchor-permalink" href="#Vocabulary-API" title="Permalink"></a></h1><p>RDF.jl ships <a href="../terms/#Built-in-vocabulary-modules">built-in constants</a> for the core W3C namespaces (<code>rdf</code>, <code>rdfs</code>, <code>xsd</code>, <code>owl</code>, <code>skos</code>, <code>dc</code>, <code>dcterms</code>, <code>foaf</code>, <code>schema</code>).  For everything else — domain-specific ontologies, frequently-updated vocabularies, or any namespace you want to introspect — <code>Vocabulary</code> and <code>load_vocabulary</code> provide a unified API.</p><article><details class="docstring" open="true"><summary id="RDF.Vocabulary"><a class="docstring-binding" href="#RDF.Vocabulary"><code>RDF.Vocabulary</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">Vocabulary</code></pre><p>An RDF vocabulary loaded from a graph, file, or URI.  Provides:</p><ul><li><strong>Dot-notation</strong> access to terms: <code>vocab.BachelorDegree</code></li><li><strong>String indexing</strong>: <code>vocab[&quot;BachelorDegree&quot;]</code> or <code>vocab[&quot;http://...&quot;]</code></li><li><strong>Metadata</strong>: <a href="#RDF.label"><code>label</code></a> and <a href="#RDF.comment"><code>comment</code></a> via <code>rdfs:label</code> / <code>rdfs:comment</code></li><li><strong>Term enumeration</strong>: <a href="#RDF.terms"><code>terms</code></a></li></ul><p>Construct via <a href="#RDF.Vocabulary"><code>Vocabulary(graph)</code></a> or <a href="#RDF.load_vocabulary"><code>load_vocabulary</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/vocabulary.jl#L7-L19">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.load_vocabulary"><a class="docstring-binding" href="#RDF.load_vocabulary"><code>RDF.load_vocabulary</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">load_vocabulary(source; base=nothing, format=nothing) -&gt; Vocabulary</code></pre><p>Load an RDF vocabulary from a local file path or a remote HTTP/HTTPS URL.</p><p><strong>Local files</strong> — format inferred from extension:</p><table><tr><th style="text-align: right">Extension</th><th style="text-align: right">Format</th></tr><tr><td style="text-align: right"><code>.ttl</code></td><td style="text-align: right">Turtle 1.1</td></tr><tr><td style="text-align: right"><code>.nt</code></td><td style="text-align: right">N-Triples</td></tr><tr><td style="text-align: right"><code>.nq</code></td><td style="text-align: right">N-Quads</td></tr><tr><td style="text-align: right"><code>.jsonld</code>, <code>.json-ld</code>, <code>.json</code></td><td style="text-align: right">JSON-LD 1.1</td></tr></table><p><strong>Remote URLs</strong> — requires <code>HTTP.jl</code> to be loaded alongside <code>RDF.jl</code>. Content-negotiation requests Turtle first, then N-Triples, then JSON-LD.</p><p><strong><code>base</code></strong> restricts indexing to IRIs that start with the given string prefix and sets the namespace used by <code>vocab.Term</code> property access.  If omitted, all subject IRIs are indexed by local name (fragment after the last <code>#</code> or <code>/</code>).</p><p><strong><code>format</code></strong> overrides extension-based detection, e.g. <code>MIME&quot;text/turtle&quot;()</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs"># Local Turtle file
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vocabulary API — RDF.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=f2d9c3c6">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-hamburger" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <span class="md-navbar-title">RDF.jl</span>
+    <span style="flex:1"></span>
+    <button id="md-search-btn" class="md-icon-btn" title="Search (Ctrl+K)" aria-label="Search documentation">🔍</button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../">Home</a>
+      <a href="../terms/">Terms</a>
+      <a href="../graphs/">Graphs &amp; Datasets</a>
+      <a href="../serialization/">Serialization</a>
+      <a href="../querying/">Querying</a>
+      <a href="../ai/">AI &amp; GraphRAG</a>
+      <a href="../vocabulary/">Vocabulary API</a>
+      <a href="../inference/">Inference &amp; Validation</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="Vocabulary-API" class="md-heading">Vocabulary API<a href="#Vocabulary-API" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>RDF.jl ships <a href="../terms/#Built-in-vocabulary-modules">built-in constants</a> for the core W3C namespaces (<code class="md-code-inline">rdf</code>, <code class="md-code-inline">rdfs</code>, <code class="md-code-inline">xsd</code>, <code class="md-code-inline">owl</code>, <code class="md-code-inline">skos</code>, <code class="md-code-inline">dc</code>, <code class="md-code-inline">dcterms</code>, <code class="md-code-inline">foaf</code>, <code class="md-code-inline">schema</code>).  For everything else — domain-specific ontologies, frequently-updated vocabularies, or any namespace you want to introspect — <code class="md-code-inline">Vocabulary</code> and <code class="md-code-inline">load_vocabulary</code> provide a unified API.</p>
+<div class="md-docstring" id="RDF.Vocabulary">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.Vocabulary</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/vocabulary.jl#L7-L19" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Vocabulary</code></pre>
+</div>
+<p>An RDF vocabulary loaded from a graph, file, or URI.  Provides:</p>
+<ul class="md-list-tight">
+<li><p><strong>Dot-notation</strong> access to terms: <code class="md-code-inline">vocab.BachelorDegree</code></p>
+</li>
+<li><p><strong>String indexing</strong>: <code class="md-code-inline">vocab[&quot;BachelorDegree&quot;]</code> or <code class="md-code-inline">vocab[&quot;http://...&quot;]</code></p>
+</li>
+<li><p><strong>Metadata</strong>: <a href="../vocabulary/#RDF.label"><code class="md-code-inline">label</code></a> and <a href="../vocabulary/#RDF.comment"><code class="md-code-inline">comment</code></a> via <code class="md-code-inline">rdfs:label</code> / <code class="md-code-inline">rdfs:comment</code></p>
+</li>
+<li><p><strong>Term enumeration</strong>: <a href="../vocabulary/#RDF.terms"><code class="md-code-inline">terms</code></a></p>
+</li>
+</ul>
+<p>Construct via <a href="../vocabulary/#RDF.Vocabulary"><code class="md-code-inline">Vocabulary(graph)</code></a> or <a href="../vocabulary/#RDF.load_vocabulary"><code class="md-code-inline">load_vocabulary</code></a>.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.load_vocabulary">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.load_vocabulary</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/vocabulary.jl#L213-L264" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">load_vocabulary(source; base=nothing, format=nothing) -&gt; Vocabulary</code></pre>
+</div>
+<p>Load an RDF vocabulary from a local file path or a remote HTTP/HTTPS URL.</p>
+<p><strong>Local files</strong> — format inferred from extension:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Extension</th>
+<th style="text-align:right">Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">.ttl</code></td>
+<td style="text-align:right">Turtle 1.1</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">.nt</code></td>
+<td style="text-align:right">N-Triples</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">.nq</code></td>
+<td style="text-align:right">N-Quads</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">.jsonld</code>, <code class="md-code-inline">.json-ld</code>, <code class="md-code-inline">.json</code></td>
+<td style="text-align:right">JSON-LD 1.1</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Remote URLs</strong> — requires <code class="md-code-inline">HTTP.jl</code> to be loaded alongside <code class="md-code-inline">RDF.jl</code>. Content-negotiation requests Turtle first, then N-Triples, then JSON-LD.</p>
+<p><strong><code class="md-code-inline">base</code></strong> restricts indexing to IRIs that start with the given string prefix and sets the namespace used by <code class="md-code-inline">vocab.Term</code> property access.  If omitted, all subject IRIs are indexed by local name (fragment after the last <code class="md-code-inline">#</code> or <code class="md-code-inline">/</code>).</p>
+<p><strong><code class="md-code-inline">format</code></strong> overrides extension-based detection, e.g. <code class="md-code-inline">MIME&quot;text/turtle&quot;()</code>.</p>
+<p><strong>Examples</strong></p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Local Turtle file
 ctdl = load_vocabulary(&quot;ctdl.ttl&quot;; base=&quot;http://purl.org/ctdl/terms/&quot;)
 
 # Remote URL (requires HTTP.jl)
@@ -22,11 +128,72 @@ sparql(ds, &quot;&quot;&quot;
   SELECT ?cred WHERE {
     ?cred a &lt;$(ctdl.BachelorDegree)&gt; .
   }
-&quot;&quot;&quot;)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/vocabulary.jl#L213-L264">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.terms"><a class="docstring-binding" href="#RDF.terms"><code>RDF.terms</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">terms(v::Vocabulary)</code></pre><p>Return an iterator over every <code>IRI</code> indexed in the vocabulary.</p><pre><code class="language-julia hljs">for iri in terms(ctdl)
+&quot;&quot;&quot;)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="RDF.terms">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.terms</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/vocabulary.jl#L136-L146" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">terms(v::Vocabulary)</code></pre>
+</div>
+<p>Return an iterator over every <code class="md-code-inline">IRI</code> indexed in the vocabulary.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">for iri in terms(ctdl)
     println(label(ctdl, iri), &quot;  =&gt;  &quot;, iri)
-end</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/vocabulary.jl#L136-L146">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.label"><a class="docstring-binding" href="#RDF.label"><code>RDF.label</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">label(v::Vocabulary, iri::IRI; lang=&quot;en&quot;) -&gt; Union{String, Nothing}</code></pre><p>Return the <code>rdfs:label</code> of <code>iri</code> in the vocabulary.</p><p>Prefers a label whose language tag starts with <code>lang</code> (default <code>&quot;en&quot;</code>), so <code>&quot;en-US&quot;</code> matches <code>lang=&quot;en&quot;</code>.  Falls back to any plain (untagged) literal if no language-matched label exists.  Returns <code>nothing</code> if no label is found.</p><pre><code class="language-julia hljs">label(ctdl, ctdl.BachelorDegree)             # =&gt; &quot;Bachelor&#39;s Degree&quot;
-label(ctdl, ctdl.BachelorDegree; lang=&quot;es&quot;)  # =&gt; Spanish label if present</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/vocabulary.jl#L151-L164">source</a></section></details></article><article><details class="docstring" open="true"><summary id="RDF.comment"><a class="docstring-binding" href="#RDF.comment"><code>RDF.comment</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">comment(v::Vocabulary, iri::IRI; lang=&quot;en&quot;) -&gt; Union{String, Nothing}</code></pre><p>Return the <code>rdfs:comment</code> of <code>iri</code> in the vocabulary.</p><p>Same language preference logic as <a href="#RDF.label"><code>label</code></a>.</p><pre><code class="language-julia hljs">comment(ctdl, ctdl.Course)
-# =&gt; &quot;Single structured sequence of one or more educational activities&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/mthelm85/RDF.jl/blob/e9a3ecfe66af556b678efeea10c671374eeb5866/src/vocabulary.jl#L168-L179">source</a></section></details></article><hr/><h2 id="Quick-start"><a class="docs-heading-anchor" href="#Quick-start">Quick start</a><a id="Quick-start-1"></a><a class="docs-heading-anchor-permalink" href="#Quick-start" title="Permalink"></a></h2><pre><code class="language-julia hljs">using RDF, HTTP
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="RDF.label">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.label</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/vocabulary.jl#L151-L164" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">label(v::Vocabulary, iri::IRI; lang=&quot;en&quot;) -&gt; Union{String, Nothing}</code></pre>
+</div>
+<p>Return the <code class="md-code-inline">rdfs:label</code> of <code class="md-code-inline">iri</code> in the vocabulary.</p>
+<p>Prefers a label whose language tag starts with <code class="md-code-inline">lang</code> (default <code class="md-code-inline">&quot;en&quot;</code>), so <code class="md-code-inline">&quot;en-US&quot;</code> matches <code class="md-code-inline">lang=&quot;en&quot;</code>.  Falls back to any plain (untagged) literal if no language-matched label exists.  Returns <code class="md-code-inline">nothing</code> if no label is found.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">label(ctdl, ctdl.BachelorDegree)             # =&gt; &quot;Bachelor&#39;s Degree&quot;
+label(ctdl, ctdl.BachelorDegree; lang=&quot;es&quot;)  # =&gt; Spanish label if present</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="RDF.comment">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.comment</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/vocabulary.jl#L168-L179" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">comment(v::Vocabulary, iri::IRI; lang=&quot;en&quot;) -&gt; Union{String, Nothing}</code></pre>
+</div>
+<p>Return the <code class="md-code-inline">rdfs:comment</code> of <code class="md-code-inline">iri</code> in the vocabulary.</p>
+<p>Same language preference logic as <a href="../vocabulary/#RDF.label"><code class="md-code-inline">label</code></a>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">comment(ctdl, ctdl.Course)
+# =&gt; &quot;Single structured sequence of one or more educational activities&quot;</code></pre>
+</div>
+</div>
+</div>
+<hr class="md-hr">
+<h2 id="Quick-start" class="md-heading">Quick start<a href="#Quick-start" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 # Load CTDL (Credential Transparency Description Language)
 ctdl = load_vocabulary(&quot;https://credreg.net/ctdl/schema/encoding/turtle&quot;;
@@ -45,7 +212,14 @@ comment(ctdl, ctdl.Course)   # =&gt; &quot;Single structured sequence...&quot;
 for iri in terms(ctdl)
     lbl = label(ctdl, iri)
     println(lbl !== nothing ? lbl : iri)
-end</code></pre><hr/><h2 id="Construction"><a class="docs-heading-anchor" href="#Construction">Construction</a><a id="Construction-1"></a><a class="docs-heading-anchor-permalink" href="#Construction" title="Permalink"></a></h2><h3 id="From-a-file-or-URL"><a class="docs-heading-anchor" href="#From-a-file-or-URL">From a file or URL</a><a id="From-a-file-or-URL-1"></a><a class="docs-heading-anchor-permalink" href="#From-a-file-or-URL" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Turtle file (extension auto-detected)
+end</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="Construction" class="md-heading">Construction<a href="#Construction" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<h3 id="From-a-file-or-URL" class="md-heading">From a file or URL<a href="#From-a-file-or-URL" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Turtle file (extension auto-detected)
 go = load_vocabulary(&quot;go.ttl&quot;; base=&quot;http://purl.obolibrary.org/obo/&quot;)
 
 # N-Triples
@@ -61,29 +235,179 @@ ctdl = load_vocabulary(&quot;https://credreg.net/ctdl/schema/encoding/turtle&quo
                         base=&quot;http://purl.org/ctdl/terms/&quot;)
 
 # Explicit format override
-v = load_vocabulary(&quot;vocab_data&quot;; format=MIME&quot;text/turtle&quot;())</code></pre><h3 id="From-an-existing-Graph"><a class="docs-heading-anchor" href="#From-an-existing-Graph">From an existing Graph</a><a id="From-an-existing-Graph-1"></a><a class="docs-heading-anchor-permalink" href="#From-an-existing-Graph" title="Permalink"></a></h3><p>If you already have a <code>Graph</code> (from <code>rdf_read</code>, SPARQL CONSTRUCT, inference, etc.) you can wrap it directly:</p><pre><code class="language-julia hljs">g = rdf_read(&quot;my_ontology.ttl&quot;)
-v = Vocabulary(g; base=&quot;http://example.org/onto/&quot;)</code></pre><hr/><h2 id="The-base-keyword"><a class="docs-heading-anchor" href="#The-base-keyword">The <code>base</code> keyword</a><a id="The-base-keyword-1"></a><a class="docs-heading-anchor-permalink" href="#The-base-keyword" title="Permalink"></a></h2><p><code>base</code> serves two roles:</p><ol><li><strong>Filter</strong> — only IRIs starting with <code>base</code> are indexed.</li><li><strong>Fallback</strong> — <code>vocab.TermName</code> constructs <code>IRI(base * &quot;TermName&quot;)</code> even for terms not present as subjects in the graph (e.g. terms added after the vocabulary snapshot was taken).</li></ol><p>Without <code>base</code>, every subject IRI is indexed by its local name (the fragment after the last <code>#</code> or <code>/</code>).  This works well for single-namespace vocabularies; for multi-namespace graphs, local name collisions are silently resolved by keeping the first occurrence — use <code>base</code> or the <code>vocab[&quot;http://...&quot;]</code> passthrough form instead.</p><pre><code class="language-julia hljs"># With base — scoped to one namespace, with fallback construction
+v = load_vocabulary(&quot;vocab_data&quot;; format=MIME&quot;text/turtle&quot;())</code></pre>
+</div>
+<h3 id="From-an-existing-Graph" class="md-heading">From an existing Graph<a href="#From-an-existing-Graph" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>If you already have a <code class="md-code-inline">Graph</code> (from <code class="md-code-inline">rdf_read</code>, SPARQL CONSTRUCT, inference, etc.) you can wrap it directly:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">g = rdf_read(&quot;my_ontology.ttl&quot;)
+v = Vocabulary(g; base=&quot;http://example.org/onto/&quot;)</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="The-base-keyword" class="md-heading">The <code class="md-code-inline">base</code> keyword<a href="#The-base-keyword" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">base</code> serves two roles:</p>
+<ol class="md-list-tight">
+<li><p><strong>Filter</strong> — only IRIs starting with <code class="md-code-inline">base</code> are indexed.</p>
+</li>
+<li><p><strong>Fallback</strong> — <code class="md-code-inline">vocab.TermName</code> constructs <code class="md-code-inline">IRI(base * &quot;TermName&quot;)</code> even for terms not present as subjects in the graph (e.g. terms added after the vocabulary snapshot was taken).</p>
+</li>
+</ol>
+<p>Without <code class="md-code-inline">base</code>, every subject IRI is indexed by its local name (the fragment after the last <code class="md-code-inline">#</code> or <code class="md-code-inline">/</code>).  This works well for single-namespace vocabularies; for multi-namespace graphs, local name collisions are silently resolved by keeping the first occurrence — use <code class="md-code-inline">base</code> or the <code class="md-code-inline">vocab[&quot;http://...&quot;]</code> passthrough form instead.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># With base — scoped to one namespace, with fallback construction
 ctdl = load_vocabulary(&quot;ctdl.ttl&quot;; base=&quot;http://purl.org/ctdl/terms/&quot;)
 ctdl.NewTerm   # =&gt; IRI(&quot;http://purl.org/ctdl/terms/NewTerm&quot;) even if absent
 
 # Without base — all subject IRIs indexed by local name
 v = load_vocabulary(&quot;mixed.ttl&quot;)
-v[&quot;http://a.org/Foo&quot;]   # =&gt; IRI(&quot;http://a.org/Foo&quot;)  (full IRI passthrough)</code></pre><hr/><h2 id="Term-access"><a class="docs-heading-anchor" href="#Term-access">Term access</a><a id="Term-access-1"></a><a class="docs-heading-anchor-permalink" href="#Term-access" title="Permalink"></a></h2><table><tr><th style="text-align: right">Syntax</th><th style="text-align: right">Behaviour</th></tr><tr><td style="text-align: right"><code>vocab.TermName</code></td><td style="text-align: right">Local-name lookup; falls back to <code>base * &quot;TermName&quot;</code> if <code>base</code> is set; raises <code>KeyError</code> otherwise</td></tr><tr><td style="text-align: right"><code>vocab[&quot;TermName&quot;]</code></td><td style="text-align: right">Same as dot notation</td></tr><tr><td style="text-align: right"><code>vocab[&quot;http://full/iri&quot;]</code></td><td style="text-align: right">Full IRI passthrough — no lookup, just wraps in <code>IRI(...)</code></td></tr></table><pre><code class="language-julia hljs"># All three are equivalent when the term exists
+v[&quot;http://a.org/Foo&quot;]   # =&gt; IRI(&quot;http://a.org/Foo&quot;)  (full IRI passthrough)</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="Term-access" class="md-heading">Term access<a href="#Term-access" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Syntax</th>
+<th style="text-align:right">Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">vocab.TermName</code></td>
+<td style="text-align:right">Local-name lookup; falls back to <code class="md-code-inline">base * &quot;TermName&quot;</code> if <code class="md-code-inline">base</code> is set; raises <code class="md-code-inline">KeyError</code> otherwise</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">vocab[&quot;TermName&quot;]</code></td>
+<td style="text-align:right">Same as dot notation</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">vocab[&quot;http://full/iri&quot;]</code></td>
+<td style="text-align:right">Full IRI passthrough — no lookup, just wraps in <code class="md-code-inline">IRI(...)</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># All three are equivalent when the term exists
 ctdl.BachelorDegree
 ctdl[&quot;BachelorDegree&quot;]
-ctdl[&quot;http://purl.org/ctdl/terms/BachelorDegree&quot;]</code></pre><hr/><h2 id="Using-vocabulary-terms-in-queries"><a class="docs-heading-anchor" href="#Using-vocabulary-terms-in-queries">Using vocabulary terms in queries</a><a id="Using-vocabulary-terms-in-queries-1"></a><a class="docs-heading-anchor-permalink" href="#Using-vocabulary-terms-in-queries" title="Permalink"></a></h2><p>Vocabulary terms are plain <code>IRI</code> values, so they work anywhere an <code>IRI</code> is expected — including SPARQL queries via string interpolation:</p><pre><code class="language-julia hljs">result = sparql(ds, &quot;&quot;&quot;
+ctdl[&quot;http://purl.org/ctdl/terms/BachelorDegree&quot;]</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="Using-vocabulary-terms-in-queries" class="md-heading">Using vocabulary terms in queries<a href="#Using-vocabulary-terms-in-queries" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Vocabulary terms are plain <code class="md-code-inline">IRI</code> values, so they work anywhere an <code class="md-code-inline">IRI</code> is expected — including SPARQL queries via string interpolation:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">result = sparql(ds, &quot;&quot;&quot;
   PREFIX ctdl: &lt;http://purl.org/ctdl/terms/&gt;
   SELECT ?cred ?name WHERE {
     ?cred a        &lt;$(ctdl.BachelorDegree)&gt; ;
           ctdl:name ?name .
   }
-&quot;&quot;&quot;)</code></pre><p>Or build the triple pattern directly:</p><pre><code class="language-julia hljs">for t in match(g; predicate=rdf.type, object=ctdl.BachelorDegree)
+&quot;&quot;&quot;)</code></pre>
+</div>
+<p>Or build the triple pattern directly:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">for t in match(g; predicate=rdf.type, object=ctdl.BachelorDegree)
     println(t.subject)
-end</code></pre><hr/><h2 id="Scientific-domain-vocabularies"><a class="docs-heading-anchor" href="#Scientific-domain-vocabularies">Scientific domain vocabularies</a><a id="Scientific-domain-vocabularies-1"></a><a class="docs-heading-anchor-permalink" href="#Scientific-domain-vocabularies" title="Permalink"></a></h2><p>The <code>Vocabulary</code> API is designed for the rich ecosystem of scientific ontologies:</p><table><tr><th style="text-align: right">Domain</th><th style="text-align: right">Vocabulary</th><th style="text-align: right">URL</th></tr><tr><td style="text-align: right">Biology</td><td style="text-align: right">Gene Ontology (GO)</td><td style="text-align: right"><code>http://purl.obolibrary.org/obo/go.owl</code></td></tr><tr><td style="text-align: right">Chemistry</td><td style="text-align: right">ChEBI</td><td style="text-align: right"><code>http://purl.obolibrary.org/obo/chebi.owl</code></td></tr><tr><td style="text-align: right">Ecology</td><td style="text-align: right">Darwin Core</td><td style="text-align: right"><code>https://dwc.tdwg.org/rdf/dwcterms.rdf</code></td></tr><tr><td style="text-align: right">Genomics</td><td style="text-align: right">Sequence Ontology</td><td style="text-align: right"><code>http://purl.obolibrary.org/obo/so.owl</code></td></tr><tr><td style="text-align: right">Phenotypes</td><td style="text-align: right">Human Phenotype Ontology</td><td style="text-align: right"><code>http://purl.obolibrary.org/obo/hp.owl</code></td></tr><tr><td style="text-align: right">Provenance</td><td style="text-align: right">PROV-O</td><td style="text-align: right"><code>http://www.w3.org/ns/prov-o</code></td></tr><tr><td style="text-align: right">Credentials</td><td style="text-align: right">CTDL</td><td style="text-align: right"><code>https://credreg.net/ctdl/schema/encoding/turtle</code></td></tr></table><pre><code class="language-julia hljs">using RDF, HTTP
+end</code></pre>
+</div>
+<hr class="md-hr">
+<h2 id="Scientific-domain-vocabularies" class="md-heading">Scientific domain vocabularies<a href="#Scientific-domain-vocabularies" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>The <code class="md-code-inline">Vocabulary</code> API is designed for the rich ecosystem of scientific ontologies:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:right">Domain</th>
+<th style="text-align:right">Vocabulary</th>
+<th style="text-align:right">URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">Biology</td>
+<td style="text-align:right">Gene Ontology (GO)</td>
+<td style="text-align:right"><code class="md-code-inline">http://purl.obolibrary.org/obo/go.owl</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Chemistry</td>
+<td style="text-align:right">ChEBI</td>
+<td style="text-align:right"><code class="md-code-inline">http://purl.obolibrary.org/obo/chebi.owl</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Ecology</td>
+<td style="text-align:right">Darwin Core</td>
+<td style="text-align:right"><code class="md-code-inline">https://dwc.tdwg.org/rdf/dwcterms.rdf</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Genomics</td>
+<td style="text-align:right">Sequence Ontology</td>
+<td style="text-align:right"><code class="md-code-inline">http://purl.obolibrary.org/obo/so.owl</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Phenotypes</td>
+<td style="text-align:right">Human Phenotype Ontology</td>
+<td style="text-align:right"><code class="md-code-inline">http://purl.obolibrary.org/obo/hp.owl</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Provenance</td>
+<td style="text-align:right">PROV-O</td>
+<td style="text-align:right"><code class="md-code-inline">http://www.w3.org/ns/prov-o</code></td>
+</tr>
+<tr>
+<td style="text-align:right">Credentials</td>
+<td style="text-align:right">CTDL</td>
+<td style="text-align:right"><code class="md-code-inline">https://credreg.net/ctdl/schema/encoding/turtle</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
 
 # Darwin Core
 dwc = load_vocabulary(&quot;https://dwc.tdwg.org/rdf/dwcterms.rdf&quot;;
                        base=&quot;http://rs.tdwg.org/dwc/terms/&quot;)
 
 dwc.scientificName    # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/scientificName&quot;)
-dwc.decimalLatitude   # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/decimalLatitude&quot;)</code></pre><div class="admonition is-info" id="Large-ontologies-1ab5f73313ba4187"><header class="admonition-header">Large ontologies<a class="admonition-anchor" href="#Large-ontologies-1ab5f73313ba4187" title="Permalink"></a></header><div class="admonition-body"><p>OBO ontologies like GO and ChEBI contain tens of thousands of terms and can take a few seconds to parse and index.  Consider caching the resulting <code>Vocabulary</code> object for reuse within a session.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../ai/">« AI &amp; GraphRAG</a><a class="docs-footer-nextpage" href="../inference/">Inference &amp; Validation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 19 August 2026 16:45">Wednesday 19 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+dwc.decimalLatitude   # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/decimalLatitude&quot;)</code></pre>
+</div>
+<div class="md-admonition md-admonition-note">
+<p class="md-admonition-title">Large ontologies</p>
+<div class="md-admonition-body">
+<p>OBO ontologies like GO and ChEBI contain tens of thousands of terms and can take a few seconds to parse and index.  Consider caching the resulting <code class="md-code-inline">Vocabulary</code> object for reuse within a session.</p>
+</div>
+</div>
+      </article>
+      <footer class="md-footer">
+        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Quick-start">Quick start</a>
+          <a class="md-toc-link md-toc-h2" href="#Construction">Construction</a>
+            <a class="md-toc-link md-toc-h3" href="#From-a-file-or-URL">From a file or URL</a>
+            <a class="md-toc-link md-toc-h3" href="#From-an-existing-Graph">From an existing Graph</a>
+          <a class="md-toc-link md-toc-h2" href="#The-base-keyword">The base keyword</a>
+          <a class="md-toc-link md-toc-h2" href="#Term-access">Term access</a>
+          <a class="md-toc-link md-toc-h2" href="#Using-vocabulary-terms-in-queries">Using vocabulary terms in queries</a>
+          <a class="md-toc-link md-toc-h2" href="#Scientific-domain-vocabularies">Scientific domain vocabularies</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../assets/materialdocs.js?v=f2d9c3c6"></script>
+</body>
+</html>
