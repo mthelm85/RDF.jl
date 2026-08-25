@@ -12,4 +12,4 @@ body = "Roboto"
 code = "JetBrains Mono"
 
 [theme.shape]
-corner_radius = "slight"
+corner_radius = "default"
