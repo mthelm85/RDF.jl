@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inference & Validation — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=e6595ab6">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=9123558a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -39,7 +39,7 @@
 <div class="md-docstring" id="RDF.infer_rdfs">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.infer_rdfs</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/inference.jl#L5-L18" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/1304e0d83325a186da4edf4da122ce11b1766e37/src/inference.jl#L5-L18" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -58,7 +58,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))  # checks via RDFS closure</co
 <div class="md-docstring" id="RDF.infer_rdfs!">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.infer_rdfs!</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/inference.jl#L26-L31" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/1304e0d83325a186da4edf4da122ce11b1766e37/src/inference.jl#L26-L31" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -71,7 +71,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))  # checks via RDFS closure</co
 <div class="md-docstring" id="RDF.entails">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.entails</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/inference.jl#L176-L188" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/1304e0d83325a186da4edf4da122ce11b1766e37/src/inference.jl#L176-L188" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -172,7 +172,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal); regime=:simple)  # direct memb
 <div class="md-docstring" id="RDF.validate">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.validate</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/validation.jl#L15-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/1304e0d83325a186da4edf4da122ce11b1766e37/src/validation.jl#L15-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -198,7 +198,7 @@ isempty(warns) || foreach(w -&gt; @warn(w.message), warns)</code></pre>
 <div class="md-docstring" id="RDF.ValidationWarning">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.ValidationWarning</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/2b0dd86eba14e6dbf8cf1cccfa87b36abbf3e8cb/src/validation.jl#L1-L8" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/1304e0d83325a186da4edf4da122ce11b1766e37/src/validation.jl#L1-L8" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -259,6 +259,6 @@ end</code></pre>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
   <script>hljs.highlightAll();</script>
-  <script src="../assets/materialdocs.js?v=e6595ab6"></script>
+  <script src="../assets/materialdocs.js?v=9123558a"></script>
 </body>
 </html>

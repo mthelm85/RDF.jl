@@ -28,17 +28,49 @@
 
   // ── Mobile hamburger ──
   var hamburger = document.getElementById('md-hamburger');
+  // Multi-page sites have .md-sidebar; single-page sites only have .md-toc
   var sidebar = document.querySelector('.md-sidebar');
-  if (hamburger && sidebar) {
+  var toc = document.querySelector('.md-toc');
+  var panel = sidebar || toc;
+
+  if (hamburger && panel) {
+    // Create scrim overlay
+    var scrim = document.createElement('div');
+    scrim.className = 'md-sidebar-scrim';
+    document.body.appendChild(scrim);
+
+    // If using TOC as the mobile panel, add the sidebar positioning classes
+    if (!sidebar && toc) {
+      toc.classList.add('md-mobile-nav');
+    }
+
+    function openPanel() {
+      panel.classList.add('md-sidebar-open');
+      scrim.classList.add('active');
+      hamburger.setAttribute('aria-expanded', 'true');
+    }
+
+    function closePanel() {
+      panel.classList.remove('md-sidebar-open');
+      scrim.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+
     hamburger.addEventListener('click', function() {
-      var open = sidebar.classList.toggle('md-sidebar-open');
-      hamburger.setAttribute('aria-expanded', open);
+      if (panel.classList.contains('md-sidebar-open')) {
+        closePanel();
+      } else {
+        openPanel();
+      }
     });
-    // Close sidebar when clicking a link (mobile)
-    sidebar.addEventListener('click', function(e) {
+
+    // Close when clicking scrim
+    scrim.addEventListener('click', closePanel);
+
+    // Close when clicking a link inside the panel
+    panel.addEventListener('click', function(e) {
       if (e.target.tagName === 'A') {
-        sidebar.classList.remove('md-sidebar-open');
-        hamburger.setAttribute('aria-expanded', 'false');
+        closePanel();
       }
     });
   }
