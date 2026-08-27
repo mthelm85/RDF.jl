@@ -34,6 +34,7 @@ Thumbs.db
 # Claude Code
 .claude/
 CLAUDE.md
+AGENTS.md
 
 examples/
 .vscode/
