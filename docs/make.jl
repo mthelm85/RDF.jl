@@ -9,7 +9,7 @@ makedocs(;
     authors="Matthew Helm",
     sitename="RDF.jl",
     checkdocs = :exports,   # only warn about public API, not internal AST types
-    format=Material3(dark_mode=:light),
+    format=Material3(),
     pages=[
         "Home"                    => "index.md",
         "Terms"                   => "terms.md",
