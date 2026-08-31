@@ -157,6 +157,118 @@
   --md-code-variable: #24292f;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --md-sys-color-error: #FFB4AB;
+    --md-sys-color-error-container: #93000A;
+    --md-sys-color-inverse-on-surface: #34302A;
+    --md-sys-color-inverse-primary: #7C5800;
+    --md-sys-color-inverse-surface: #E9E1D9;
+    --md-sys-color-on-error: #690005;
+    --md-sys-color-on-error-container: #FFDAD6;
+    --md-sys-color-on-primary: #412D00;
+    --md-sys-color-on-primary-container: #FFDEA6;
+    --md-sys-color-on-secondary: #3C2E16;
+    --md-sys-color-on-secondary-container: #F7DFBB;
+    --md-sys-color-on-surface: #E9E1D9;
+    --md-sys-color-on-surface-variant: #D1C5B4;
+    --md-sys-color-on-tertiary: #1F361A;
+    --md-sys-color-on-tertiary-container: #CEEBC2;
+    --md-sys-color-outline: #9A8F80;
+    --md-sys-color-outline-variant: #4E4639;
+    --md-sys-color-primary: #F8BD43;
+    --md-sys-color-primary-container: #5E4200;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-secondary: #D9C4A1;
+    --md-sys-color-secondary-container: #54452A;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-surface: #16130E;
+    --md-sys-color-surface-bright: #3D3933;
+    --md-sys-color-surface-container: #231F1A;
+    --md-sys-color-surface-container-high: #2D2924;
+    --md-sys-color-surface-container-highest: #38342E;
+    --md-sys-color-surface-container-low: #1E1B16;
+    --md-sys-color-surface-container-lowest: #110E09;
+    --md-sys-color-surface-dim: #16130E;
+    --md-sys-color-surface-variant: #4E4639;
+    --md-sys-color-tertiary: #B3CEA7;
+    --md-sys-color-tertiary-container: #354D2F;
+    /* Syntax highlighting */
+    --md-code-addition: #7ee787;
+    --md-code-addition-bg: #04260f;
+    --md-code-attr: #7ee787;
+    --md-code-builtin: #79c0ff;
+    --md-code-comment: #8b949e;
+    --md-code-deletion: #ffa198;
+    --md-code-deletion-bg: #490202;
+    --md-code-function: #d2a8ff;
+    --md-code-keyword: #ff7b72;
+    --md-code-literal: #79c0ff;
+    --md-code-meta: #d2a8ff;
+    --md-code-number: #79c0ff;
+    --md-code-operator: #ff7b72;
+    --md-code-punctuation: #c9d1d9;
+    --md-code-string: #a5d6ff;
+    --md-code-type: #ffa657;
+    --md-code-variable: #c9d1d9;
+  }
+}
+
+:root[data-theme="dark"] {
+  --md-sys-color-error: #FFB4AB;
+  --md-sys-color-error-container: #93000A;
+  --md-sys-color-inverse-on-surface: #34302A;
+  --md-sys-color-inverse-primary: #7C5800;
+  --md-sys-color-inverse-surface: #E9E1D9;
+  --md-sys-color-on-error: #690005;
+  --md-sys-color-on-error-container: #FFDAD6;
+  --md-sys-color-on-primary: #412D00;
+  --md-sys-color-on-primary-container: #FFDEA6;
+  --md-sys-color-on-secondary: #3C2E16;
+  --md-sys-color-on-secondary-container: #F7DFBB;
+  --md-sys-color-on-surface: #E9E1D9;
+  --md-sys-color-on-surface-variant: #D1C5B4;
+  --md-sys-color-on-tertiary: #1F361A;
+  --md-sys-color-on-tertiary-container: #CEEBC2;
+  --md-sys-color-outline: #9A8F80;
+  --md-sys-color-outline-variant: #4E4639;
+  --md-sys-color-primary: #F8BD43;
+  --md-sys-color-primary-container: #5E4200;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-secondary: #D9C4A1;
+  --md-sys-color-secondary-container: #54452A;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-surface: #16130E;
+  --md-sys-color-surface-bright: #3D3933;
+  --md-sys-color-surface-container: #231F1A;
+  --md-sys-color-surface-container-high: #2D2924;
+  --md-sys-color-surface-container-highest: #38342E;
+  --md-sys-color-surface-container-low: #1E1B16;
+  --md-sys-color-surface-container-lowest: #110E09;
+  --md-sys-color-surface-dim: #16130E;
+  --md-sys-color-surface-variant: #4E4639;
+  --md-sys-color-tertiary: #B3CEA7;
+  --md-sys-color-tertiary-container: #354D2F;
+  /* Syntax highlighting */
+  --md-code-addition: #7ee787;
+  --md-code-addition-bg: #04260f;
+  --md-code-attr: #7ee787;
+  --md-code-builtin: #79c0ff;
+  --md-code-comment: #8b949e;
+  --md-code-deletion: #ffa198;
+  --md-code-deletion-bg: #490202;
+  --md-code-function: #d2a8ff;
+  --md-code-keyword: #ff7b72;
+  --md-code-literal: #79c0ff;
+  --md-code-meta: #d2a8ff;
+  --md-code-number: #79c0ff;
+  --md-code-operator: #ff7b72;
+  --md-code-punctuation: #c9d1d9;
+  --md-code-string: #a5d6ff;
+  --md-code-type: #ffa657;
+  --md-code-variable: #c9d1d9;
+}
+
 
 /* ── base.css ── */
 /* ── MaterialDocs: Reset & Base ──
@@ -639,62 +751,89 @@ li p { margin-bottom: 0.25rem; }
 /* ── Strikethrough ── */
 del { color: var(--md-sys-color-on-surface-variant); }
 
-/* ── Search overlay ── */
-.md-search-overlay {
+/* ── MD3 Search view ──
+   The expanded state of the navbar search bar. Docked beneath the bar on
+   wide windows; full-screen on compact ones. Per MD3, the docked view
+   carries no scrim — the click-catcher below is deliberately transparent. */
+
+.md-search-scrim {
   display: none;
   position: fixed;
   inset: 0;
+  z-index: 190;
+  background: transparent;
+}
+.md-search-scrim.md-search-active { display: block; }
+
+.md-search-view {
+  display: none;
+  position: fixed;
+  top: var(--md-search-top, 3.5rem);
+  left: var(--md-search-left, auto);
+  width: var(--md-search-width, 28rem);
+  max-height: calc(100vh - 5rem);
   z-index: 200;
-  background: rgba(0,0,0,0.5);
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 15vh;
-}
-.md-search-overlay.md-search-active {
-  display: flex;
-}
-.md-search-modal {
-  width: 90%;
-  max-width: 36rem;
-  background: var(--md-sys-color-surface);
-  border-radius: var(--md-sys-shape-corner-large);
-  box-shadow: var(--md-sys-elevation-3);
+  flex-direction: column;
   overflow: hidden;
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  box-shadow: var(--md-sys-elevation-3);
+}
+.md-search-view.md-search-active { display: flex; }
+
+/* Header row — leading icon, input, trailing clear button */
+.md-search-view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.5rem 0 0.75rem;
+  height: 3.5rem;
+  flex: none;
 }
 .md-search-input {
-  width: 100%;
-  padding: 0.875rem 1.25rem;
-  font-size: 1rem;
-  font-family: var(--md-sys-typescale-body-large-font);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 0.5rem;
   border: none;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface);
   outline: none;
-  box-sizing: border-box;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-sys-typescale-body-large-font);
+  font-size: var(--md-sys-typescale-body-large-size);
 }
-.md-search-input::placeholder {
-  color: var(--md-sys-color-on-surface-variant);
+.md-search-input::placeholder { color: var(--md-sys-color-on-surface-variant); }
+.md-search-clear[hidden] { display: none; }
+
+/* Divider appears only once there is something to divide */
+.md-search-view-header + .md-search-results:not(:empty) {
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
+
 .md-search-results {
-  max-height: 50vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-sys-color-outline-variant) transparent;
+  padding: 0.5rem 0;
 }
+.md-search-results:empty { display: none; }
+
+/* MD3 list item */
 .md-search-item {
   display: block;
-  padding: 0.625rem 1.25rem;
+  padding: 0.625rem 1rem;
   text-decoration: none;
   color: var(--md-sys-color-on-surface);
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   transition: background var(--md-sys-motion-duration-short1) var(--md-sys-motion-easing-standard);
 }
-.md-search-item:last-child { border-bottom: none; }
 .md-search-item:hover,
 .md-search-item.md-search-selected {
-  background: var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-surface-container-highest);
+  text-decoration: none;
 }
 .md-search-item-title {
   display: block;
+  font-size: var(--md-sys-typescale-body-large-size);
   font-weight: 500;
 }
 .md-search-item-section {
@@ -716,20 +855,30 @@ del { color: var(--md-sys-color-on-surface-variant); }
 .md-search-mark {
   background: var(--md-sys-color-tertiary-container);
   color: var(--md-sys-color-on-tertiary-container);
-  border-radius: 2px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   padding: 0 0.125em;
 }
 .md-search-empty {
-  padding: 1.25rem;
+  padding: 1.25rem 1rem;
   text-align: center;
   color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium-size);
 }
-.md-search-hint {
-  padding: 0.5rem 1.25rem;
-  font-size: var(--md-sys-typescale-label-small-size);
-  color: var(--md-sys-color-on-surface-variant);
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-  text-align: center;
+
+/* Full-screen search view on compact windows */
+@media (max-width: 768px) {
+  .md-search-view {
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    background: var(--md-sys-color-surface);
+    box-shadow: none;
+  }
+  .md-search-results { flex: 1; }
 }
 
 
@@ -761,23 +910,159 @@ del { color: var(--md-sys-color-on-surface-variant); }
   color: var(--md-sys-color-on-surface);
 }
 
-/* Theme toggle button */
+.md-navbar-spacer { flex: 1; }
+
+/* ── Icons ── */
+.md-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* MD3 icon button — 40px touch target, circular state layer */
 .md-icon-btn {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.375rem;
+  width: 40px;
+  height: 40px;
+  flex: none;
   border-radius: var(--md-sys-shape-corner-full);
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 1.25rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  text-decoration: none;
+  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+              color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 .md-icon-btn:hover {
   background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  text-decoration: none;
 }
+.md-icon-btn:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* Theme toggle — the button shows the mode you would switch TO, so in the
+   default (light) theme we show the moon. The dark-theme swap rules are
+   emitted into the generated token CSS, only when dark_mode = :toggle. */
+.md-icon-light { display: none; }
+
+/* ── Repository link ── */
+.md-repo-link { gap: 0.5rem; }
+.md-repo-label { display: none; }
+
+/* ── MD3 search bar (collapsed state of the search view) ── */
+.md-search-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 40px;
+  min-width: 15rem;
+  padding: 0 0.75rem 0 1rem;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--md-sys-typescale-body-large-font);
+  font-size: var(--md-sys-typescale-body-large-size);
+  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+              box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+.md-search-bar:hover {
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: var(--md-sys-elevation-1);
+}
+.md-search-bar:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+.md-search-bar-icon { flex: none; }
+.md-search-bar-label { flex: 1; }
+.md-search-bar-kbd {
+  flex: none;
+  font-family: var(--md-sys-typescale-body-large-font);
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  padding: 0.125rem 0.375rem;
+}
+
+/* ── Version selector ── */
+.md-version { position: relative; flex: none; }
+.md-version-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  height: 40px;
+  padding: 0 0.5rem 0 0.875rem;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: none;
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--md-sys-typescale-label-large-font);
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+.md-version-btn:hover { background: var(--md-sys-color-surface-container-high); }
+.md-version-btn:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+.md-version-caret {
+  transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+.md-version-btn[aria-expanded="true"] .md-version-caret { transform: rotate(180deg); }
+
+/* MD3 menu */
+.md-version-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 120;
+  min-width: 10rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  box-shadow: var(--md-sys-elevation-2);
+}
+.md-version-menu li { margin: 0; }
+.md-version-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem 0.625rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-sys-typescale-body-medium-font);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  transition: background var(--md-sys-motion-duration-short1) var(--md-sys-motion-easing-standard);
+}
+.md-version-item:hover { background: var(--md-sys-color-surface-container-highest); }
+.md-version-item[aria-selected="true"] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.md-version-item .md-icon { visibility: hidden; width: 18px; height: 18px; }
+.md-version-item[aria-selected="true"] .md-icon { visibility: visible; }
 
 /* ── Sidebar ── */
 .md-sidebar {
@@ -840,18 +1125,39 @@ del { color: var(--md-sys-color-on-surface-variant); }
   display: none !important;
 }
 
-/* Hamburger (mobile) */
-.md-hamburger {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.5rem;
-  padding: 0.25rem;
-  color: var(--md-sys-color-on-surface);
+/* Hamburger (mobile) — visual styling comes from .md-icon-btn */
+.md-hamburger { display: none; }
+
+/* Show the repository host name once there's room for it */
+@media (min-width: 1100px) {
+  .md-repo-link {
+    width: auto;
+    padding: 0 0.875rem;
+    gap: 0.5rem;
+  }
+  .md-repo-label {
+    display: inline;
+    font-family: var(--md-sys-typescale-label-large-font);
+    font-size: var(--md-sys-typescale-label-large-size);
+    font-weight: var(--md-sys-typescale-label-large-weight);
+  }
 }
+
+/* Narrow desktop — shrink the search bar, drop the shortcut hint */
+@media (max-width: 1000px) {
+  .md-search-bar { min-width: 0; width: 40px; padding: 0; justify-content: center; }
+  .md-search-bar-label, .md-search-bar-kbd { display: none; }
+}
+
 @media (max-width: 768px) {
-  .md-hamburger { display: flex; }
+  .md-hamburger { display: inline-flex; }
+  .md-navbar { padding: 0.625rem 0.75rem; gap: 0.25rem; }
+  .md-navbar-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .md-sidebar {
     position: fixed;
     left: 0;
@@ -893,7 +1199,7 @@ del { color: var(--md-sys-color-on-surface-variant); }
     inset: 0;
     top: 3.5rem;
     z-index: 89;
-    background: rgba(0, 0, 0, 0.32);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
     transition: opacity var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
     opacity: 0;
   }
