@@ -548,6 +548,55 @@ end
         @test length(g) >= 1
     end
 
+    @testset "DESCRIBE — WHERE clause is optional (SPARQL 1.1 §16.4)" begin
+        ds = _sparql_ds()
+
+        # A bare `DESCRIBE <iri>` used to throw: the parser leaves `pattern`
+        # as `nothing` when the WHERE clause is omitted, and validation called
+        # _sp_validate_bind_scope on it unconditionally.
+        bare = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          DESCRIBE ex:alice
+        """)
+        @test bare isa Graph
+        @test length(bare) >= 1
+
+        # …and it agrees with the explicit empty-pattern spelling
+        empty_where = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          DESCRIBE ex:alice WHERE { }
+        """)
+        @test bare == empty_where
+
+        # Every triple returned has ex:alice as its subject
+        @test all(t -> t.subject == IRI("http://example.org/alice"), bare)
+
+        # Multiple resources, still no WHERE
+        multi = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          DESCRIBE ex:alice ex:bob
+        """)
+        @test multi isa Graph
+        @test length(multi) >= length(bare)
+        @test issubgraph(bare, multi)
+
+        # An IRI with no triples describes to the empty graph, not an error
+        none = sparql(ds, """
+          PREFIX ex: <http://example.org/>
+          DESCRIBE ex:nobody
+        """)
+        @test none isa Graph
+        @test isempty(none)
+
+        # `DESCRIBE *` with no WHERE has no variables to bind → empty graph
+        star = sparql(ds, "DESCRIBE *")
+        @test star isa Graph
+        @test isempty(star)
+
+        # The parse itself must succeed (the failure was at validation time)
+        @test sparql_parse("DESCRIBE <http://example.org/alice>") !== nothing
+    end
+
     # ── SolutionSet / SolutionRow interface ───────────────────────────────────
 
     @testset "SolutionSet — iteration" begin

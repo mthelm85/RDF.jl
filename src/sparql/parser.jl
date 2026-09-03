@@ -2742,7 +2742,11 @@ function _sp_validate_unit(unit::SpUnit)
         elseif q isa SpAskQuery
             _sp_validate_bind_scope(q.pattern)
         elseif q isa SpDescribeQuery
-            _sp_validate_bind_scope(q.pattern)
+            # DESCRIBE is the only query form whose WHERE clause is optional
+            # (SPARQL 1.1 §16.4: `DESCRIBE <iri>` is legal on its own), so
+            # `pattern` is the only one that can be `nothing`. There is no
+            # scope to validate when there is no pattern.
+            q.pattern !== nothing && _sp_validate_bind_scope(q.pattern)
         end
     elseif unit isa SpUpdateUnit
         # Validate blank nodes not shared across INSERT DATA operations
