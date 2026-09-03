@@ -79,7 +79,7 @@ ttl = """
   ex:bob   foaf:name "Bob"   ; foaf:age 25 .
 """
 
-ds = Dataset(; default_graph=read(IOBuffer(ttl), MIME"text/turtle"(), Graph))
+ds = Dataset(; default_graph=read(IOBuffer(ttl), :ttl, Graph))
 
 # SELECT
 result = sparql(ds, """
@@ -239,29 +239,41 @@ end
 
 ### Serialization
 
+Formats are named with a symbol: `:ttl` (`:turtle`), `:nt` (`:ntriples`),
+`:nq` (`:nquads`), `:jsonld`, `:rdfxml` (`:xml`).
+
 ```julia
 # Turtle (parse + write)
-g = read("data.ttl", MIME"text/turtle"(), Graph)
-g = read("data.ttl", MIME"text/turtle"(), Graph, "http://base-uri.example/")
-write(io, MIME"text/turtle"(), g)
+g = read("data.ttl", :ttl, Graph)
+g = read("data.ttl", :ttl, Graph, "http://base-uri.example/")
+write(io, :ttl, g)
 
 # N-Triples / N-Quads
-write(io, MIME"application/n-triples"(), g)
-g = read(io, MIME"application/n-triples"(), Graph)
-write(io, MIME"application/n-quads"(), ds)
-ds = read(io, MIME"application/n-quads"(), Dataset)
+write(io, :nt, g)
+g = read(io, :nt, Graph)
+write(io, :nq, ds)
+ds = read(io, :nq, Dataset)
 
 # JSON-LD (parse + write)
-g = read(io, MIME"application/ld+json"(), Graph)
-ds = read(io, MIME"application/ld+json"(), Dataset)
-write(io, MIME"application/ld+json"(), g)
-write(io, MIME"application/ld+json"(), g; context=Dict("@vocab" => "http://schema.org/"))
+g = read(io, :jsonld, Graph)
+ds = read(io, :jsonld, Dataset)
+write(io, :jsonld, g)
+write(io, :jsonld, g; context=Dict("@vocab" => "http://schema.org/"))
 
 # Convenience: dispatch on file extension (.ttl / .nt / .nq / .jsonld)
 rdf_write("data.nt", g)
 g = rdf_read("data.ttl")
 g = rdf_read("data.jsonld")
+
+# …or say it outright when the extension does not
+rdf_write("data.txt", g; format=:ttl)
+g = rdf_read("data.txt"; format=:ttl)
 ```
+
+The corresponding MIME type works everywhere a symbol does — `read(io,
+MIME"text/turtle"(), Graph)` is the underlying dispatch, which is what makes the
+format set extensible (`RDFXMLExt` adds `application/rdf+xml` this way) and what
+lets an HTTP `Content-Type` header be passed straight through.
 
 ### SPARQL result serialization
 
@@ -269,12 +281,12 @@ g = rdf_read("data.jsonld")
 result = sparql(ds, "SELECT * WHERE { ?s ?p ?o }")
 
 # W3C standard wire formats — ready for HTTP API responses
-write(io, MIME"application/sparql-results+json"(), result)  # SPARQL/JSON
-write(io, MIME"application/sparql-results+xml"(),  result)  # SPARQL/XML
-write(io, MIME"text/csv"(),                        result)  # CSV
-write(io, MIME"text/tab-separated-values"(),       result)  # TSV
+write(io, :json, result)   # SPARQL/JSON  (also :srj)
+write(io, :xml,  result)   # SPARQL/XML   (also :srx)
+write(io, :csv,  result)   # CSV
+write(io, :tsv,  result)   # TSV
 
-# ASK results
+# ASK results are a plain Bool, so they take the MIME form
 write(io, MIME"application/sparql-results+json"(), sparql(ds, "ASK { ?s ?p ?o }"))
 ```
 

@@ -68,7 +68,7 @@ ctdl = load_vocabulary("https://credreg.net/ctdl/schema/encoding/turtle";
                         base="http://purl.org/ctdl/terms/")
 
 # Explicit format override
-v = load_vocabulary("vocab_data"; format=MIME"text/turtle"())
+v = load_vocabulary("vocab_data"; format=:ttl)
 ```
 
 ### From an existing Graph

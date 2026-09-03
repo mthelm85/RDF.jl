@@ -250,7 +250,7 @@ shapes = read(IOBuffer("""
   ex:PersonShape a sh:NodeShape ;
     sh:targetClass ex:Person ;
     sh:property [ sh:path ex:age ; sh:datatype xsd:integer ; sh:minCount 1 ] .
-"""), MIME"text/turtle"(), Graph)
+"""), :ttl, Graph)
 
 report = validate_shapes(extracted, shapes)
 if !report.conforms

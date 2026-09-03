@@ -114,21 +114,26 @@ result = sparql(ds, """
 
 ```julia
 # Turtle (parse + write)
-g = read("data.ttl", MIME"text/turtle"(), Graph)
-write(io, MIME"text/turtle"(), g)
+g = read("data.ttl", :ttl, Graph)
+write(io, :ttl, g)
 
 # JSON-LD (parse + write)
-g = read("data.jsonld", MIME"application/ld+json"(), Graph)
-write(io, MIME"application/ld+json"(), g)
+g = read("data.jsonld", :jsonld, Graph)
+write(io, :jsonld, g)
 
 # N-Triples / N-Quads
-write(io, MIME"application/n-triples"(), g)
-write(io, MIME"application/n-quads"(), ds)
+write(io, :nt, g)
+write(io, :nq, ds)
 
 # Convenience: dispatch on file extension (.ttl / .nt / .nq / .jsonld)
 rdf_write("data.nt", g)
 g = rdf_read("data.ttl")
+g = rdf_read("data.txt"; format=:ttl)   # or name the format outright
 ```
+
+The equivalent MIME value (`MIME"text/turtle"()`) is accepted everywhere a
+symbol is, and is what these dispatch to — see
+[Serialization](serialization.md).
 
 ### SPARQL result serialization
 
@@ -136,14 +141,14 @@ g = rdf_read("data.ttl")
 result = sparql(ds, "SELECT * WHERE { ?s ?p ?o }")
 
 # SPARQL/JSON (for HTTP APIs)
-write(io, MIME"application/sparql-results+json"(), result)
+write(io, :json, result)
 
 # SPARQL/XML
-write(io, MIME"application/sparql-results+xml"(), result)
+write(io, :xml, result)
 
 # CSV / TSV
-write(io, MIME"text/csv"(), result)
-write(io, MIME"text/tab-separated-values"(), result)
+write(io, :csv, result)
+write(io, :tsv, result)
 ```
 
 ### RDFS inference

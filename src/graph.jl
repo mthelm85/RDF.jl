@@ -42,7 +42,7 @@ Significantly faster than `push!` in a loop for thousands or millions of triples
 
 ```julia
 # From a parsed graph
-bulk_load!(g, read("data.nt", MIME"application/n-triples"(), Graph))
+bulk_load!(g, read("data.nt", :nt, Graph))
 
 # From a generator
 bulk_load!(g, (Triple(ex[string(i)], rdf.type, ex.Thing) for i in 1:100_000))

@@ -325,7 +325,8 @@ _truncate(s::AbstractString, n::Int) =
 Fetch and load an RDF vocabulary from an HTTP/HTTPS URL.
 
 Content-negotiation requests Turtle first (`q=1.0`), then N-Triples (`q=0.9`),
-then JSON-LD (`q=0.7`).  Pass `format` to request a specific MIME type instead.
+then JSON-LD (`q=0.7`).  Pass `format` to request one format instead — a symbol
+(`:ttl`, `:nt`, `:jsonld`, `:rdfxml`), a `MIME`, or a full Accept-header string.
 
 Activated automatically when `HTTP.jl` is loaded alongside `RDF.jl`.
 
@@ -345,7 +346,8 @@ function RDF._vocab_load_http(source::AbstractString;
                                base   = nothing,
                                format = nothing)
     accept = if format !== nothing
-        string(format)   # e.g. "text/turtle"
+        # :ttl / MIME"text/turtle"() / "text/turtle;q=1.0, …" all accepted
+        RDF._format_accept(format)
     else
         "text/turtle;q=1.0, application/n-triples;q=0.9, " *
         "application/rdf+xml;q=0.8, application/ld+json;q=0.7"
