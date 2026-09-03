@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vocabulary API — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=3c115cea">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=70cccbf7">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -50,7 +50,7 @@
 <div class="md-docstring" id="RDF.Vocabulary">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.Vocabulary</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/vocabulary.jl#L7-L19" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/vocabulary.jl#L7-L19" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="RDF.load_vocabulary">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.load_vocabulary</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/vocabulary.jl#L213-L264" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/vocabulary.jl#L213-L266" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -113,7 +113,7 @@
 </div>
 <p><strong>Remote URLs</strong> — requires <code class="md-code-inline">HTTP.jl</code> to be loaded alongside <code class="md-code-inline">RDF.jl</code>. Content-negotiation requests Turtle first, then N-Triples, then JSON-LD.</p>
 <p><strong><code class="md-code-inline">base</code></strong> restricts indexing to IRIs that start with the given string prefix and sets the namespace used by <code class="md-code-inline">vocab.Term</code> property access.  If omitted, all subject IRIs are indexed by local name (fragment after the last <code class="md-code-inline">#</code> or <code class="md-code-inline">/</code>).</p>
-<p><strong><code class="md-code-inline">format</code></strong> overrides extension-based detection, e.g. <code class="md-code-inline">MIME&quot;text/turtle&quot;()</code>.</p>
+<p><strong><code class="md-code-inline">format</code></strong> overrides extension-based detection: a symbol (<code class="md-code-inline">:ttl</code>, <code class="md-code-inline">:nt</code>, <code class="md-code-inline">:nq</code>, <code class="md-code-inline">:jsonld</code>, <code class="md-code-inline">:rdfxml</code>) or a <code class="md-code-inline">MIME</code> value.  For remote URLs it also accepts a full Accept-header string.</p>
 <p><strong>Examples</strong></p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -147,7 +147,7 @@ sparql(ds, &quot;&quot;&quot;
 <div class="md-docstring" id="RDF.terms">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.terms</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/vocabulary.jl#L136-L146" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/vocabulary.jl#L136-L146" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -166,7 +166,7 @@ end</code></pre>
 <div class="md-docstring" id="RDF.label">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.label</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/vocabulary.jl#L151-L164" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/vocabulary.jl#L151-L164" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -185,7 +185,7 @@ label(ctdl, ctdl.BachelorDegree; lang=&quot;es&quot;)  # =&gt; Spanish label if 
 <div class="md-docstring" id="RDF.comment">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.comment</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/vocabulary.jl#L168-L179" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/vocabulary.jl#L168-L179" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -247,7 +247,7 @@ ctdl = load_vocabulary(&quot;https://credreg.net/ctdl/schema/encoding/turtle&quo
                         base=&quot;http://purl.org/ctdl/terms/&quot;)
 
 # Explicit format override
-v = load_vocabulary(&quot;vocab_data&quot;; format=MIME&quot;text/turtle&quot;())</code></pre>
+v = load_vocabulary(&quot;vocab_data&quot;; format=:ttl)</code></pre>
 </div>
 <h3 id="From-an-existing-Graph" class="md-heading">From an existing Graph<a href="#From-an-existing-Graph" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>If you already have a <code class="md-code-inline">Graph</code> (from <code class="md-code-inline">rdf_read</code>, SPARQL CONSTRUCT, inference, etc.) you can wrap it directly:</p>
@@ -422,6 +422,6 @@ dwc.decimalLatitude   # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/decimalLati
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=3c115cea"></script>
+  <script src="../assets/materialdocs.js?v=70cccbf7"></script>
 </body>
 </html>

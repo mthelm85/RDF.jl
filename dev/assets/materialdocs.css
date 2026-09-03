@@ -83,7 +83,7 @@
   --md-sys-typescale-body-large-size: 1rem;
   --md-sys-typescale-body-large-line-height: 1.5rem;
   --md-sys-typescale-body-large-weight: 400;
-  --md-sys-typescale-body-large-tracking: 0.009em;
+  --md-sys-typescale-body-large-tracking: 0.03125em;
   --md-sys-typescale-body-medium-font: 'Roboto', system-ui, -apple-system, sans-serif;
   --md-sys-typescale-body-medium-size: 0.875rem;
   --md-sys-typescale-body-medium-line-height: 1.25rem;
@@ -137,6 +137,10 @@
   --md-sys-motion-duration-medium2: 400ms;
   --md-sys-motion-duration-long1: 450ms;
   --md-sys-motion-duration-long2: 700ms;
+  /* State layers */
+  --md-sys-state-hover-opacity: 0.08;
+  --md-sys-state-focus-opacity: 0.10;
+  --md-sys-state-pressed-opacity: 0.10;
   /* Syntax highlighting */
   --md-code-addition: #116329;
   --md-code-addition-bg: #dafbe1;
@@ -429,6 +433,136 @@ hr {
   .md-content { padding: 1.25rem 1rem; }
 }
 
+/* ── MD3 state layers ──
+   MD3 expresses hover / focus / pressed as a translucent layer of the CONTENT
+   colour drawn over the container, not by swapping the container colour. The
+   layer is a ::before at negative z-index inside an isolated stacking context,
+   so it paints above the element's own background but below its content, and
+   composes correctly over coloured containers such as a selected nav item. */
+
+.md-icon-btn,
+.md-search-bar,
+.md-version-btn,
+.md-version-item,
+.md-sidebar a,
+.md-toc-link,
+.md-copy-btn,
+.md-search-item,
+.md-docstring-source {
+  position: relative;
+  isolation: isolate;
+}
+
+.md-icon-btn::before,
+.md-search-bar::before,
+.md-version-btn::before,
+.md-version-item::before,
+.md-sidebar a::before,
+.md-toc-link::before,
+.md-copy-btn::before,
+.md-search-item::before,
+.md-docstring-source::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.md-icon-btn:hover::before,
+.md-search-bar:hover::before,
+.md-version-btn:hover::before,
+.md-version-item:hover::before,
+.md-sidebar a:hover::before,
+.md-toc-link:hover::before,
+.md-copy-btn:hover::before,
+.md-search-item:hover::before,
+.md-docstring-source:hover::before {
+  opacity: var(--md-sys-state-hover-opacity);
+}
+
+.md-icon-btn:focus-visible::before,
+.md-search-bar:focus-visible::before,
+.md-version-btn:focus-visible::before,
+.md-version-item:focus-visible::before,
+.md-sidebar a:focus-visible::before,
+.md-toc-link:focus-visible::before,
+.md-copy-btn:focus-visible::before,
+.md-search-item:focus-visible::before,
+.md-docstring-source:focus-visible::before {
+  opacity: var(--md-sys-state-focus-opacity);
+}
+
+.md-icon-btn:active::before,
+.md-search-bar:active::before,
+.md-version-btn:active::before,
+.md-version-item:active::before,
+.md-sidebar a:active::before,
+.md-toc-link:active::before,
+.md-copy-btn:active::before,
+.md-search-item:active::before,
+.md-docstring-source:active::before {
+  opacity: var(--md-sys-state-pressed-opacity);
+}
+
+/* Keyboard-visible search result mirrors the hover layer */
+.md-search-item.md-search-selected::before {
+  opacity: var(--md-sys-state-hover-opacity);
+}
+
+/* ── Focus indicator ──
+   MD3 specifies a 3px ring in the secondary colour with a 2px offset.
+   Applied to every interactive element, not just the buttons. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.md-icon-btn:focus-visible,
+.md-search-bar:focus-visible,
+.md-version-btn:focus-visible,
+.md-version-item:focus-visible,
+.md-sidebar a:focus-visible,
+.md-toc-link:focus-visible,
+.md-copy-btn:focus-visible,
+.md-search-item:focus-visible,
+.md-docstring-source:focus-visible,
+.md-nav-section-title:focus-visible {
+  outline: 3px solid var(--md-sys-color-secondary);
+  outline-offset: 2px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+/* The search view's input is deliberately bare: the elevated panel only
+   appears because search has focus, so it is itself the affordance. A ring
+   here would also be clipped by the view's overflow:hidden, showing as slivers
+   at the panel edges. */
+.md-search-input:focus-visible { outline: none; }
+
+/* Menu and result rows sit flush against their scroll container's edge (their
+   lists have no horizontal padding), so an outward ring would be clipped by
+   the container's overflow. Inset it instead — same 3px, fully visible. */
+.md-search-item:focus-visible,
+.md-version-item:focus-visible {
+  outline-offset: -3px;
+}
+
+/* ── Touch targets ──
+   MD3 icon buttons are 40dp visually but require a 48x48 touch target.
+   Expand on coarse pointers only, so desktop keeps its density. */
+@media (pointer: coarse) {
+  .md-icon-btn,
+  .md-version-btn { min-width: 48px; min-height: 48px; }
+  .md-search-bar { min-height: 48px; }
+  .md-sidebar a,
+  .md-toc-link,
+  .md-version-item,
+  .md-search-item { min-height: 48px; display: flex; align-items: center; }
+}
+
 
 /* ── components.css ── */
 /* ── MaterialDocs: Component Styles ──
@@ -484,7 +618,6 @@ hr {
 }
 .md-code-block:hover .md-copy-btn { opacity: 1; }
 .md-copy-btn:hover {
-  background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface);
 }
 .md-copy-feedback { display: none; margin-left: 0.25em; }
@@ -826,11 +959,10 @@ del { color: var(--md-sys-color-on-surface-variant); }
   color: var(--md-sys-color-on-surface);
   transition: background var(--md-sys-motion-duration-short1) var(--md-sys-motion-easing-standard);
 }
-.md-search-item:hover,
 .md-search-item.md-search-selected {
   background: var(--md-sys-color-surface-container-highest);
-  text-decoration: none;
 }
+.md-search-item:hover { text-decoration: none; }
 .md-search-item-title {
   display: block;
   font-size: var(--md-sys-typescale-body-large-size);
@@ -938,13 +1070,8 @@ del { color: var(--md-sys-color-on-surface-variant); }
               color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 .md-icon-btn:hover {
-  background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface);
   text-decoration: none;
-}
-.md-icon-btn:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
 }
 
 /* Theme toggle — the button shows the mode you would switch TO, so in the
@@ -976,12 +1103,7 @@ del { color: var(--md-sys-color-on-surface-variant); }
               box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 .md-search-bar:hover {
-  background: var(--md-sys-color-surface-container-highest);
   box-shadow: var(--md-sys-elevation-1);
-}
-.md-search-bar:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
 }
 .md-search-bar-icon { flex: none; }
 .md-search-bar-label { flex: 1; }
@@ -1014,11 +1136,7 @@ del { color: var(--md-sys-color-on-surface-variant); }
   font-weight: var(--md-sys-typescale-label-large-weight);
   transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
-.md-version-btn:hover { background: var(--md-sys-color-surface-container-high); }
-.md-version-btn:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
-}
+
 .md-version-caret {
   transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
@@ -1056,7 +1174,6 @@ del { color: var(--md-sys-color-on-surface-variant); }
   font-size: var(--md-sys-typescale-body-medium-size);
   transition: background var(--md-sys-motion-duration-short1) var(--md-sys-motion-easing-standard);
 }
-.md-version-item:hover { background: var(--md-sys-color-surface-container-highest); }
 .md-version-item[aria-selected="true"] {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
@@ -1085,7 +1202,6 @@ del { color: var(--md-sys-color-on-surface-variant); }
               color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 .md-sidebar a:hover {
-  background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
   text-decoration: none;
 }

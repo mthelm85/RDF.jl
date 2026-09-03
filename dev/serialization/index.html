@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Serialization — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=11754194">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=5e9e90b3">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -46,13 +46,15 @@
     <main class="md-content">
       <article class="md-article">
 <h1 id="Serialization" class="md-heading">Serialization<a href="#Serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
-<p>RDF.jl uses Julia&#39;s standard <code class="md-code-inline">Base.read</code> / <code class="md-code-inline">Base.write</code> API with MIME types to dispatch between formats. All parsers and serializers work with <code class="md-code-inline">IO</code> streams; <code class="md-code-inline">rdf_read</code> and <code class="md-code-inline">rdf_write</code> add file-extension–based dispatch.</p>
+<p>RDF.jl uses Julia&#39;s standard <code class="md-code-inline">Base.read</code> / <code class="md-code-inline">Base.write</code> API. All parsers and serializers work with <code class="md-code-inline">IO</code> streams; <code class="md-code-inline">rdf_read</code> and <code class="md-code-inline">rdf_write</code> add file-extension–based dispatch.</p>
 <h2 id="Supported-formats" class="md-heading">Supported formats<a href="#Supported-formats" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Name a format with a symbol — that is the everyday API:</p>
 <div class="md-table-wrap">
 <table class="md-table">
 <thead>
 <tr>
 <th style="text-align:right">Format</th>
+<th style="text-align:right"><code class="md-code-inline">format</code></th>
 <th style="text-align:right">MIME type</th>
 <th style="text-align:right">Extension</th>
 <th style="text-align:right">Read</th>
@@ -62,6 +64,7 @@
 <tbody>
 <tr>
 <td style="text-align:right">N-Triples 1.2</td>
+<td style="text-align:right"><code class="md-code-inline">:nt</code>, <code class="md-code-inline">:ntriples</code></td>
 <td style="text-align:right"><code class="md-code-inline">application/n-triples</code></td>
 <td style="text-align:right"><code class="md-code-inline">.nt</code></td>
 <td style="text-align:right">✅</td>
@@ -69,6 +72,7 @@
 </tr>
 <tr>
 <td style="text-align:right">N-Quads 1.2</td>
+<td style="text-align:right"><code class="md-code-inline">:nq</code>, <code class="md-code-inline">:nquads</code></td>
 <td style="text-align:right"><code class="md-code-inline">application/n-quads</code></td>
 <td style="text-align:right"><code class="md-code-inline">.nq</code></td>
 <td style="text-align:right">✅</td>
@@ -76,6 +80,7 @@
 </tr>
 <tr>
 <td style="text-align:right">Turtle 1.2</td>
+<td style="text-align:right"><code class="md-code-inline">:ttl</code>, <code class="md-code-inline">:turtle</code></td>
 <td style="text-align:right"><code class="md-code-inline">text/turtle</code></td>
 <td style="text-align:right"><code class="md-code-inline">.ttl</code></td>
 <td style="text-align:right">✅</td>
@@ -83,26 +88,45 @@
 </tr>
 <tr>
 <td style="text-align:right">JSON-LD 1.1</td>
+<td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right"><code class="md-code-inline">application/ld+json</code></td>
 <td style="text-align:right"><code class="md-code-inline">.jsonld</code></td>
 <td style="text-align:right">✅</td>
 <td style="text-align:right">✅</td>
 </tr>
+<tr>
+<td style="text-align:right">RDF/XML</td>
+<td style="text-align:right"><code class="md-code-inline">:rdfxml</code>, <code class="md-code-inline">:xml</code></td>
+<td style="text-align:right"><code class="md-code-inline">application/rdf+xml</code></td>
+<td style="text-align:right"><code class="md-code-inline">.rdf</code></td>
+<td style="text-align:right">✅ (with EzXML.jl)</td>
+<td style="text-align:right">❌</td>
+</tr>
 </tbody>
 </table>
 </div>
+<p>An unrecognized symbol raises an <code class="md-code-inline">ArgumentError</code> listing the valid names.</p>
+<h3 id="Symbols-and-MIME-types" class="md-heading">Symbols and MIME types<a href="#Symbols-and-MIME-types" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Every entry point that takes <code class="md-code-inline">:ttl</code> also takes <code class="md-code-inline">MIME&quot;text/turtle&quot;()</code>, and the MIME form is what actually dispatches. That matters in two places:</p>
+<ul class="md-list-tight">
+<li><p><strong>Extensibility</strong> — a third-party package can add a format by defining <code class="md-code-inline">Base.read(io, ::MIME&quot;application/rdf+xml&quot;, ::Type{Graph})</code>, with no change to RDF.jl. The bundled <code class="md-code-inline">RDFXMLExt</code> extension does exactly that.</p>
+</li>
+<li><p><strong>Content negotiation</strong> — an HTTP <code class="md-code-inline">Content-Type</code> or <code class="md-code-inline">Accept</code> header is already a MIME string, so it can be handed straight to <code class="md-code-inline">read</code>/<code class="md-code-inline">write</code> without a lookup table.</p>
+</li>
+</ul>
+<p>Symbols are the friendlier surface for code you write by hand. Use whichever fits the call site.</p>
 <p>The N-Triples, N-Quads, and Turtle parsers support RDF 1.2 / RDF-star: triple terms <code class="md-code-inline">&lt;&lt;( s p o )&gt;&gt;</code>, reified triples <code class="md-code-inline">&lt;&lt; s p o &gt;&gt;</code> with optional reifiers (<code class="md-code-inline">~</code>), annotation blocks (<code class="md-code-inline">{| … |}</code>, Turtle), directional language tags (<code class="md-code-inline">&quot;x&quot;@en--ltr</code>), and the <code class="md-code-inline">@version</code> / <code class="md-code-inline">VERSION</code> directive. All RDF 1.2 W3C N-Triples, N-Quads, and Turtle test suites pass.</p>
 <h2 id="N-Triples" class="md-heading">N-Triples<a href="#N-Triples" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Write a Graph to N-Triples
-write(io, MIME&quot;application/n-triples&quot;(), g)
+write(io, :nt, g)
 
 # Read a Graph from N-Triples
-g = read(io, MIME&quot;application/n-triples&quot;(), Graph)
+g = read(io, :nt, Graph)
 
 # Streaming parse (low allocation)
-parse_triples(io, MIME&quot;application/n-triples&quot;()) do triple
+parse_triples(io, :nt) do triple
     process(triple)
 end</code></pre>
 </div>
@@ -110,25 +134,28 @@ end</code></pre>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Write a Dataset to N-Quads
-write(io, MIME&quot;application/n-quads&quot;(), ds)
+write(io, :nq, ds)
 
 # Read a Dataset from N-Quads
-ds = read(io, MIME&quot;application/n-quads&quot;(), Dataset)</code></pre>
+ds = read(io, :nq, Dataset)</code></pre>
 </div>
 <h2 id="Turtle" class="md-heading">Turtle<a href="#Turtle" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Write a Graph to Turtle (with optional namespace prefixes)
-write(io, MIME&quot;text/turtle&quot;(), g)
+write(io, :ttl, g)
 
 # Read a Graph from Turtle
-g = read(io, MIME&quot;text/turtle&quot;(), Graph)
+g = read(io, :ttl, Graph)
 
 # Read with an explicit base IRI for resolving relative IRIs
-g = read(io, MIME&quot;text/turtle&quot;(), Graph, &quot;http://example.org/base/&quot;)
+g = read(io, :ttl, Graph, &quot;http://example.org/base/&quot;)
 
 # File path overload
-g = read(&quot;data.ttl&quot;, MIME&quot;text/turtle&quot;(), Graph)</code></pre>
+g = read(&quot;data.ttl&quot;, :ttl, Graph)
+
+# The MIME form is equivalent, and is what these dispatch to
+g = read(io, MIME&quot;text/turtle&quot;(), Graph)</code></pre>
 </div>
 <p>Turtle output groups triples by subject and uses predicate lists with <code class="md-code-inline">;</code> for compact output. Common namespaces are abbreviated automatically.</p>
 <h2 id="JSON-LD" class="md-heading">JSON-LD<a href="#JSON-LD" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -136,16 +163,16 @@ g = read(&quot;data.ttl&quot;, MIME&quot;text/turtle&quot;(), Graph)</code></pre
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Read a Graph from JSON-LD
-g = read(io, MIME&quot;application/ld+json&quot;(), Graph)
+g = read(io, :jsonld, Graph)
 
 # Read a Dataset (for documents with @graph / named graphs)
-ds = read(io, MIME&quot;application/ld+json&quot;(), Dataset)
+ds = read(io, :jsonld, Dataset)
 
 # Write a Graph to JSON-LD (expanded form)
-write(io, MIME&quot;application/ld+json&quot;(), g)
+write(io, :jsonld, g)
 
 # Write with a context object for compact output
-write(io, MIME&quot;application/ld+json&quot;(), g; context=Dict(
+write(io, :jsonld, g; context=Dict(
     &quot;@vocab&quot; =&gt; &quot;http://schema.org/&quot;,
     &quot;name&quot;   =&gt; &quot;http://schema.org/name&quot;,
 ))</code></pre>
@@ -170,7 +197,7 @@ write(io, MIME&quot;application/ld+json&quot;(), g; context=Dict(
 }
 &quot;&quot;&quot;
 
-g = read(IOBuffer(jsonld), MIME&quot;application/ld+json&quot;(), Graph)
+g = read(IOBuffer(jsonld), :jsonld, Graph)
 # =&gt; Graph with triples:
 #   ex:alice rdf:type ex:Person
 #   ex:alice foaf:name &quot;Alice&quot;
@@ -184,23 +211,24 @@ g = read(IOBuffer(jsonld), MIME&quot;application/ld+json&quot;(), Graph)
 </div>
 </div>
 <h2 id="File-extension-dispatch" class="md-heading">File-extension dispatch<a href="#File-extension-dispatch" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p><code class="md-code-inline">rdf_read</code> and <code class="md-code-inline">rdf_write</code> choose the format based on the file extension:</p>
+<p><code class="md-code-inline">rdf_read</code> and <code class="md-code-inline">rdf_write</code> choose the format based on the file extension, or from an explicit <code class="md-code-inline">format</code> keyword:</p>
 <div class="md-docstring" id="RDF.rdf_read">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.rdf_read</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/serialization/ntriples.jl#L623-L642" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/serialization/ntriples.jl#L623-L646" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">rdf_read(path::AbstractString; format=nothing) → Graph | Dataset</code></pre>
 </div>
-<p>Read an RDF file from <code class="md-code-inline">path</code>, choosing the parser by file extension (or the explicit <code class="md-code-inline">format</code> keyword, which takes a <code class="md-code-inline">MIME</code> value):</p>
+<p>Read an RDF file from <code class="md-code-inline">path</code>, choosing the parser by file extension (or the explicit <code class="md-code-inline">format</code> keyword):</p>
 <div class="md-table-wrap">
 <table class="md-table">
 <thead>
 <tr>
 <th style="text-align:right">Extension</th>
+<th style="text-align:right"><code class="md-code-inline">format</code></th>
 <th style="text-align:right">Format</th>
 <th style="text-align:right">Return type</th>
 </tr>
@@ -208,92 +236,117 @@ g = read(IOBuffer(jsonld), MIME&quot;application/ld+json&quot;(), Graph)
 <tbody>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.nt</code></td>
+<td style="text-align:right"><code class="md-code-inline">:nt</code>, <code class="md-code-inline">:ntriples</code></td>
 <td style="text-align:right">N-Triples</td>
 <td style="text-align:right"><code class="md-code-inline">Graph</code></td>
 </tr>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.ttl</code></td>
+<td style="text-align:right"><code class="md-code-inline">:ttl</code>, <code class="md-code-inline">:turtle</code></td>
 <td style="text-align:right">Turtle 1.1</td>
 <td style="text-align:right"><code class="md-code-inline">Graph</code></td>
 </tr>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.nq</code></td>
+<td style="text-align:right"><code class="md-code-inline">:nq</code>, <code class="md-code-inline">:nquads</code></td>
 <td style="text-align:right">N-Quads</td>
 <td style="text-align:right"><code class="md-code-inline">Dataset</code></td>
 </tr>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.jsonld</code>, <code class="md-code-inline">.json-ld</code></td>
+<td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right">JSON-LD 1.1</td>
 <td style="text-align:right"><code class="md-code-inline">Dataset</code></td>
 </tr>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.rdf</code>, <code class="md-code-inline">.owl</code>, <code class="md-code-inline">.xml</code></td>
+<td style="text-align:right"><code class="md-code-inline">:rdfxml</code>, <code class="md-code-inline">:xml</code></td>
 <td style="text-align:right">RDF/XML (requires EzXML.jl)</td>
 <td style="text-align:right"><code class="md-code-inline">Graph</code></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Pass <code class="md-code-inline">format</code> to override extension-based detection, e.g. <code class="md-code-inline">rdf_read(&quot;data.xml&quot;; format=MIME&quot;application/rdf+xml&quot;())</code>.</p>
-<p>For fine-grained control (streaming, base IRI, etc.) use <code class="md-code-inline">Base.read(io, mime, T)</code> directly.</p>
+<p>Pass <code class="md-code-inline">format</code> to override extension-based detection:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">rdf_read(&quot;data.txt&quot;; format=:ttl)
+rdf_read(&quot;data.txt&quot;; format=MIME&quot;text/turtle&quot;())   # MIME values also accepted</code></pre>
+</div>
+<p>For fine-grained control (streaming, base IRI, etc.) use <code class="md-code-inline">Base.read(io, format, T)</code> directly, which takes the same symbols: <code class="md-code-inline">read(io, :ttl, Graph)</code>.</p>
 </div>
 </div>
 <div class="md-docstring" id="RDF.rdf_write">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.rdf_write</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/serialization/ntriples.jl#L681-L692" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/serialization/ntriples.jl#L685-L703" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">rdf_write(path::AbstractString, g::Graph)
-rdf_write(path::AbstractString, ds::Dataset)</code></pre>
+<pre><code class="language-julia">rdf_write(path::AbstractString, g::Graph;  format=nothing)
+rdf_write(path::AbstractString, ds::Dataset; format=nothing)</code></pre>
 </div>
-<p>Write <code class="md-code-inline">g</code> or <code class="md-code-inline">ds</code> to <code class="md-code-inline">path</code>, choosing the serializer by file extension:</p>
+<p>Write <code class="md-code-inline">g</code> or <code class="md-code-inline">ds</code> to <code class="md-code-inline">path</code>, choosing the serializer by file extension (or the explicit <code class="md-code-inline">format</code> keyword, which takes the same symbols as <a href="../serialization/#RDF.rdf_read"><code class="md-code-inline">rdf_read</code></a>):</p>
 <div class="md-table-wrap">
 <table class="md-table">
 <thead>
 <tr>
 <th style="text-align:right">Extension</th>
+<th style="text-align:right"><code class="md-code-inline">format</code></th>
 <th style="text-align:right">Format</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td style="text-align:right"><code class="md-code-inline">.nt</code></td>
+<td style="text-align:right"><code class="md-code-inline">:nt</code>, <code class="md-code-inline">:ntriples</code></td>
+<td style="text-align:right">N-Triples (<code class="md-code-inline">Graph</code> only)</td>
+</tr>
+<tr>
 <td style="text-align:right"><code class="md-code-inline">.ttl</code></td>
-<td style="text-align:right">Turtle 1.1</td>
+<td style="text-align:right"><code class="md-code-inline">:ttl</code>, <code class="md-code-inline">:turtle</code></td>
+<td style="text-align:right">Turtle 1.1 (<code class="md-code-inline">Graph</code> only)</td>
+</tr>
+<tr>
+<td style="text-align:right"><code class="md-code-inline">.nq</code></td>
+<td style="text-align:right"><code class="md-code-inline">:nq</code>, <code class="md-code-inline">:nquads</code></td>
+<td style="text-align:right">N-Quads (<code class="md-code-inline">Dataset</code> only)</td>
 </tr>
 <tr>
 <td style="text-align:right"><code class="md-code-inline">.jsonld</code>, <code class="md-code-inline">.json-ld</code></td>
+<td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right">JSON-LD 1.1</td>
-</tr>
-<tr>
-<td style="text-align:right">anything else</td>
-<td style="text-align:right">N-Triples (Graph) or N-Quads (Dataset)</td>
 </tr>
 </tbody>
 </table>
 </div>
+<p>An extension that maps to no known format, or to one with no serializer for the value being written, raises an <code class="md-code-inline">ArgumentError</code> rather than silently picking a different format. Use <code class="md-code-inline">write(path, g)</code> when you just want N-Triples (or <code class="md-code-inline">write(path, ds)</code> for N-Quads) regardless of the file name.</p>
 </div>
 </div>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">g  = rdf_read(&quot;data.nt&quot;)    # N-Triples
-g  = rdf_read(&quot;data.ttl&quot;)   # Turtle
-ds = rdf_read(&quot;data.nq&quot;)    # N-Quads → Dataset
+<pre><code class="language-julia">g  = rdf_read(&quot;data.nt&quot;)     # N-Triples
+g  = rdf_read(&quot;data.ttl&quot;)    # Turtle
+ds = rdf_read(&quot;data.nq&quot;)     # N-Quads → Dataset
 g  = rdf_read(&quot;data.jsonld&quot;) # JSON-LD
 
 rdf_write(&quot;out.nt&quot;, g)
 rdf_write(&quot;out.ttl&quot;, g)
 rdf_write(&quot;out.nq&quot;, ds)
-rdf_write(&quot;out.jsonld&quot;, g)</code></pre>
+rdf_write(&quot;out.jsonld&quot;, g)
+
+# When the extension is uninformative or wrong, say so
+g = rdf_read(&quot;export.txt&quot;;  format=:ttl)
+rdf_write(&quot;export.txt&quot;, g;  format=:ttl)</code></pre>
 </div>
+<p>An extension that names no known format — or one with no serializer for the value being written, such as a <code class="md-code-inline">Dataset</code> to Turtle — raises an <code class="md-code-inline">ArgumentError</code> rather than silently falling back to another format. When you want N-Triples (or N-Quads for a <code class="md-code-inline">Dataset</code>) no matter what the file is called, use <code class="md-code-inline">write(path, x)</code> directly.</p>
 <h2 id="Streaming-parse" class="md-heading">Streaming parse<a href="#Streaming-parse" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>For very large files, use the callback form of <code class="md-code-inline">parse_triples</code> to avoid materializing the entire graph in memory:</p>
 <div class="md-docstring" id="RDF.parse_triples">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.parse_triples</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/869791b5d661f2b8b1f90bdf865df8034a13a312/src/serialization/ntriples.jl#L233-L253" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/4172cc2e4db60a938447d97620c146d229d67414/src/serialization/ntriples.jl#L233-L253" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -321,7 +374,7 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Count triples without building a Graph
 n = Ref(0)
-parse_triples(io, MIME&quot;application/n-triples&quot;()) do t
+parse_triples(io, :nt) do t
     n[] += 1
 end
 println(n[])  # number of triples</code></pre>
@@ -335,6 +388,7 @@ println(n[])  # number of triples</code></pre>
       <div class="md-toc-inner">
         <p class="md-toc-title">On this page</p>
           <a class="md-toc-link md-toc-h2" href="#Supported-formats">Supported formats</a>
+            <a class="md-toc-link md-toc-h3" href="#Symbols-and-MIME-types">Symbols and MIME types</a>
           <a class="md-toc-link md-toc-h2" href="#N-Triples">N-Triples</a>
           <a class="md-toc-link md-toc-h2" href="#N-Quads">N-Quads</a>
           <a class="md-toc-link md-toc-h2" href="#Turtle">Turtle</a>
@@ -351,6 +405,6 @@ println(n[])  # number of triples</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=11754194"></script>
+  <script src="../assets/materialdocs.js?v=5e9e90b3"></script>
 </body>
 </html>

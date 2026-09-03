@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RDF.jl — RDF.jl</title>
-  <link rel="stylesheet" href="./assets/materialdocs.css?v=d2ba35ee">
+  <link rel="stylesheet" href="./assets/materialdocs.css?v=44c4b0fb">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -143,35 +143,37 @@ result = sparql(ds, &quot;&quot;&quot;
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia"># Turtle (parse + write)
-g = read(&quot;data.ttl&quot;, MIME&quot;text/turtle&quot;(), Graph)
-write(io, MIME&quot;text/turtle&quot;(), g)
+g = read(&quot;data.ttl&quot;, :ttl, Graph)
+write(io, :ttl, g)
 
 # JSON-LD (parse + write)
-g = read(&quot;data.jsonld&quot;, MIME&quot;application/ld+json&quot;(), Graph)
-write(io, MIME&quot;application/ld+json&quot;(), g)
+g = read(&quot;data.jsonld&quot;, :jsonld, Graph)
+write(io, :jsonld, g)
 
 # N-Triples / N-Quads
-write(io, MIME&quot;application/n-triples&quot;(), g)
-write(io, MIME&quot;application/n-quads&quot;(), ds)
+write(io, :nt, g)
+write(io, :nq, ds)
 
 # Convenience: dispatch on file extension (.ttl / .nt / .nq / .jsonld)
 rdf_write(&quot;data.nt&quot;, g)
-g = rdf_read(&quot;data.ttl&quot;)</code></pre>
+g = rdf_read(&quot;data.ttl&quot;)
+g = rdf_read(&quot;data.txt&quot;; format=:ttl)   # or name the format outright</code></pre>
 </div>
+<p>The equivalent MIME value (<code class="md-code-inline">MIME&quot;text/turtle&quot;()</code>) is accepted everywhere a symbol is, and is what these dispatch to — see <a href="./serialization/">Serialization</a>.</p>
 <h3 id="SPARQL-result-serialization" class="md-heading">SPARQL result serialization<a href="#SPARQL-result-serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">result = sparql(ds, &quot;SELECT * WHERE { ?s ?p ?o }&quot;)
 
 # SPARQL/JSON (for HTTP APIs)
-write(io, MIME&quot;application/sparql-results+json&quot;(), result)
+write(io, :json, result)
 
 # SPARQL/XML
-write(io, MIME&quot;application/sparql-results+xml&quot;(), result)
+write(io, :xml, result)
 
 # CSV / TSV
-write(io, MIME&quot;text/csv&quot;(), result)
-write(io, MIME&quot;text/tab-separated-values&quot;(), result)</code></pre>
+write(io, :csv, result)
+write(io, :tsv, result)</code></pre>
 </div>
 <h3 id="RDFS-inference" class="md-heading">RDFS inference<a href="#RDFS-inference" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <div class="md-code-block">
@@ -311,6 +313,6 @@ schema.Person     # IRI(&quot;https://schema.org/Person&quot;)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="./siteinfo.js"></script>
   <script src="./../versions.js"></script>
-  <script src="./assets/materialdocs.js?v=d2ba35ee"></script>
+  <script src="./assets/materialdocs.js?v=44c4b0fb"></script>
 </body>
 </html>
