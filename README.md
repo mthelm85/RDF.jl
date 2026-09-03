@@ -286,8 +286,12 @@ write(io, :xml,  result)   # SPARQL/XML   (also :srx)
 write(io, :csv,  result)   # CSV
 write(io, :tsv,  result)   # TSV
 
-# ASK results are a plain Bool, so they take the MIME form
+# ASK returns a plain Bool, so it takes the MIME form
 write(io, MIME"application/sparql-results+json"(), sparql(ds, "ASK { ?s ?p ?o }"))
+
+# …or use write_sparql_results, which takes either — for serializing a query
+# whose form you do not know ahead of time (SELECT → SolutionSet, ASK → Bool)
+write_sparql_results(io, :json, sparql(ds, user_query))
 ```
 
 ### RDFS inference

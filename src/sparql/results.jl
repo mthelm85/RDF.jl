@@ -397,3 +397,65 @@ function _srj_read_term(t)::RDFTerm
         end
     end
 end
+
+
+# ── Unified results writer ────────────────────────────────────────────────────
+
+"""
+    write_sparql_results(io::IO, format, result) -> nothing
+
+Serialize any SPARQL query result to one of the four W3C wire formats.
+
+`format` is a symbol — `:json` (`:srj`), `:xml` (`:srx`), `:csv`, `:tsv` — or the
+corresponding `MIME` value.  `result` is whatever [`sparql`](@ref) returned: a
+`SolutionSet` for SELECT, or a `Bool` for ASK.
+
+This exists because `sparql` returns `Union{SolutionSet, Bool}` depending on the
+query form, so code that serializes a query it did not write itself cannot use
+`write(io, format, result)` — there is deliberately no `write(io, ::Symbol,
+::Bool)` method, as every argument type would belong to Base and defining one
+would be type piracy.  `write_sparql_results` is owned by RDF.jl, so it can
+accept both arms of that union.
+
+It is the mirror of [`read_sparql_json`](@ref), which already handles both on
+the way in.
+
+# Examples
+
+```julia
+# Serialize a query whose form is not known ahead of time — e.g. an HTTP
+# endpoint doing SPARQL protocol content negotiation
+result = sparql(ds, user_query)
+write_sparql_results(io, :json, result)     # SELECT and ASK both work
+
+write_sparql_results(io, :csv, sparql(ds, "SELECT * WHERE { ?s ?p ?o }"))
+write_sparql_results(io, :xml, sparql(ds, "ASK { ?s ?p ?o }"))
+```
+
+CONSTRUCT and DESCRIBE return a `Graph`, which is RDF rather than a result set —
+serialize those with `write(io, :ttl, g)` and friends.
+"""
+function write_sparql_results(io::IO, format, sol::SolutionSet)
+    Base.write(io, _results_format_mime(format), sol)
+    nothing
+end
+
+function write_sparql_results(io::IO, format, b::Bool)
+    Base.write(io, _results_format_mime(format), b)
+    nothing
+end
+
+# CSV and TSV have no serialization for a boolean in the W3C spec — only JSON
+# and XML do. Say so plainly rather than letting Base's `write(io, x, xs...)`
+# fallback emit a stray byte.
+function write_sparql_results(io::IO,
+                              format::Union{MIME"text/csv",
+                                            MIME"text/tab-separated-values"},
+                              b::Bool)
+    throw(ArgumentError(
+        "SPARQL ASK results have no $(string(format)) serialization — the W3C " *
+        "CSV/TSV format covers SELECT result sets only. Use :json or :xml."))
+end
+
+write_sparql_results(io::IO, format::Symbol, b::Bool) =
+    write_sparql_results(io, _results_format_mime(format), b)

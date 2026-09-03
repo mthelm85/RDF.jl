@@ -62,6 +62,7 @@ sparql_parse
 SolutionSet
 SolutionRow
 read_sparql_json
+write_sparql_results
 ```
 
 ### SELECT
@@ -346,9 +347,6 @@ because they never appear at the same call site.
 io = IOBuffer()
 write(io, :json, result)                                     # SELECT
 write(io, MIME"application/sparql-results+json"(), result)   # equivalently
-
-# ASK results are a plain `Bool`, which the symbol form does not cover — a
-# `write(io, ::Symbol, ::Bool)` method would be type piracy over Base.
 write(io, MIME"application/sparql-results+json"(), true)     # ASK
 ```
 
@@ -380,6 +378,30 @@ write(io, :tsv, result)
 
 Header uses `?`-prefixed variable names; term values use N-Triples syntax
 (`<iri>`, `_:bnode`, `"literal"^^<dt>`).
+
+### Serializing a result of unknown form
+
+`sparql` returns a `SolutionSet` for SELECT but a plain `Bool` for ASK, so code
+that serializes a query it did not write itself cannot use `write(io, :json, r)`
+— there is no `write(io, ::Symbol, ::Bool)` method, and there deliberately never
+will be: every argument type would belong to Base, making it type piracy that
+would change the meaning of `write(io, some_symbol, some_bool)` for every
+package in the program.
+
+[`write_sparql_results`](@ref) is owned by RDF.jl and therefore accepts both:
+
+```julia
+result = sparql(ds, user_supplied_query)
+write_sparql_results(io, :json, result)    # SELECT and ASK both work
+```
+
+It is the mirror of [`read_sparql_json`](@ref), which already handles both forms
+on the way in. CONSTRUCT and DESCRIBE return a `Graph` — that is RDF, not a
+result set, so serialize it with `write(io, :ttl, g)` and friends.
+
+ASK has no CSV or TSV serialization in the W3C spec; those formats cover SELECT
+result sets only, and `write_sparql_results` says so rather than emitting a
+stray byte.
 
 ---
 

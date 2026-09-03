@@ -114,7 +114,8 @@ export infer_rdfs, infer_rdfs!, entails
 export validate
 
 # SPARQL
-export SolutionSet, SolutionRow, sparql_parse, sparql, sparql_update!, read_sparql_json
+export SolutionSet, SolutionRow, sparql_parse, sparql, sparql_update!
+export read_sparql_json, write_sparql_results
 
 # Remote SPARQL endpoints (transport provided by the HTTP.jl extension)
 export RemoteGraph
