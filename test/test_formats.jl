@@ -154,6 +154,53 @@ using Test
         @test_throws ArgumentError write(IOBuffer(), :ttl, res)
     end
 
+    @testset "write_sparql_results — both arms of the sparql union" begin
+        sel = sparql(ds, "SELECT ?s ?o WHERE { ?s <$(ex)name> ?o }")
+        ask = sparql(ds, "ASK { ?s ?p ?o }")
+        no  = sparql(ds, "ASK { <$(ex)nobody> ?p ?o }")
+
+        @test sel isa SolutionSet
+        @test ask isa Bool
+        @test no  === false
+
+        _wsr(f, x) = (io = IOBuffer(); write_sparql_results(io, f, x); String(take!(io)))
+
+        # SELECT: identical to the write(io, format, sol) path
+        for f in (:json, :srj, :xml, :srx, :csv, :tsv)
+            @test _wsr(f, sel) == _bytes(f, sel)
+        end
+        @test _wsr(MIME"text/csv"(), sel) == _bytes(:csv, sel)
+
+        # ASK: identical to the MIME write(io, mime, bool) path
+        @test _wsr(:json, ask) == _bytes(MIME"application/sparql-results+json"(), ask)
+        @test _wsr(:srj,  ask) == _bytes(MIME"application/sparql-results+json"(), ask)
+        @test _wsr(:xml,  ask) == _bytes(MIME"application/sparql-results+xml"(),  ask)
+        @test _wsr(:srx,  ask) == _bytes(MIME"application/sparql-results+xml"(),  ask)
+        @test _wsr(:json, no)  == "{\"head\":{},\"boolean\":false}"
+        @test _wsr(MIME"application/sparql-results+json"(), ask) == _wsr(:json, ask)
+
+        # The point of the function: a caller that does not know the query form
+        for q in ["SELECT ?s WHERE { ?s ?p ?o }", "ASK { ?s ?p ?o }"]
+            io = IOBuffer()
+            write_sparql_results(io, :json, sparql(ds, q))
+            @test !isempty(take!(io))
+        end
+
+        # ASK has no CSV/TSV form in the W3C spec — say so, do not emit garbage
+        for f in (:csv, :tsv, MIME"text/csv"(), MIME"text/tab-separated-values"())
+            e = try; _wsr(f, ask); catch err; err; end
+            @test e isa ArgumentError
+            @test occursin("ASK", e.msg)
+        end
+
+        # Unknown format names still produce the helpful error
+        @test_throws ArgumentError write_sparql_results(IOBuffer(), :bogus, sel)
+        @test_throws ArgumentError write_sparql_results(IOBuffer(), :bogus, ask)
+        @test_throws ArgumentError write_sparql_results(IOBuffer(), :jsonld, ask)
+
+        @test write_sparql_results(IOBuffer(), :json, ask) === nothing
+    end
+
     @testset "rdf_read / rdf_write format override" begin
         # Extension says nothing; `format` decides.
         path = tempname() * ".txt"
