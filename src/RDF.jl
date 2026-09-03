@@ -37,6 +37,10 @@ include("serialization/jsonld.jl")
 include("sparql.jl")
 include("remote.jl")
 
+# Symbol format aliases (:ttl, :jsonld, …) over the MIME dispatch layer.
+# Included after sparql.jl because it forwards SolutionSet writes too.
+include("serialization/formats.jl")
+
 # ── Vocabulary API ───────────────────────────────────────────────────────────
 include("vocabulary.jl")
 

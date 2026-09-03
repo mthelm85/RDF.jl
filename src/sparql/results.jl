@@ -102,10 +102,11 @@ function _srj_write_term(io::IO, term::RDFTerm)
 end
 
 """
+    write(io, :json, sol::SolutionSet)
     write(io, MIME"application/sparql-results+json"(), sol::SolutionSet)
 
 Serialize SPARQL SELECT results to the W3C SPARQL 1.1 JSON format
-(`application/sparql-results+json`).
+(`application/sparql-results+json`). `:json` and `:srj` are accepted as aliases.
 """
 function Base.write(io::IO, ::_MIME_SPARQL_JSON, sol::SolutionSet)
     print(io, "{\"head\":{\"vars\":[")
@@ -133,6 +134,7 @@ function Base.write(io::IO, ::_MIME_SPARQL_JSON, sol::SolutionSet)
 end
 
 """
+    write(io, :json, b::Bool)
     write(io, MIME"application/sparql-results+json"(), b::Bool)
 
 Serialize a SPARQL ASK result to the W3C SPARQL 1.1 JSON format.
@@ -145,10 +147,11 @@ end
 # ── SPARQL/XML ────────────────────────────────────────────────────────────────
 
 """
+    write(io, :xml, sol::SolutionSet)
     write(io, MIME"application/sparql-results+xml"(), sol::SolutionSet)
 
 Serialize SPARQL SELECT results to the W3C SPARQL 1.1 XML format
-(`application/sparql-results+xml`).
+(`application/sparql-results+xml`). `:xml` and `:srx` are accepted as aliases.
 """
 function Base.write(io::IO, ::_MIME_SPARQL_XML, sol::SolutionSet)
     println(io, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
@@ -242,6 +245,7 @@ function _csv_field(term::RDFTerm)::String
 end
 
 """
+    write(io, :csv, sol::SolutionSet)
     write(io, MIME"text/csv"(), sol::SolutionSet)
 
 Serialize SPARQL SELECT results to the W3C SPARQL 1.1 CSV format (`text/csv`).
@@ -290,6 +294,7 @@ function _tsv_field(term::RDFTerm)::String
 end
 
 """
+    write(io, :tsv, sol::SolutionSet)
     write(io, MIME"text/tab-separated-values"(), sol::SolutionSet)
 
 Serialize SPARQL SELECT results to the W3C SPARQL 1.1 TSV format

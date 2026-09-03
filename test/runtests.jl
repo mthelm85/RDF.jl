@@ -11,6 +11,7 @@ using Test
     include("test_namespaces.jl")
     include("test_pattern_matching.jl")
     include("test_serialization.jl")
+    include("test_formats.jl")
     include("test_sparql.jl")
     include("test_turtle.jl")
     include("test_inference.jl")

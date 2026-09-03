@@ -333,12 +333,22 @@ constructor (`auth`, `headers`, `timeout`, …) are forwarded with every request
 ## SPARQL result format serialization
 
 `SolutionSet` can be serialized to any of the four W3C standard result formats.
+Name one with a symbol — `:json` (`:srj`), `:xml` (`:srx`), `:csv`, `:tsv` — or
+with the corresponding MIME value, which is what the symbol dispatches to.
+
+Note that `:json` and `:xml` mean *SPARQL results* JSON and XML here, not
+JSON-LD and RDF/XML; result formats and graph formats are separate namespaces
+because they never appear at the same call site.
 
 ### SPARQL/JSON
 
 ```julia
 io = IOBuffer()
-write(io, MIME"application/sparql-results+json"(), result)   # SELECT
+write(io, :json, result)                                     # SELECT
+write(io, MIME"application/sparql-results+json"(), result)   # equivalently
+
+# ASK results are a plain `Bool`, which the symbol form does not cover — a
+# `write(io, ::Symbol, ::Bool)` method would be type piracy over Base.
 write(io, MIME"application/sparql-results+json"(), true)     # ASK
 ```
 
@@ -347,8 +357,8 @@ Output follows the [W3C SPARQL 1.1 JSON format](https://www.w3.org/TR/sparql11-r
 ### SPARQL/XML
 
 ```julia
-write(io, MIME"application/sparql-results+xml"(), result)
-write(io, MIME"application/sparql-results+xml"(), false)
+write(io, :xml, result)
+write(io, MIME"application/sparql-results+xml"(), false)     # ASK
 ```
 
 Output follows the [W3C SPARQL 1.1 XML format](https://www.w3.org/TR/rdf-sparql-XMLres/).
@@ -356,7 +366,7 @@ Output follows the [W3C SPARQL 1.1 XML format](https://www.w3.org/TR/rdf-sparql-
 ### SPARQL/CSV
 
 ```julia
-write(io, MIME"text/csv"(), result)
+write(io, :csv, result)
 ```
 
 Fields containing commas or double-quotes are quoted per RFC 4180. Unbound
@@ -365,7 +375,7 @@ variables produce empty fields.
 ### SPARQL/TSV
 
 ```julia
-write(io, MIME"text/tab-separated-values"(), result)
+write(io, :tsv, result)
 ```
 
 Header uses `?`-prefixed variable names; term values use N-Triples syntax

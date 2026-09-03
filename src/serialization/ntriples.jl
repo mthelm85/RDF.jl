@@ -624,29 +624,33 @@ end
     rdf_read(path::AbstractString; format=nothing) → Graph | Dataset
 
 Read an RDF file from `path`, choosing the parser by file extension (or the
-explicit `format` keyword, which takes a `MIME` value):
+explicit `format` keyword):
 
-| Extension | Format | Return type |
-|-----------|--------|-------------|
-| `.nt` | N-Triples | `Graph` |
-| `.ttl` | Turtle 1.1 | `Graph` |
-| `.nq` | N-Quads | `Dataset` |
-| `.jsonld`, `.json-ld` | JSON-LD 1.1 | `Dataset` |
-| `.rdf`, `.owl`, `.xml` | RDF/XML (requires EzXML.jl) | `Graph` |
+| Extension | `format` | Format | Return type |
+|-----------|----------|--------|-------------|
+| `.nt` | `:nt`, `:ntriples` | N-Triples | `Graph` |
+| `.ttl` | `:ttl`, `:turtle` | Turtle 1.1 | `Graph` |
+| `.nq` | `:nq`, `:nquads` | N-Quads | `Dataset` |
+| `.jsonld`, `.json-ld` | `:jsonld` | JSON-LD 1.1 | `Dataset` |
+| `.rdf`, `.owl`, `.xml` | `:rdfxml`, `:xml` | RDF/XML (requires EzXML.jl) | `Graph` |
 
-Pass `format` to override extension-based detection, e.g.
-`rdf_read("data.xml"; format=MIME"application/rdf+xml"())`.
+Pass `format` to override extension-based detection:
 
-For fine-grained control (streaming, base IRI, etc.) use `Base.read(io, mime, T)`
-directly.
+```julia
+rdf_read("data.txt"; format=:ttl)
+rdf_read("data.txt"; format=MIME"text/turtle"())   # MIME values also accepted
+```
+
+For fine-grained control (streaming, base IRI, etc.) use `Base.read(io, format, T)`
+directly, which takes the same symbols: `read(io, :ttl, Graph)`.
 """
 function rdf_read(path::AbstractString;
-                  format::Union{MIME, Nothing}=nothing)::Union{Graph, Dataset}
-    mime = format !== nothing ? format : _rdf_mime_from_path(path)
+                  format::Union{MIME, Symbol, Nothing}=nothing)::Union{Graph, Dataset}
+    mime = format !== nothing ? _format_mime(format) : _rdf_mime_from_path(path, "read")
     return _rdf_read_with_mime(path, mime)
 end
 
-function _rdf_mime_from_path(path::AbstractString)::MIME
+function _rdf_mime_from_path(path::AbstractString, verb::AbstractString)::MIME
     lp = lowercase(path)
     endswith(lp, ".nt")      && return _MIME_NT()
     endswith(lp, ".nq")      && return MIME"application/n-quads"()
@@ -658,8 +662,8 @@ function _rdf_mime_from_path(path::AbstractString)::MIME
     endswith(lp, ".xml")     && return MIME"application/rdf+xml"()
     throw(ArgumentError(
         "Cannot infer RDF format from path $(repr(path)). " *
-        "Pass `format=MIME\"text/turtle\"()` explicitly, or convert the " *
-        "file to Turtle / N-Triples first."))
+        "Pass `format=:ttl` (or :nt, :nq, :jsonld, :rdfxml) to rdf_$(verb) " *
+        "explicitly."))
 end
 
 # Graph-producing formats
@@ -679,33 +683,57 @@ function _rdf_read_with_mime(path::AbstractString,
 end
 
 """
-    rdf_write(path::AbstractString, g::Graph)
-    rdf_write(path::AbstractString, ds::Dataset)
+    rdf_write(path::AbstractString, g::Graph;  format=nothing)
+    rdf_write(path::AbstractString, ds::Dataset; format=nothing)
 
-Write `g` or `ds` to `path`, choosing the serializer by file extension:
+Write `g` or `ds` to `path`, choosing the serializer by file extension (or the
+explicit `format` keyword, which takes the same symbols as [`rdf_read`](@ref)):
 
-| Extension | Format |
-|-----------|--------|
-| `.ttl` | Turtle 1.1 |
-| `.jsonld`, `.json-ld` | JSON-LD 1.1 |
-| anything else | N-Triples (Graph) or N-Quads (Dataset) |
+| Extension | `format` | Format |
+|-----------|----------|--------|
+| `.nt` | `:nt`, `:ntriples` | N-Triples (`Graph` only) |
+| `.ttl` | `:ttl`, `:turtle` | Turtle 1.1 (`Graph` only) |
+| `.nq` | `:nq`, `:nquads` | N-Quads (`Dataset` only) |
+| `.jsonld`, `.json-ld` | `:jsonld` | JSON-LD 1.1 |
+
+An extension that maps to no known format, or to one with no serializer for the
+value being written, raises an `ArgumentError` rather than silently picking a
+different format. Use `write(path, g)` when you just want N-Triples (or
+`write(path, ds)` for N-Quads) regardless of the file name.
 """
-function rdf_write(path::AbstractString, g::Graph)
-    if endswith(path, ".ttl")
-        open(path, "w") do io; Base.write(io, MIME"text/turtle"(), g); end
-    elseif endswith(path, ".jsonld") || endswith(path, ".json-ld")
-        open(path, "w") do io; Base.write(io, MIME"application/ld+json"(), g); end
-    else
-        open(path, "w") do io; Base.write(io, _MIME_NT(), g); end
+function rdf_write(path::AbstractString, g::Graph;
+                   format::Union{MIME, Symbol, Nothing}=nothing)
+    mime = format !== nothing ? _format_mime(format) : _rdf_mime_from_path(path, "write")
+    _rdf_check_writer(mime, g)
+    open(path, "w") do io
+        Base.write(io, mime, g)
     end
 end
 
-function rdf_write(path::AbstractString, ds::Dataset)
-    if endswith(path, ".jsonld") || endswith(path, ".json-ld")
-        open(path, "w") do io; Base.write(io, MIME"application/ld+json"(), ds); end
-    else
-        open(path, "w") do io; Base.write(io, MIME"application/n-quads"(), ds); end
+function rdf_write(path::AbstractString, ds::Dataset;
+                   format::Union{MIME, Symbol, Nothing}=nothing)
+    mime = format !== nothing ? _format_mime(format) : _rdf_mime_from_path(path, "write")
+    _rdf_check_writer(mime, ds)
+    open(path, "w") do io
+        Base.write(io, mime, ds)
     end
+end
+
+# Not every format has a serializer for every value — RDF/XML is read-only, and
+# Turtle/N-Triples describe a single graph, not a Dataset. Fail with a readable
+# message instead of a MethodError.
+#
+# `hasmethod` is no use here: Base's `write(io, x, xs...)` fallback matches any
+# 3-argument call, so it always answers true (and then writes nonsense). Resolve
+# the method instead and check it is a real serializer — one defined by RDF.jl
+# or by an extension — rather than that fallback. This stays honest if an
+# extension later adds a writer we don't know about.
+function _rdf_check_writer(mime::MIME, x)
+    which(Base.write, Tuple{IO, typeof(mime), typeof(x)}).module === Base || return nothing
+    throw(ArgumentError(
+        "No $(nameof(typeof(x))) serializer for $(string(mime)). " *
+        "Graphs can be written as :ttl, :nt or :jsonld; " *
+        "Datasets as :nq or :jsonld."))
 end
 
 # IO-level dispatch: write(io, g) → N-Triples; write(io, ds) → N-Quads.

@@ -231,7 +231,9 @@ Content-negotiation requests Turtle first, then N-Triples, then JSON-LD.
 sets the namespace used by `vocab.Term` property access.  If omitted, all subject
 IRIs are indexed by local name (fragment after the last `#` or `/`).
 
-**`format`** overrides extension-based detection, e.g. `MIME"text/turtle"()`.
+**`format`** overrides extension-based detection: a symbol (`:ttl`, `:nt`, `:nq`,
+`:jsonld`, `:rdfxml`) or a `MIME` value.  For remote URLs it also accepts a full
+Accept-header string.
 
 # Examples
 
@@ -264,7 +266,7 @@ sparql(ds, \"""
 """
 function load_vocabulary(source::AbstractString;
                          base::Union{AbstractString, Nothing}=nothing,
-                         format::Union{MIME, Nothing}=nothing)
+                         format::Union{MIME, Symbol, AbstractString, Nothing}=nothing)
     if startswith(source, "http://") || startswith(source, "https://")
         if !hasmethod(_vocab_load_http, (AbstractString,))
             error(
@@ -273,7 +275,7 @@ function load_vocabulary(source::AbstractString;
         end
         return _vocab_load_http(source; base=base, format=format)
     end
-    mime = format !== nothing ? format : _vocab_mime_from_path(source)
+    mime = format !== nothing ? _format_mime(format) : _vocab_mime_from_path(source)
     g = _vocab_graph_from_file(source, mime)
     Vocabulary(g; base=base)
 end
@@ -291,8 +293,8 @@ function _vocab_mime_from_path(path::AbstractString)::MIME
     endswith(lp, ".xml")     && return MIME"application/rdf+xml"()
     throw(ArgumentError(
         "Cannot infer RDF format from path $(repr(path)). " *
-        "Pass `format=MIME\"text/turtle\"()` explicitly, or convert the " *
-        "file to Turtle / N-Triples first."))
+        "Pass `format=:ttl` (or :nt, :nq, :jsonld, :rdfxml) explicitly, or " *
+        "convert the file to Turtle / N-Triples first."))
 end
 
 # Turtle / N-Triples → Graph directly
