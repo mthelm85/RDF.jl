@@ -435,10 +435,10 @@ hr {
 
 /* ── MD3 state layers ──
    MD3 expresses hover / focus / pressed as a translucent layer of the CONTENT
-   colour drawn over the container, not by swapping the container colour. The
+   color drawn over the container, not by swapping the container color. The
    layer is a ::before at negative z-index inside an isolated stacking context,
    so it paints above the element's own background but below its content, and
-   composes correctly over coloured containers such as a selected nav item. */
+   composes correctly over colored containers such as a selected nav item. */
 
 .md-icon-btn,
 .md-search-bar,
@@ -515,7 +515,7 @@ hr {
 }
 
 /* ── Focus indicator ──
-   MD3 specifies a 3px ring in the secondary colour with a 2px offset.
+   MD3 specifies a 3px ring in the secondary color with a 2px offset.
    Applied to every interactive element, not just the buttons. */
 a:focus-visible,
 button:focus-visible,

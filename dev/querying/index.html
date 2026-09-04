@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Querying — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=39f22897">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c8a2182e">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -83,7 +83,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.sparql">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql.jl#L163-L181" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql.jl#L163-L193" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -120,6 +120,13 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 </table>
 </div>
 <p><code class="md-code-inline">base</code> is an optional absolute IRI used to resolve relative IRIs in the query (e.g. <code class="md-code-inline">FROM &lt;relative.ttl&gt;</code>). When <code class="md-code-inline">nothing</code>, relative IRIs in the query that lack a <code class="md-code-inline">BASE</code> declaration are resolved against an implementation-defined default.</p>
+<p><code class="md-code-inline">load_datasets</code> (default <code class="md-code-inline">false</code>) controls whether a <code class="md-code-inline">FROM</code> / <code class="md-code-inline">FROM NAMED</code> clause may load a graph the caller did not supply. When <code class="md-code-inline">false</code>, a dataset clause can only select among the graphs already in <code class="md-code-inline">g</code>; an IRI naming anything else contributes nothing, per SPARQL 1.1 §13.2. When <code class="md-code-inline">true</code>, a clause whose IRI is a <code class="md-code-inline">file:</code> IRI (or a relative IRI resolved against <code class="md-code-inline">base</code> to one) is also read from disk, with the format taken from the file extension.</p>
+<div class="md-admonition md-admonition-warning">
+<p class="md-admonition-title">load_datasets reads local files</p>
+<div class="md-admonition-body">
+<p>Enable it only for queries you trust. A query string is otherwise untrusted input, and this lets it read any file the process can open. It never performs network requests, whatever the IRI scheme.</p>
+</div>
+</div>
 <p>Throws <code class="md-code-inline">ParseError</code> on a syntactically invalid query, and <code class="md-code-inline">RDFError</code> on evaluation errors (e.g. an undeclared prefix).</p>
 </div>
 <div class="md-docstring-content">
@@ -133,7 +140,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.sparql_parse">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql_parse</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql/parser.jl#L2786-L2792" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql/parser.jl#L2877-L2883" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -146,7 +153,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.SolutionSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.SolutionSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql.jl#L16-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql.jl#L16-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -163,7 +170,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.SolutionRow">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.SolutionRow</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql.jl#L39-L48" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql.jl#L39-L48" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -185,7 +192,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.read_sparql_json">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.read_sparql_json</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql/results.jl#L326-L336" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql/results.jl#L326-L336" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -194,6 +201,34 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 </div>
 <p>Parse a W3C SPARQL 1.1 JSON result document (the body of an <code class="md-code-inline">application/sparql-results+json</code> HTTP response) into a <code class="md-code-inline">SolutionSet</code> for SELECT results or a <code class="md-code-inline">Bool</code> for ASK results.</p>
 <p>This is a low-level helper primarily used by the <code class="md-code-inline">RDFHTTPExt</code> extension for consuming remote SPARQL endpoint responses.  Normal users call <code class="md-code-inline">sparql(url, query)</code> after loading HTTP.jl.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.write_sparql_results">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.write_sparql_results</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql/results.jl#L404-L437" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">write_sparql_results(io::IO, format, result) -&gt; nothing</code></pre>
+</div>
+<p>Serialize any SPARQL query result to one of the four W3C wire formats.</p>
+<p><code class="md-code-inline">format</code> is a symbol — <code class="md-code-inline">:json</code> (<code class="md-code-inline">:srj</code>), <code class="md-code-inline">:xml</code> (<code class="md-code-inline">:srx</code>), <code class="md-code-inline">:csv</code>, <code class="md-code-inline">:tsv</code> — or the corresponding <code class="md-code-inline">MIME</code> value.  <code class="md-code-inline">result</code> is whatever <a href="../querying/#RDF.sparql"><code class="md-code-inline">sparql</code></a> returned: a <code class="md-code-inline">SolutionSet</code> for SELECT, or a <code class="md-code-inline">Bool</code> for ASK.</p>
+<p>This exists because <code class="md-code-inline">sparql</code> returns <code class="md-code-inline">Union{SolutionSet, Bool}</code> depending on the query form, so code that serializes a query it did not write itself cannot use <code class="md-code-inline">write(io, format, result)</code> — there is deliberately no <code class="md-code-inline">write(io, ::Symbol, ::Bool)</code> method, as every argument type would belong to Base and defining one would be type piracy.  <code class="md-code-inline">write_sparql_results</code> is owned by RDF.jl, so it can accept both arms of that union.</p>
+<p>It is the mirror of <a href="../querying/#RDF.read_sparql_json"><code class="md-code-inline">read_sparql_json</code></a>, which already handles both on the way in.</p>
+<p><strong>Examples</strong></p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia"># Serialize a query whose form is not known ahead of time — e.g. an HTTP
+# endpoint doing SPARQL protocol content negotiation
+result = sparql(ds, user_query)
+write_sparql_results(io, :json, result)     # SELECT and ASK both work
+
+write_sparql_results(io, :csv, sparql(ds, &quot;SELECT * WHERE { ?s ?p ?o }&quot;))
+write_sparql_results(io, :xml, sparql(ds, &quot;ASK { ?s ?p ?o }&quot;))</code></pre>
+</div>
+<p>CONSTRUCT and DESCRIBE return a <code class="md-code-inline">Graph</code>, which is RDF rather than a result set — serialize those with <code class="md-code-inline">write(io, :ttl, g)</code> and friends.</p>
 </div>
 </div>
 <h3 id="SELECT" class="md-heading">SELECT<a href="#SELECT" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
@@ -284,7 +319,7 @@ sparql(ds, &quot;&quot;&quot;
 <div class="md-docstring" id="RDF.sparql_update!">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql_update!</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/sparql.jl#L194-L203" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/sparql.jl#L207-L216" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -498,7 +533,7 @@ result = sparql(local_graph, &quot;&quot;&quot;
 <div class="md-docstring" id="RDF.RemoteGraph">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.RemoteGraph</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/remote.jl#L22-L54" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/remote.jl#L22-L54" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -531,7 +566,7 @@ sparql(wikidata, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 10&quot;)</code></pre>
 <div class="md-docstring" id="RDF.RemoteEndpointError">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.RemoteEndpointError</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/75deaafed635adf926c5c09cb4887398ca8bd0d6/src/errors.jl#L25-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/dc560e02b7b0c4f0c70441c37e87df47ec525555/src/errors.jl#L25-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -566,9 +601,6 @@ sparql(wd, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 5&quot;)       # direct forw
 <pre><code class="language-julia">io = IOBuffer()
 write(io, :json, result)                                     # SELECT
 write(io, MIME&quot;application/sparql-results+json&quot;(), result)   # equivalently
-
-# ASK results are a plain `Bool`, which the symbol form does not cover — a
-# `write(io, ::Symbol, ::Bool)` method would be type piracy over Base.
 write(io, MIME&quot;application/sparql-results+json&quot;(), true)     # ASK</code></pre>
 </div>
 <p>Output follows the <a href="https://www.w3.org/TR/sparql11-results-json/">W3C SPARQL 1.1 JSON format</a>.</p>
@@ -591,6 +623,16 @@ write(io, MIME&quot;application/sparql-results+xml&quot;(), false)     # ASK</co
 <pre><code class="language-julia">write(io, :tsv, result)</code></pre>
 </div>
 <p>Header uses <code class="md-code-inline">?</code>-prefixed variable names; term values use N-Triples syntax (<code class="md-code-inline">&lt;iri&gt;</code>, <code class="md-code-inline">_:bnode</code>, <code class="md-code-inline">&quot;literal&quot;^^&lt;dt&gt;</code>).</p>
+<h3 id="Serializing-a-result-of-unknown-form" class="md-heading">Serializing a result of unknown form<a href="#Serializing-a-result-of-unknown-form" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">sparql</code> returns a <code class="md-code-inline">SolutionSet</code> for SELECT but a plain <code class="md-code-inline">Bool</code> for ASK, so code that serializes a query it did not write itself cannot use <code class="md-code-inline">write(io, :json, r)</code> — there is no <code class="md-code-inline">write(io, ::Symbol, ::Bool)</code> method, and there deliberately never will be: every argument type would belong to Base, making it type piracy that would change the meaning of <code class="md-code-inline">write(io, some_symbol, some_bool)</code> for every package in the program.</p>
+<p><a href="../querying/#RDF.write_sparql_results"><code class="md-code-inline">write_sparql_results</code></a> is owned by RDF.jl and therefore accepts both:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">result = sparql(ds, user_supplied_query)
+write_sparql_results(io, :json, result)    # SELECT and ASK both work</code></pre>
+</div>
+<p>It is the mirror of <a href="../querying/#RDF.read_sparql_json"><code class="md-code-inline">read_sparql_json</code></a>, which already handles both forms on the way in. CONSTRUCT and DESCRIBE return a <code class="md-code-inline">Graph</code> — that is RDF, not a result set, so serialize it with <code class="md-code-inline">write(io, :ttl, g)</code> and friends.</p>
+<p>ASK has no CSV or TSV serialization in the W3C spec; those formats cover SELECT result sets only, and <code class="md-code-inline">write_sparql_results</code> says so rather than emitting a stray byte.</p>
 <hr class="md-hr">
 <h2 id="Supported-SPARQL-1.1-/-1.2-features" class="md-heading">Supported SPARQL 1.1 / 1.2 features<a href="#Supported-SPARQL-1.1-/-1.2-features" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <div class="md-table-wrap">
@@ -723,6 +765,7 @@ write(io, MIME&quot;application/sparql-results+xml&quot;(), false)     # ASK</co
             <a class="md-toc-link md-toc-h3" href="#SPARQL/XML">SPARQL/XML</a>
             <a class="md-toc-link md-toc-h3" href="#SPARQL/CSV">SPARQL/CSV</a>
             <a class="md-toc-link md-toc-h3" href="#SPARQL/TSV">SPARQL/TSV</a>
+            <a class="md-toc-link md-toc-h3" href="#Serializing-a-result-of-unknown-form">Serializing a result of unknown form</a>
           <a class="md-toc-link md-toc-h2" href="#Supported-SPARQL-1.1-/-1.2-features">Supported SPARQL 1.1 / 1.2 features</a>
           <a class="md-toc-link md-toc-h2" href="#Query-optimization">Query optimization</a>
       </div>
@@ -734,6 +777,6 @@ write(io, MIME&quot;application/sparql-results+xml&quot;(), false)     # ASK</co
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=39f22897"></script>
+  <script src="../assets/materialdocs.js?v=c8a2182e"></script>
 </body>
 </html>
