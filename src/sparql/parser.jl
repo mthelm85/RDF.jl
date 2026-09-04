@@ -1856,7 +1856,16 @@ end
 
 function _sp_parse_where_clause(p::SpParser)::SpPat
     _sp_eat_kw!(p, "where")  # optional WHERE keyword
-    _sp_parse_group_graph_pattern(p)
+    pat = _sp_parse_group_graph_pattern(p)
+    # A single-element group is kept by the group parser because the boundary
+    # matters when the group sits inside another one. At the top of a WHERE
+    # clause there is no enclosing group for anything to leak into, so the
+    # wrapper is pure overhead — it costs a BindingTable round-trip on every
+    # query whose WHERE holds one non-BGP element, e.g. `WHERE { GRAPH ?g {…} }`.
+    if pat isa SpGroup && length(pat.elements) == 1
+        return pat.elements[1]
+    end
+    return pat
 end
 
 # ── Solution modifiers ────────────────────────────────────────────────────────

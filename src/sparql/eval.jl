@@ -516,9 +516,17 @@ function _bt_left_join(bt::_BT, opt_pat::SpPat, ctx::_SpEvalCtx)::_BT
     rhs = _sp_eval_pattern(inner, ctx, _SpSolution[_SpSolution()])
     input_sols = _bt_to_solutions(bt)
     results    = _SpSolution[]
+
+    # Hash join on the variables the two sides share. A nested loop is O(|left| ×
+    # |right|), which on a 10k-triple graph is ~10^8 compatibility checks — it
+    # made a nested OPTIONAL roughly 90x slower than the substituting version it
+    # replaced.
+    join_vars = _sp_shared_vars(bt.vars, rhs)
+    index, unindexed = _sp_index_solutions(rhs, join_vars)
+
     for μ in input_sols
         matched = false
-        for ν in rhs
+        for ν in _sp_join_candidates(μ, rhs, index, unindexed, join_vars)
             _sp_compatible(μ, ν) || continue
             merged = _sp_merge_sol(μ, ν)
             # Top-level FILTERs inside the OPTIONAL are the join condition F and
@@ -531,6 +539,66 @@ function _bt_left_join(bt::_BT, opt_pat::SpPat, ctx::_SpEvalCtx)::_BT
         matched || push!(results, μ)
     end
     _solutions_to_bt(results)
+end
+
+# ── Hash-join helpers ─────────────────────────────────────────────────────────
+#
+# Used wherever two independently-evaluated solution sequences have to be joined
+# (OPTIONAL's left join, GRAPH's join with Ω(?g → g)). Solutions bind a variable
+# by having the key present; an absent key is unbound and compatible with
+# anything, so only solutions that bind every join variable can be indexed. The
+# rest are kept aside and considered for every probe — there are normally very
+# few of them.
+
+# All variables bound by at least one solution in a sequence.
+function _sp_solution_vars(sols::Vector{_SpSolution})::Vector{Symbol}
+    vs = Set{Symbol}()
+    for μ in sols, k in keys(μ)
+        push!(vs, k)
+    end
+    sort!(collect(vs))
+end
+
+# Variables that appear on the left and in at least one right-hand solution.
+function _sp_shared_vars(left_vars, rhs::Vector{_SpSolution})::Vector{Symbol}
+    isempty(rhs) && return Symbol[]
+    lv = Set{Symbol}(left_vars)
+    shared = Set{Symbol}()
+    for ν in rhs, k in keys(ν)
+        k in lv && push!(shared, k)
+    end
+    sort!(collect(shared))
+end
+
+function _sp_index_solutions(rhs::Vector{_SpSolution}, join_vars::Vector{Symbol})
+    index     = Dict{Vector{RDFTerm}, Vector{_SpSolution}}()
+    unindexed = _SpSolution[]
+    isempty(join_vars) && return (index, rhs)   # nothing to key on: probe all
+    for ν in rhs
+        if all(v -> haskey(ν, v), join_vars)
+            key = RDFTerm[ν[v] for v in join_vars]
+            push!(get!(() -> _SpSolution[], index, key), ν)
+        else
+            push!(unindexed, ν)
+        end
+    end
+    return (index, unindexed)
+end
+
+# Right-hand solutions that could possibly be compatible with μ.
+function _sp_join_candidates(μ::_SpSolution, rhs::Vector{_SpSolution},
+                             index::Dict{Vector{RDFTerm}, Vector{_SpSolution}},
+                             unindexed::Vector{_SpSolution},
+                             join_vars::Vector{Symbol})
+    isempty(join_vars) && return rhs
+    # μ must bind every join variable for the key to be exact; otherwise it is
+    # unbound on one of them and can match anything.
+    all(v -> haskey(μ, v), join_vars) || return rhs
+    key = RDFTerm[μ[v] for v in join_vars]
+    bucket = get(index, key, nothing)
+    bucket === nothing && return unindexed
+    isempty(unindexed) && return bucket
+    return Iterators.flatten((bucket, unindexed))
 end
 
 # Split an OPTIONAL's pattern into (pattern, top-level filter expressions). The
@@ -2064,12 +2132,33 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
                 # would stop a pattern inside P from binding ?g itself.
                 inner = _sp_eval_pattern(pat.pattern, inner_ctx, [_SpSolution()])
                 isempty(inner) && continue
+
+                # Join with Ω(?g → g). Drop any inner solution that bound ?g
+                # itself to a different graph before joining.
+                if any(ν -> haskey(ν, vname), inner)
+                    inner = filter(ν -> !haskey(ν, vname) || ν[vname] == graph_name, inner)
+                    isempty(inner) && continue
+                end
+
+                # Fast path: at the top of a WHERE clause `input` is the single
+                # empty solution, so the join is just "tag each inner solution
+                # with ?g". Copy rather than mutate — an inner pattern that
+                # matches everything can hand back the input solution itself.
+                if length(input) == 1 && isempty(input[1])
+                    for ν in inner
+                        merged = copy(ν)
+                        merged[vname] = graph_name
+                        push!(results, merged)
+                    end
+                    continue
+                end
+
+                join_vars = _sp_shared_vars(_sp_solution_vars(input), inner)
+                index, unindexed = _sp_index_solutions(inner, join_vars)
                 for μ in input
                     # An incoming solution that already fixes ?g selects a graph.
                     haskey(μ, vname) && μ[vname] != graph_name && continue
-                    for ν in inner
-                        # Join with Ω(?g → g): a ?g bound inside P must agree.
-                        haskey(ν, vname) && ν[vname] != graph_name && continue
+                    for ν in _sp_join_candidates(μ, inner, index, unindexed, join_vars)
                         _sp_compatible(μ, ν) || continue
                         merged = _sp_merge_sol(μ, ν)
                         merged[vname] = graph_name
