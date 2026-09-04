@@ -70,7 +70,18 @@ function _sp_to_float(lit::Literal)::Float64
     s in ("INF", "+INF")  && return Inf
     s == "-INF"           && return -Inf
     s == "NaN"            && return NaN
-    Parsers.parse(Float64, s)
+    # Base.parse, not Parsers.parse: the latter is not correctly rounded at the
+    # Float64 boundary — it turns "9007199254740991.5" into 9.007199254740991e15
+    # where the nearest double is 9.007199254740992e15. tryparse rather than
+    # parse because it returns nothing on an out-of-range magnitude, which XSD
+    # maps to ±INF instead of treating as an error.
+    parsed = tryparse(Float64, s)
+    v = parsed === nothing ? (startswith(s, "-") ? -Inf : Inf) : parsed
+    # xsd:float has a single-precision value space, so two lexical forms that
+    # round to the same Float32 denote the same value: "16777206.5"^^xsd:float
+    # and "16777205.5"^^xsd:float are equal (W3C rdf-mt float-round-same).
+    dt == _SP_XSD_FLOAT && return Float64(Float32(v))
+    return v
 end
 
 # Parse a decimal lexical form (e.g. "3.14", "+33.33") to an exact Rational{BigInt}
@@ -335,6 +346,8 @@ end
 # "yyyy-mm-ddTHH:MM:SS") happily yields year 13 — so the lexical form has to be
 # checked before parsing, or `xsd:dateTime("13")` would silently succeed.
 const _SP_RE_DATETIME = r"^-?\d{4,}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+const _SP_RE_INTEGER  = r"^[+-]?\d+$"
+const _SP_RE_FLOAT    = r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$"
 const _SP_RE_DATE     = r"^-?\d{4,}-\d{2}-\d{2}(Z|[+-]\d{2}:\d{2})?$"
 const _SP_RE_DATETIME_PARTS =
     r"^(-?\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
@@ -431,11 +444,17 @@ function _sp_well_typed(lit::Literal)::Bool
     dt = lit.datatype.value
     s  = lit.lexical_form
     if _sp_is_integer(dt)
-        return tryparse(BigInt, s) !== nothing
+        # Not tryparse: Julia's integer parsing skips surrounding whitespace, so
+        # it accepts " 3 ", which is outside the XSD lexical space and must stay
+        # ill-typed (W3C rdf-mt xmlsch-02-whitespace-facet-1).
+        return occursin(_SP_RE_INTEGER, s)
     elseif dt == _SP_XSD_DECIMAL
         return occursin(r"^[+-]?(\d+(\.\d*)?|\.\d+)$", s)
     elseif dt == _SP_XSD_DOUBLE || dt == _SP_XSD_FLOAT
-        return s in ("INF", "-INF", "NaN") || tryparse(Float64, s) !== nothing
+        # tryparse returns nothing on overflow ("1E400"), but XSD maps an
+        # out-of-range magnitude to ±INF, so such a literal is well-formed.
+        s in ("INF", "+INF", "-INF", "NaN") && return true
+        return occursin(_SP_RE_FLOAT, s)
     elseif dt == _SP_XSD_BOOLEAN
         return s in ("true", "false", "0", "1")
     elseif dt == _SP_XSD_DATETIME

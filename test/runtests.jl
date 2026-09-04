@@ -15,6 +15,7 @@ using Test
     include("test_sparql.jl")
     include("test_turtle.jl")
     include("test_inference.jl")
+    include("test_w3c_entailment.jl")
     include("test_validation.jl")
     include("test_errors.jl")
     include("test_tables.jl")

@@ -1,6 +1,7 @@
 # RDFS forward-chaining materialization
 
-const _RDFS_ALL_RULES = [:subClassOf, :subPropertyOf, :domain, :range, :type_propagation]
+const _RDFS_ALL_RULES = [:subClassOf, :subPropertyOf, :domain, :range,
+                         :type_propagation, :container_membership]
 
 """
     infer_rdfs(g::Graph; rules=[:subClassOf, :subPropertyOf, :domain, :range]) -> Graph
@@ -46,7 +47,43 @@ function _apply_rule!(g::Graph, rule::Symbol)::Bool
     rule === :domain          && return _rule_domain!(g)
     rule === :range           && return _rule_range!(g)
     rule === :type_propagation && return false
+    rule === :container_membership && return _rule_container_membership!(g)
     false
+end
+
+# RDFS axiomatic triples for container membership properties. The schema is
+# infinite (rdf:_1, rdf:_2, …), so it is instantiated for the ones the graph
+# actually mentions:
+#
+#   rdf:_N rdf:type rdfs:ContainerMembershipProperty     (axiomatic)
+#   rdf:_N rdfs:subPropertyOf rdfs:member                (rdfs12)
+#
+# rdfs7 then derives `?s rdfs:member ?o` from `?s rdf:_N ?o` on the next pass.
+const _RDF_NS_PREFIX = "http://www.w3.org/1999/02/22-rdf-syntax-ns#_"
+
+_is_container_membership_iri(t) =
+    t isa IRI && startswith(t.value, _RDF_NS_PREFIX) &&
+    length(t.value) > length(_RDF_NS_PREFIX) &&
+    all(isdigit, t.value[(length(_RDF_NS_PREFIX) + 1):end])
+
+function _rule_container_membership!(g::Graph)::Bool
+    props = Set{IRI}()
+    for t in g
+        for term in (t.subject, t.predicate, t.object)
+            _is_container_membership_iri(term) && push!(props, term::IRI)
+        end
+    end
+    changed = false
+    for p in props
+        for new_t in (Triple(p, _RDF_TYPE, _RDFS_CONTAINER_MEMBERSHIP_PROPERTY),
+                      Triple(p, _RDFS_SUBPROPERTYOF, _RDFS_MEMBER))
+            if new_t ∉ g
+                push!(g, new_t)
+                changed = true
+            end
+        end
+    end
+    changed
 end
 
 # rdfs2: ?x rdf:type ?C  if  ?x ?p ?y  and  ?p rdfs:domain ?C
@@ -202,3 +239,6 @@ const _RDFS_SUBCLASSOF    = IRI("http://www.w3.org/2000/01/rdf-schema#subClassOf
 const _RDFS_SUBPROPERTYOF = IRI("http://www.w3.org/2000/01/rdf-schema#subPropertyOf")
 const _RDFS_DOMAIN        = IRI("http://www.w3.org/2000/01/rdf-schema#domain")
 const _RDFS_RANGE         = IRI("http://www.w3.org/2000/01/rdf-schema#range")
+const _RDFS_MEMBER        = IRI("http://www.w3.org/2000/01/rdf-schema#member")
+const _RDFS_CONTAINER_MEMBERSHIP_PROPERTY =
+    IRI("http://www.w3.org/2000/01/rdf-schema#ContainerMembershipProperty")

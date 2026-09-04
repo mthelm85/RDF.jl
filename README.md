@@ -512,12 +512,18 @@ julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
 | W3C SPARQL 1.0 (DAWG) | **482 / 482** |
 | W3C SPARQL 1.1 (query + update) | **657 / 657** |
 | W3C SPARQL 1.2 | **263 / 263** |
+| W3C RDF 1.1 Semantics (rdf-mt) | **38 / 49** (11 skipped, see below) |
 | W3C Turtle 1.1 | ✓ |
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |
 | W3C RDF graph isomorphism | ✓ |
 | W3C JSON-LD 1.1 (toRdf) | **448 / 448** (1.1 in-scope) |
 | W3C JSON-LD 1.1 (fromRdf) | **50 / 50** (round-trip) |
+
+The 11 skipped entailment tests are two documented gaps: detecting that a graph
+is *inconsistent* (`mf:result false` — RDFS forward chaining derives triples but
+never a contradiction), and rdfD1 literal typing, which would put a literal in
+subject position and so cannot be represented in a `Graph`.
 
 ## Citing
 
