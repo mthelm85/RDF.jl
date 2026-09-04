@@ -1,7 +1,17 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+MaterialColors = "3927ea69-822a-40ab-97d4-2bc957378337"
 MaterialDocs = "10bdffc8-969c-4dd4-83f3-742518eccd6b"
 RDF = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
 
+# MaterialDocs and its MaterialColors dependency are both unregistered. A
+# dependency's own [sources] is not honoured transitively, so this project has
+# to declare MaterialColors itself — and Julia only accepts a [sources] entry
+# for a package that is also in [deps], which is why MaterialColors is listed
+# above even though make.jl never loads it directly. Remove both once
+# MaterialColors is registered in General.
 [sources.MaterialDocs]
 url = "https://github.com/mthelm85/MaterialDocs.jl.git"
+
+[sources.MaterialColors]
+url = "https://github.com/mthelm85/MaterialColors.jl.git"
