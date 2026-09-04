@@ -502,7 +502,99 @@ let
     SUITE["sparql"]["subquery"]["values_join"] = @benchmarkable sparql($ds, $q_values)
 end
 
-# ── 19. SPARQL UPDATE ─────────────────────────────────────────────────────────
+# ── 19. SPARQL named graphs and nested OPTIONAL ───────────────────────────────
+#
+# These cover the two evaluation paths that had to stop substituting the
+# incoming bindings into a sub-pattern to be spec-correct:
+#
+#   GRAPH ?g { P }   evaluates P once per named graph with ?g unbound and joins
+#                    the binding on afterwards (§18.2.2.3), rather than binding
+#                    ?g first and pushing it in.
+#   OPTIONAL { P }   evaluates P independently and left-joins when P is not a
+#                    plain BGP (§18.2.2.5); a plain BGP still takes the columnar
+#                    fast path and is unaffected.
+#
+# Both trade a narrower index lookup for a correct one, so they are the places
+# to watch for a throughput regression. Graph count is varied separately from
+# graph size because the GRAPH cost is now linear in the number of graphs.
+
+SUITE["sparql"]["graph"] = BenchmarkGroup()
+let
+    ex   = Namespace("http://example.org/")
+    foaf = Namespace("http://xmlns.com/foaf/0.1/")
+
+    # `ngraphs` named graphs of `per` people each.
+    function make_named_ds(ngraphs::Int, per::Int)
+        ds = Dataset()
+        for gi in 1:ngraphs
+            g = Graph()
+            for i in 1:per
+                s = ex["g$(gi)_person$i"]
+                push!(g, Triple(s, foaf.name, Literal("Person $i")))
+                push!(g, Triple(s, foaf.age,  Literal(20 + i % 60)))
+                i < per && push!(g, Triple(s, foaf.knows, ex["g$(gi)_person$(i+1)"]))
+            end
+            ds[ex["graph$gi"]] = g
+        end
+        ds
+    end
+
+    q_var   = "PREFIX foaf: <http://xmlns.com/foaf/0.1/> SELECT ?g ?s WHERE { GRAPH ?g { ?s foaf:name ?n } }"
+    q_fixed = """PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX ex: <http://example.org/>
+                 SELECT ?s WHERE { GRAPH ex:graph1 { ?s foaf:name ?n } }"""
+    q_join  = """PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                 SELECT ?g ?name WHERE {
+                   GRAPH ?g { ?s foaf:name ?name ; foaf:age ?age }
+                 }"""
+    q_opt   = """PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                 SELECT ?g ?name ?friend WHERE {
+                   GRAPH ?g { ?s foaf:name ?name OPTIONAL { ?s foaf:knows ?friend } }
+                 }"""
+
+    for (ng, per) in ((10, 100), (100, 10), (10, 1_000))
+        ds = make_named_ds(ng, per)
+        tag = "g=$ng,per=$per"
+        SUITE["sparql"]["graph"]["var_graph/$tag"]      = @benchmarkable sparql($ds, $q_var)
+        SUITE["sparql"]["graph"]["fixed_graph/$tag"]    = @benchmarkable sparql($ds, $q_fixed)
+        SUITE["sparql"]["graph"]["var_graph_join/$tag"] = @benchmarkable sparql($ds, $q_join)
+        SUITE["sparql"]["graph"]["var_graph_opt/$tag"]  = @benchmarkable sparql($ds, $q_opt)
+    end
+end
+
+SUITE["sparql"]["optional"] = BenchmarkGroup()
+let
+    for n in (100, 1_000, 10_000)
+        ds = Dataset(; default_graph=make_social_graph(n))
+
+        # Plain BGP optional — columnar fast path, unchanged.
+        q_plain  = """PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                      SELECT ?name ?friend WHERE {
+                        ?s foaf:name ?name .
+                        OPTIONAL { ?s foaf:knows ?friend }
+                      }"""
+        # OPTIONAL carrying a FILTER: the filter becomes the left-join condition.
+        q_filter = """PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                      SELECT ?name ?friend WHERE {
+                        ?s foaf:name ?name .
+                        OPTIONAL { ?s foaf:knows ?friend . ?friend foaf:age ?fa . FILTER(?fa > 40) }
+                      }"""
+        # Nested OPTIONAL: the case that forced independent evaluation.
+        q_nested = """PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                      SELECT ?name ?friend ?fname WHERE {
+                        ?s foaf:name ?name .
+                        OPTIONAL {
+                          ?s foaf:knows ?friend .
+                          OPTIONAL { ?friend foaf:name ?fname }
+                        }
+                      }"""
+
+        SUITE["sparql"]["optional"]["plain/n=$n"]  = @benchmarkable sparql($ds, $q_plain)
+        SUITE["sparql"]["optional"]["filter/n=$n"] = @benchmarkable sparql($ds, $q_filter)
+        SUITE["sparql"]["optional"]["nested/n=$n"] = @benchmarkable sparql($ds, $q_nested)
+    end
+end
+
+# ── 20. SPARQL UPDATE ─────────────────────────────────────────────────────────
 # Use setup= so graph construction cost is excluded from the measurement.
 
 SUITE["sparql"]["update"] = BenchmarkGroup()

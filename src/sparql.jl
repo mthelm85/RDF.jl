@@ -212,17 +212,23 @@ Multiple update operations separated by `;` are supported.
 
 `base` is an optional absolute IRI used to resolve relative IRIs in the update.
 
+`load_datasets` (default `false`) controls whether `LOAD` may read a graph from
+disk, on the same terms as the keyword of the same name on [`sparql`](@ref):
+`file:` IRIs only, never the network. With it left `false`, `LOAD` raises —
+or does nothing, if the operation is marked `SILENT`.
+
 Throws `ParseError` on a syntactically invalid update.
 """
 function sparql_update!(ds::Dataset, update::AbstractString;
-                        base::Union{AbstractString, Nothing} = nothing)
+                        base::Union{AbstractString, Nothing} = nothing,
+                        load_datasets::Bool = false)
     unit = sparql_parse(update)
     unit isa SpUpdateUnit ||
         throw(ArgumentError("expected a SPARQL update, got a query — use sparql"))
     base_str = base === nothing ? nothing : String(base)
     # Prefer BASE declaration from update over external base
     effective_base = unit.base !== nothing ? unit.base : base_str
-    ctx = _SpEvalCtx(ds, effective_base)
+    ctx = _SpEvalCtx(ds, effective_base; load_datasets=load_datasets)
     _sp_execute_update!(unit, ctx)
     nothing
 end

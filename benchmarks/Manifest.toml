@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.4"
+julia_version = "1.12.6"
 manifest_format = "2.0"
 project_hash = "9a01c988497ab1ef8edb863b4259b9c44bab7a8c"
 
@@ -105,18 +105,6 @@ version = "1.6.1"
     JSONArrowExt = ["ArrowTypes"]
 
     [deps.JSON.weakdeps]
-    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
-
-[[deps.JSON3]]
-deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
-git-tree-sha1 = "411eccfe8aba0814ffa0fdf4860913ed09c34975"
-uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.14.3"
-
-    [deps.JSON3.extensions]
-    JSON3ArrowExt = ["ArrowTypes"]
-
-    [deps.JSON3.weakdeps]
     ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.JuliaSyntaxHighlighting]]
@@ -272,16 +260,18 @@ uuid = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
 version = "0.1.6"
 
 [[deps.RDF]]
-deps = ["Base64", "Bumper", "DataStructures", "Dates", "Graphs", "JSON3", "LRUCache", "MD5", "Parsers", "PrecompileTools", "Printf", "SHA", "SimpleWeightedGraphs"]
-path = "C:\\Users\\mthel\\Julia\\MyPackages\\RDF"
+deps = ["Base64", "Bumper", "DataStructures", "Dates", "Graphs", "JSON", "LRUCache", "MD5", "Parsers", "PrecompileTools", "Printf", "SHA", "SimpleWeightedGraphs"]
+path = ".."
 uuid = "3fbc022c-18f7-42fc-beaf-ca56153ab0b3"
 version = "0.1.0"
 
     [deps.RDF.extensions]
     RDFHTTPExt = "HTTP"
     RDFTablesExt = "Tables"
+    RDFXMLExt = "EzXML"
 
     [deps.RDF.weakdeps]
+    EzXML = "8f5d6c58-4d21-5cfd-889c-e3ad7ee6a615"
     HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
     Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
@@ -352,12 +342,6 @@ weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
     SparseArraysExt = ["SparseArrays"]
-
-[[deps.StructTypes]]
-deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "159331b30e94d7b11379037feeb9b690950cace8"
-uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
-version = "1.11.0"
 
 [[deps.StructUtils]]
 deps = ["Dates", "UUIDs"]

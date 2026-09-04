@@ -300,9 +300,32 @@ end
 # ── LOAD ──────────────────────────────────────────────────────────────────────
 
 function _sp_execute_update_op!(op::SpLoad, ctx::_SpEvalCtx)
-    # LOAD is a network operation; we don't implement it for now.
-    # SILENT suppresses errors.
-    op.silent || error("SPARQL LOAD is not supported in this implementation")
+    src = op.source
+    # Resolve a relative source against the update's base, as for FROM.
+    if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", src)
+        src = _sp_resolve_iri(ctx.base, src)
+    end
+
+    # Same policy as FROM / FROM NAMED: reading graphs the caller did not supply
+    # is opt-in, and only ever from the local filesystem. SILENT turns any
+    # failure — including the feature being disabled — into a no-op, which is
+    # what SPARQL 1.1 §3.1.4 specifies.
+    if !ctx.load_datasets
+        op.silent && return nothing
+        error("SPARQL LOAD is disabled. Pass load_datasets=true to sparql_update! " *
+              "to allow reading local files; LOAD never performs network requests.")
+    end
+
+    g = _sp_load_dataset_graph(src)
+    if g === nothing
+        op.silent && return nothing
+        error("SPARQL LOAD could not read $(src)")
+    end
+
+    target = op.into_graph === nothing ? ctx.dataset.default_graph :
+             _sp_upd_get_or_create_named(ctx, op.into_graph)
+    merge!(target, g)
+    return nothing
 end
 
 # ── CLEAR ─────────────────────────────────────────────────────────────────────

@@ -29,11 +29,22 @@ jobs:
         version:
           - '1.10'
           - '1.11'
+          - '1.12'
           - '1.9'
           - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
+        # Windows on the LTS and the current release only, rather than the full
+        # cross product. It is a distinct platform for the things that actually
+        # break here — path and file: URI handling, and line-ending translation
+        # of the vendored W3C fixtures, which silently changed what several of
+        # them assert until .gitattributes marked that tree -text.
+        include:
+          - version: '1.10'
+            os: windows-latest
+          - version: '1.12'
+            os: windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3

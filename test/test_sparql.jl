@@ -740,6 +740,49 @@ end
         @test value(Int64, result[1][:age]) == 31
     end
 
+    @testset "sparql_update! — LOAD" begin
+        # LOAD reads a graph the caller did not supply, so it is opt-in and
+        # local-file only, on the same terms as FROM.
+        dir = mktempdir()
+        src = joinpath(dir, "people.ttl")
+        write(src, """@prefix : <http://e/> . :alice :knows :bob . :bob :name "Bob" .""")
+        uri = "file:///" * replace(src, "\\" => "/")
+
+        # Disabled by default
+        ds = Dataset()
+        @test_throws ErrorException sparql_update!(ds, "LOAD <$uri>")
+        @test isempty(ds.default_graph)
+
+        # SILENT turns the refusal into a no-op (§3.1.4)
+        sparql_update!(ds, "LOAD SILENT <$uri>")
+        @test isempty(ds.default_graph)
+
+        # Enabled: loads into the default graph
+        sparql_update!(ds, "LOAD <$uri>"; load_datasets=true)
+        @test length(ds.default_graph) == 2
+        @test Triple(IRI("http://e/alice"), IRI("http://e/knows"), IRI("http://e/bob")) in ds.default_graph
+
+        # INTO GRAPH targets a named graph and leaves the default alone
+        ds2 = Dataset()
+        sparql_update!(ds2, "LOAD <$uri> INTO GRAPH <http://e/g>"; load_datasets=true)
+        @test haskey(ds2, IRI("http://e/g"))
+        @test length(ds2[IRI("http://e/g")]) == 2
+        @test isempty(ds2.default_graph)
+
+        # An unreadable source raises, or is skipped under SILENT
+        ds3 = Dataset()
+        @test_throws ErrorException sparql_update!(ds3, "LOAD <file:///nope/missing.ttl>";
+                                                   load_datasets=true)
+        sparql_update!(ds3, "LOAD SILENT <file:///nope/missing.ttl>"; load_datasets=true)
+        @test isempty(ds3.default_graph)
+
+        # Never reaches the network, whatever the scheme
+        ds4 = Dataset()
+        @test_throws ErrorException sparql_update!(ds4, "LOAD <http://example.org/data.ttl>";
+                                                   load_datasets=true)
+        @test isempty(ds4.default_graph)
+    end
+
     @testset "sparql_update! — INSERT DATA into named graph" begin
         ds = Dataset()
         sparql_update!(ds, """
