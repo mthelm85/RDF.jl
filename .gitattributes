@@ -1,4 +1,10 @@
 # Tell GitHub Linguist to ignore vendored W3C test fixtures.
 # These are third-party test data files (not RDF.jl source code) and should
 # not influence the repository's detected language breakdown.
-test/w3c/fixtures/** linguist-vendored
+test/w3c/fixtures/** linguist-vendored -text
+
+# -text: never translate line endings in the vendored fixtures. They are
+# third-party conformance data and must be checked out byte-for-byte as
+# published. Several expected-result files carry literal newlines inside
+# literal values — the SPARQL 1.0 regex tests for the s, m and x options among
+# them — so a CRLF checkout on Windows silently changes what they assert.
