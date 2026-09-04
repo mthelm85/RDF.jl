@@ -39,3 +39,5 @@ AGENTS.md
 examples/
 .vscode/
 dev/
+# PkgBenchmark tuning data (regenerated per machine)
+/benchmark/
