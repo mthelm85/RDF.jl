@@ -1,6 +1,6 @@
 # RDF [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://mthelm85.github.io/RDF.jl/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://mthelm85.github.io/RDF.jl/dev/) [![Build Status](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mthelm85/RDF.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Coverage](https://codecov.io/gh/mthelm85/RDF.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mthelm85/RDF.jl)
 
-A full-featured RDF 1.2 library for Julia with a **conformant SPARQL 1.1 and 1.2 engine** (657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing), including full RDF-star / RDF 1.2 support — triple terms, reified triples, annotation syntax, and directional language tags — across Turtle, N-Triples, N-Quads, and SPARQL.
+A full-featured RDF 1.2 library for Julia with a **conformant SPARQL 1.1 and 1.2 engine** (482/482 SPARQL 1.0, 657/657 SPARQL 1.1 and 263/263 SPARQL 1.2 W3C tests passing), including full RDF-star / RDF 1.2 support — triple terms, reified triples, annotation syntax, and directional language tags — across Turtle, N-Triples, N-Quads, and SPARQL.
 
 Graphs are backed by a hexastore index — six sorted arrays covering every (s, p, o) permutation — giving O(log n) pattern matching on any combination of subject, predicate, and object.
 
@@ -509,7 +509,9 @@ julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
 
 | Test suite | Passing |
 |---|---|
+| W3C SPARQL 1.0 (DAWG) | **482 / 482** |
 | W3C SPARQL 1.1 (query + update) | **657 / 657** |
+| W3C SPARQL 1.2 | **263 / 263** |
 | W3C Turtle 1.1 | ✓ |
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |

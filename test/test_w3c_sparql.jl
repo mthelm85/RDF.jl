@@ -9,6 +9,7 @@
 
 using Test, RDF
 import JSON
+using EzXML   # triggers RDFXMLExt, so .rdf fixtures use the real RDF/XML parser
 
 # The fixtures are vendored in the repository, so the W3C SPARQL suites run
 # unconditionally — like every other test.
@@ -46,6 +47,8 @@ const _SP_MF_NEG_UPD12  = IRI(_SP_MF_NS   * "NegativeUpdateSyntaxTest")
 const _SP_MF_QUERY_EVAL = IRI(_SP_MF_NS   * "QueryEvaluationTest")
 const _SP_MF_UPD_EVAL   = IRI(_SP_MF_NS   * "UpdateEvaluationTest")
 const _SP_MF_CSV_RES    = IRI(_SP_MF_NS   * "CSVResultFormatTest")
+const _SP_MF_RESULT_CARD = IRI(_SP_MF_NS  * "resultCardinality")
+const _SP_MF_LAX_CARD    = IRI(_SP_MF_NS  * "LaxCardinality")
 const _SP_QT_QUERY      = IRI(_SP_QT_NS   * "query")
 const _SP_QT_DATA       = IRI(_SP_QT_NS   * "data")
 const _SP_QT_GRAPH_DATA = IRI(_SP_QT_NS   * "graphData")
@@ -62,6 +65,7 @@ const _SP_RS_SOLUTION   = IRI(_SP_RS_NS * "solution")
 const _SP_RS_BINDING    = IRI(_SP_RS_NS * "binding")
 const _SP_RS_VARIABLE   = IRI(_SP_RS_NS * "variable")
 const _SP_RS_VALUE      = IRI(_SP_RS_NS * "value")
+const _SP_RS_BOOLEAN    = IRI(_SP_RS_NS * "boolean")
 
 # ─── Test structs ────────────────────────────────────────────────────────────
 
@@ -80,7 +84,11 @@ struct _SpQueryEvalTest
     query_file::String
     data_file::Union{String, Nothing}
     graph_data::Vector{Pair{String, String}}  # file_path => named_graph_iri
-    result_file::String          # .srx | .srj | .tsv | .ttl | .nt
+    result_file::String          # .srx | .srj | .tsv | .ttl | .nt | .rdf
+    # mf:resultCardinality mf:LaxCardinality — the expected solutions are a set
+    # rather than a bag, so duplicate multiplicity must not be compared. Used by
+    # the SPARQL 1.0 REDUCED tests, where eliminating duplicates is optional.
+    lax::Bool
 end
 
 struct _SpUpdateEvalTest
@@ -228,7 +236,17 @@ function _sp_load_graph(path::String)::Graph
             read(io, MIME"application/n-triples"(), Graph)
         end
     elseif ext == ".rdf" || ext == ".xml"
-        _sp_parse_rdfxml(path)
+        # Prefer the package's own RDF/XML parser (RDFXMLExt, via EzXML): the
+        # hand-rolled reader below understands only <rdf:Description rdf:about>
+        # blocks, and the SPARQL 1.0 sort/ results are typed node elements using
+        # rdf:parseType="Resource" throughout. Falls back when EzXML is absent.
+        if hasmethod(Base.read, Tuple{IO, MIME"application/rdf+xml", Type{Graph}})
+            # Pass the document base: these fixtures use rdf:about="" ("this
+            # document"), which cannot be resolved without it.
+            open(io -> read(io, :rdfxml, Graph, _sp_path_to_file_uri(path)), path)
+        else
+            _sp_parse_rdfxml(path)
+        end
     else
         error("Unknown RDF format: $ext (file: $path)")
     end
@@ -302,11 +320,13 @@ function _sp_parse_entry(g::Graph, entry)::Union{_SpTest, Nothing}
         gd    = _sp_collect_graph_data(g, action, _SP_QT_GRAPH_DATA, _SP_UT_GRAPH)
 
         result isa IRI || return nothing
+        lax = _sp_one(g, entry, _SP_MF_RESULT_CARD) == _SP_MF_LAX_CARD
         return _SpQueryEvalTest(name,
             _sp_iri_to_path(q_iri.value),
             d_iri isa IRI ? _sp_iri_to_path(d_iri.value) : nothing,
             gd,
-            _sp_iri_to_path(result.value))
+            _sp_iri_to_path(result.value),
+            lax)
 
     # ── Update evaluation ────────────────────────────────────────────────────
     elseif test_type == _SP_MF_UPD_EVAL
@@ -678,10 +698,31 @@ end
 
 # Parse a Turtle file that uses the rs: ResultSet vocabulary as a SolutionSet.
 # Used when the expected result is stored as rs:ResultSet rather than .srx/.srj.
-function _sp_parse_rs_ttl(path::String)::SolutionSet
+function _sp_parse_rs_ttl(path::String)::Union{SolutionSet, Bool}
     base = _sp_path_to_file_uri(path)
     g = open(path) do io
-        read(io, MIME"text/turtle"(), Graph, base)
+        read(io, :ttl, Graph, base)
+    end
+    _sp_rs_graph_to_solutions(g, path)
+end
+
+# True when `g` encodes an rs:ResultSet rather than a CONSTRUCT graph result.
+function _sp_is_rs_graph(g::Graph)::Bool
+    for t in g
+        t.predicate == _SP_RDF_TYPE && t.object == _SP_RS_RESULT_SET && return true
+    end
+    return false
+end
+
+# Extract a SolutionSet from a graph using the rs: ResultSet vocabulary. Shared
+# by the Turtle and RDF/XML expected-result readers.
+function _sp_rs_graph_to_solutions(g::Graph, path::String)::Union{SolutionSet, Bool}
+    # An ASK result is encoded as `[] a rs:ResultSet ; rs:boolean "true"^^xsd:boolean`
+    # with no variables or solutions. Check for it before looking for bindings.
+    for t in g
+        if t.predicate == _SP_RS_BOOLEAN && t.object isa Literal
+            return lowercase((t.object::Literal).lexical_form) == "true"
+        end
     end
 
     # Find the rs:ResultSet node
@@ -745,6 +786,12 @@ function _sp_parse_result(path::String)::Union{SolutionSet, Bool, Graph}
             return _sp_parse_rs_ttl(path)
         end
         return _sp_load_graph(path)
+    end
+    if ext in (".rdf", ".xml")
+        # SPARQL 1.0 stores some expected results as RDF/XML (sort/ uses this).
+        # Same fork as Turtle: rs:ResultSet → SolutionSet, otherwise a graph.
+        g = _sp_load_graph(path)
+        return _sp_is_rs_graph(g) ? _sp_rs_graph_to_solutions(g, path) : g
     end
     error("Unknown result format: $ext")
 end
@@ -812,6 +859,35 @@ function _sp_sol_equal(a::SolutionSet, b::SolutionSet)::Bool
 end
 
 # Dispatch result comparison.
+# Lax comparison for mf:LaxCardinality: compare the *sets* of solutions rather
+# than the bags, so an implementation that eliminates duplicates (or does not)
+# is equally conformant. Blank-node bijection still applies, so this defers to
+# the strict comparison after collapsing each side to distinct rows.
+function _sp_results_equal_lax(computed, expected)::Bool
+    computed isa SolutionSet && expected isa SolutionSet ||
+        return _sp_results_equal(computed, expected)
+    return _sp_sol_equal(_sp_sol_distinct(computed), _sp_sol_distinct(expected))
+end
+
+# Single entry point so test failures print a readable expression.
+_sp_results_match(computed, expected, lax::Bool)::Bool =
+    lax ? _sp_results_equal_lax(computed, expected) :
+          _sp_results_equal(computed, expected)
+
+# Collapse a SolutionSet to its distinct rows, preserving variable order.
+function _sp_sol_distinct(sol::SolutionSet)::SolutionSet
+    out  = SolutionSet(sol.variables)
+    seen = Set{Vector{Union{RDFTerm, Nothing}}}()
+    for row in sol
+        key = Union{RDFTerm, Nothing}[get(row, v, nothing) for v in sol.variables]
+        key in seen && continue
+        push!(seen, key)
+        push!(out, Dict{Symbol, Union{RDFTerm, Nothing}}(
+            v => get(row, v, nothing) for v in sol.variables))
+    end
+    return out
+end
+
 function _sp_results_equal(computed, expected)::Bool
     expected isa Bool      && return computed === expected
     expected isa SolutionSet &&
@@ -911,8 +987,10 @@ function _sp_run_test(t::_SpQueryEvalTest)
     src      = read(t.query_file, String)
     base     = _sp_path_to_file_uri(t.query_file)
     expected = _sp_parse_result(t.result_file)
-    result   = sparql(ds, src; base)
-    @test _sp_results_equal(result, expected)
+    # load_datasets: the suite's FROM / FROM NAMED clauses name fixture files
+    # sitting next to the query, which the harness deliberately does not preload.
+    result   = sparql(ds, src; base, load_datasets=true)
+    @test _sp_results_match(result, expected, t.lax)
 end
 
 # Update evaluation: apply update, check resulting dataset state.
@@ -944,7 +1022,7 @@ function _sp_run_test(t::_SpCSVResultTest)
     ds       = _sp_build_dataset(t.data_file, t.graph_data)
     src      = read(t.query_file, String)
     base     = _sp_path_to_file_uri(t.query_file)
-    result   = sparql(ds, src; base)
+    result   = sparql(ds, src; base, load_datasets=true)
     expected = _sp_parse_csv(t.result_file)
     @test result isa SolutionSet
     result isa SolutionSet && @test _sp_csv_equal(result, expected)
@@ -967,6 +1045,48 @@ const _SP_UPDATE_CATS = [
 const _SP_RESULT_CATS = ["json-res", "csv-tsv-res"]
 
 const _SP_ACTIVE_CATS = vcat(_SP_QUERY_CATS, _SP_UPDATE_CATS, _SP_RESULT_CATS)
+
+# ─── SPARQL 1.0 suite ─────────────────────────────────────────────────────────
+# Official W3C SPARQL 1.0 (DAWG) tests.
+# Source: https://w3c.github.io/rdf-tests/sparql/sparql10/
+#
+# These are NOT superseded by the SPARQL 1.1 suite. The two overlap in only two
+# categories (cast, construct): the 1.1 suite covers what SPARQL 1.1 *added*
+# — aggregates, subqueries, property paths, BIND/VALUES, negation, update,
+# federation — while the core of the language it still normatively defines
+# (OPTIONAL, GRAPH, FROM/FROM NAMED dataset semantics, ORDER BY, DISTINCT,
+# REDUCED, REGEX, BOUND, effective boolean value, operator semantics, type
+# promotion, open-world comparison, blank-node coreference, i18n) is tested
+# only here. It is also the only suite anywhere with DESCRIBE tests
+# (syntax-sparql2/syntax-form-describe01, 02).
+
+const _SP_FIXTURES10 = joinpath(@__DIR__, "w3c", "fixtures", "sparql10")
+
+const _SP10_CATS = [
+    "basic", "triple-match", "open-world", "algebra", "bnode-coreference",
+    "optional", "optional-filter", "graph", "dataset",
+    "type-promotion", "cast", "boolean-effective-value", "bound",
+    "expr-builtin", "expr-ops", "expr-equals", "regex", "i18n",
+    "construct", "ask", "distinct", "sort", "solution-seq", "reduced",
+    "syntax-sparql1", "syntax-sparql2", "syntax-sparql3", "syntax-sparql4",
+    "syntax-sparql5",
+]
+
+if isdir(_SP_FIXTURES10)
+    @testset "W3C SPARQL 1.0" begin
+        for cat in _SP10_CATS
+            @testset "$cat" begin
+                manifest_path = joinpath(_SP_FIXTURES10, cat, "manifest.ttl")
+                tests = _sp_load_tests(manifest_path)
+                for t in tests
+                    @testset "$(t.name)" begin
+                        _sp_run_test(t)
+                    end
+                end
+            end
+        end
+    end
+end
 
 # ─── Main testset ─────────────────────────────────────────────────────────────
 # The following categories are not exercised because they require live HTTP

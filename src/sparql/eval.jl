@@ -45,20 +45,28 @@ mutable struct _SpEvalCtx
     base::Union{String, Nothing}
     blank_node_scope::Dict{String, BlankNode}  # per-BGP blank node mapping
     bnode_solution_scope::Dict{String, BlankNode}  # per-solution BNODE(str) mapping
+    # Opt-in: allow FROM / FROM NAMED to load graphs from local files that the
+    # caller did not supply. Off by default — a query string is untrusted input,
+    # and this lets it read any file the process can reach. Never fetches over
+    # the network, whatever the IRI scheme.
+    load_datasets::Bool
 end
 
-function _SpEvalCtx(ds::Dataset, base::Union{String,Nothing})
-    _SpEvalCtx(ds, ds.default_graph, base, Dict{String, BlankNode}(), Dict{String, BlankNode}())
+function _SpEvalCtx(ds::Dataset, base::Union{String,Nothing}; load_datasets::Bool=false)
+    _SpEvalCtx(ds, ds.default_graph, base, Dict{String, BlankNode}(),
+               Dict{String, BlankNode}(), load_datasets)
 end
 
-function _SpEvalCtx(g::Graph, base::Union{String,Nothing})
+function _SpEvalCtx(g::Graph, base::Union{String,Nothing}; load_datasets::Bool=false)
     ds = Dataset(default_graph=g)
-    _SpEvalCtx(ds, g, base, Dict{String, BlankNode}(), Dict{String, BlankNode}())
+    _SpEvalCtx(ds, g, base, Dict{String, BlankNode}(), Dict{String, BlankNode}(),
+               load_datasets)
 end
 
 # Create a derived context with a different active graph
 function _sp_with_graph(ctx::_SpEvalCtx, g::Graph)
-    _SpEvalCtx(ctx.dataset, g, ctx.base, Dict{String, BlankNode}(), ctx.bnode_solution_scope)
+    _SpEvalCtx(ctx.dataset, g, ctx.base, Dict{String, BlankNode}(),
+               ctx.bnode_solution_scope, ctx.load_datasets)
 end
 
 # ── Columnar BindingTable for zero-copy BGP evaluation ────────────────────────
@@ -267,9 +275,11 @@ function _bt_extend_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
                 (s_var === nothing || o_var !== s_var) &&
                 (p_var === nothing || o_var !== p_var)
 
-    # SpBNode: first binding must match a BlankNode term.
-    s_needs_bn = s_expr isa SpBNode && s_col == 0
-    o_needs_bn = o_expr isa SpBNode && o_col == 0
+    # NOTE: a labelled blank node in a query pattern is NOT constrained to match
+    # blank nodes in the data. SPARQL 1.1 §4.1.4: "blank nodes in graph patterns
+    # act as variables" — non-selectable variables that match any RDF term, the
+    # same as the anonymous `[]` form. (W3C sparql10 expr-ops/*-numbers-cast use
+    # `_:l :p ?left` against IRI subjects.)
 
     # Allocate output columns.
     out_cols = [sizehint!(UInt32[], n) for _ in 1:length(out_vars)]
@@ -291,9 +301,6 @@ function _bt_extend_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
             s_var !== nothing && p_var !== nothing && s_var === p_var && t_s != t_p && continue
             s_var !== nothing && o_var !== nothing && s_var === o_var && t_s != t_o && continue
             p_var !== nothing && o_var !== nothing && p_var === o_var && t_p != t_o && continue
-            # SpBNode first-time binding must be a BlankNode.
-            s_needs_bn && !(_resolve(t_s) isa BlankNode) && continue
-            o_needs_bn && !(_resolve(t_o) isa BlankNode) && continue
 
             # Emit: copy existing columns for this row, then append new bindings.
             for col in 1:base
@@ -368,8 +375,6 @@ function _bt_left_join_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
                 (s_var === nothing || o_var !== s_var) &&
                 (p_var === nothing || o_var !== p_var)
 
-    s_needs_bn = s_expr isa SpBNode && s_col == 0
-    o_needs_bn = o_expr isa SpBNode && o_col == 0
 
     out_cols  = [sizehint!(UInt32[], n) for _ in 1:length(out_vars)]
     out_nrows = 0
@@ -388,8 +393,6 @@ function _bt_left_join_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
             s_var !== nothing && p_var !== nothing && s_var === p_var && t_s != t_p && continue
             s_var !== nothing && o_var !== nothing && s_var === o_var && t_s != t_o && continue
             p_var !== nothing && o_var !== nothing && p_var === o_var && t_p != t_o && continue
-            s_needs_bn && !(_resolve(t_s) isa BlankNode) && continue
-            o_needs_bn && !(_resolve(t_o) isa BlankNode) && continue
 
             for col in 1:base
                 push!(@inbounds(out_cols[col]), @inbounds(bt.cols[col][row]))
@@ -424,8 +427,11 @@ function _bt_left_join_bgp(bt::_BT, bgp::SpBGP, ctx::_SpEvalCtx)::_BT
     base = length(bt.vars)
 
     # Synthetic column: row indices 1..n stored as UInt32.
-    # The symbol contains a null byte so it can never clash with a SPARQL variable.
-    rid_sym = Symbol("\x00rid\x00")
+    # '#' cannot appear in a SPARQL variable name (VARNAME admits only PN_CHARS_U,
+    # digits and a few combining ranges), so this can never clash with one.
+    # It must not be a NUL-containing name: Julia's Symbol(::String) rejects
+    # those outright, which made this whole branch throw whenever it was reached.
+    rid_sym = Symbol("#rid")
     rid_col = Vector{UInt32}(undef, n)
     for i in 1:n; @inbounds rid_col[i] = UInt32(i); end
 
@@ -496,19 +502,51 @@ function _bt_left_join(bt::_BT, opt_pat::SpPat, ctx::_SpEvalCtx)::_BT
         return _bt_left_join_bgp(bt, bgp, ctx)
     end
 
-    # Fallback: materialise once, then per-row evaluation (same semantics as before,
-    # but pays the BT→solutions conversion only once instead of once per input row).
+    # Fallback: a proper left join. SPARQL 1.1 §18.2.2.5 defines
+    # LeftJoin(Ω1, Ω2, F) with Ω2 evaluated on its own; pushing Ω1's bindings
+    # into the optional pattern is only sound when that pattern is a plain BGP,
+    # which the fast path above already took. With a nested OPTIONAL inside it
+    # is not sound:
+    #   { :x1 :p ?v . OPTIONAL { :x3 :q ?w . OPTIONAL { :x2 :p ?v } } }
+    # evaluated independently, the inner group binds ?v=2, which conflicts with
+    # the outer ?v=1, so the whole OPTIONAL fails to match and ?w stays unbound.
+    # Substituting ?v=1 inwards instead makes `:x2 :p ?v` fail on its own and
+    # wrongly leaves ?w bound (W3C sparql10 algebra/two-nested-opt).
+    inner, conds = _sp_split_leftjoin_filters(opt_pat)
+    rhs = _sp_eval_pattern(inner, ctx, _SpSolution[_SpSolution()])
     input_sols = _bt_to_solutions(bt)
     results    = _SpSolution[]
     for μ in input_sols
-        extended = _sp_eval_pattern(opt_pat, ctx, _SpSolution[μ])
-        if isempty(extended)
-            push!(results, μ)
-        else
-            append!(results, extended)
+        matched = false
+        for ν in rhs
+            _sp_compatible(μ, ν) || continue
+            merged = _sp_merge_sol(μ, ν)
+            # Top-level FILTERs inside the OPTIONAL are the join condition F and
+            # are evaluated on the merged solution, so they may reference
+            # variables bound on the left.
+            all(c -> _sp_filter_passes(c, ctx, merged, rhs), conds) || continue
+            push!(results, merged)
+            matched = true
         end
+        matched || push!(results, μ)
     end
     _solutions_to_bt(results)
+end
+
+# Split an OPTIONAL's pattern into (pattern, top-level filter expressions). The
+# filters become the left-join condition rather than being applied to the
+# right-hand side alone.
+function _sp_split_leftjoin_filters(pat::SpPat)
+    pat isa SpFilter && return (SpBGP(), SpExpr[pat.expr])
+    pat isa SpGroup  || return (pat, SpExpr[])
+    conds = SpExpr[]
+    rest  = SpPat[]
+    for elem in pat.elements
+        elem isa SpFilter ? push!(conds, (elem::SpFilter).expr) : push!(rest, elem)
+    end
+    isempty(conds) && return (pat, SpExpr[])
+    inner = isempty(rest) ? SpBGP() : (length(rest) == 1 ? rest[1] : SpGroup(rest))
+    return (inner, conds)
 end
 
 # Return a SpBGP (possibly merged from several SpBGPs inside a flat SpGroup) if
@@ -1006,11 +1044,11 @@ function _sp_eval_binary(expr::SpBinary, ctx::_SpEvalCtx, μ::_SpSolution, sols:
             error("/ requires numeric operands")
         return _sp_numeric_div(left::Literal, right::Literal)
     elseif op === :eq
-        result = try _sp_value_equal(left, right) catch; return _sp_bool_literal(false) end
-        return _sp_bool_literal(result)
+        # Errors propagate: comparing an unknown or ill-typed datatype is a type
+        # error, not `false` (SPARQL 1.1 §17.3). In a FILTER that drops the row.
+        return _sp_bool_literal(_sp_op_equal(left, right))
     elseif op === :neq
-        result = try _sp_value_equal(left, right) catch; return _sp_bool_literal(true) end
-        return _sp_bool_literal(!result)
+        return _sp_bool_literal(!_sp_op_equal(left, right))
     elseif op === :lt
         return _sp_bool_literal(_sp_compare(left, right) < 0)
     elseif op === :le
@@ -2018,17 +2056,24 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
             results = _SpSolution[]
             for (graph_name, g) in ctx.dataset
                 inner_ctx = _sp_with_graph(ctx, g)
+                # SPARQL 1.1 §18.2.2.3: Graph(var, P) is
+                #   Join( eval(D(g), P), Ω(?g → g) )
+                # so P is evaluated with ?g UNBOUND and the binding joined on
+                # afterwards. Binding ?g first would let a FILTER inside P see
+                # it (`GRAPH ?g { FILTER(BOUND(?g)) }` must yield nothing) and
+                # would stop a pattern inside P from binding ?g itself.
+                inner = _sp_eval_pattern(pat.pattern, inner_ctx, [_SpSolution()])
+                isempty(inner) && continue
                 for μ in input
-                    ext = copy(μ)
-                    if !haskey(ext, vname)
-                        ext[vname] = graph_name
-                        for s in _sp_eval_pattern(pat.pattern, inner_ctx, [ext])
-                            push!(results, s)
-                        end
-                    elseif ext[vname] == graph_name
-                        for s in _sp_eval_pattern(pat.pattern, inner_ctx, [ext])
-                            push!(results, s)
-                        end
+                    # An incoming solution that already fixes ?g selects a graph.
+                    haskey(μ, vname) && μ[vname] != graph_name && continue
+                    for ν in inner
+                        # Join with Ω(?g → g): a ?g bound inside P must agree.
+                        haskey(ν, vname) && ν[vname] != graph_name && continue
+                        _sp_compatible(μ, ν) || continue
+                        merged = _sp_merge_sol(μ, ν)
+                        merged[vname] = graph_name
+                        push!(results, merged)
                     end
                 end
             end
@@ -2378,6 +2423,7 @@ end
 
 function _sp_execute_select(q::SpSelectQuery, ctx::_SpEvalCtx,
                               outer_input::Union{Vector{_SpSolution}, Nothing}=nothing)::SolutionSet
+    ctx = _sp_dataset_context(q.datasets, ctx)   # FROM / FROM NAMED
     # ── BT fast path ─────────────────────────────────────────────────────────
     # Conditions: top-level call, plain variable projections only, no GROUP BY /
     # aggregates / ORDER BY / VALUES / DISTINCT.  When these hold, the WHERE
@@ -2413,11 +2459,10 @@ function _sp_execute_select(q::SpSelectQuery, ctx::_SpEvalCtx,
     # 4. ORDER BY
     sols = _sp_apply_order_by(sols, q.order_by, ctx)
 
-    # 5. LIMIT / OFFSET
-    total = length(sols)
-    offset = q.offset !== nothing ? min(q.offset, total) : 0
-    limit  = q.limit  !== nothing ? min(q.limit, total - offset) : (total - offset)
-    sols = sols[offset+1:offset+limit]
+    # 5. LIMIT / OFFSET is applied last — SPARQL 1.1 §18.2.5 evaluates
+    #    ToList → OrderBy → Project → Distinct → Slice, so slicing before
+    #    projection and DISTINCT would count duplicates that DISTINCT removes.
+    #    See `_sp_slice_rows` at the two return points below.
 
     # 6. VALUES clause
     if q.values !== nothing
@@ -2447,7 +2492,7 @@ function _sp_execute_select(q::SpSelectQuery, ctx::_SpEvalCtx,
                 key ∉ seen && (push!(seen, key); true)
             end
         end
-        return SolutionSet(vars, rows)
+        return SolutionSet(vars, _sp_slice_rows(rows, q.offset, q.limit))
     else
         vars = Symbol[]
         for col in q.columns
@@ -2508,8 +2553,18 @@ function _sp_execute_select(q::SpSelectQuery, ctx::_SpEvalCtx,
                 key ∉ seen && (push!(seen, key); true)
             end
         end
-        return SolutionSet(vars, rows)
+        return SolutionSet(vars, _sp_slice_rows(rows, q.offset, q.limit))
     end
+end
+
+# OFFSET / LIMIT, applied after projection and DISTINCT.
+function _sp_slice_rows(rows::Vector{Dict{Symbol, Union{RDFTerm, Nothing}}},
+                        offset::Union{Int, Nothing}, limit::Union{Int, Nothing})
+    (offset === nothing && limit === nothing) && return rows
+    total = length(rows)
+    off   = offset === nothing ? 0 : min(offset, total)
+    lim   = limit  === nothing ? (total - off) : min(limit, total - off)
+    return rows[off+1:off+lim]
 end
 
 function _sp_collect_all_vars(sols::Vector{_SpSolution})::Vector{Symbol}
@@ -2692,37 +2747,95 @@ function _sp_eval_aggregate_expr(expr::SpExpr, group::Vector{_SpSolution}, ctx::
     end
 end
 
+# ── FROM / FROM NAMED dataset clauses ─────────────────────────────────────────
+#
+# SPARQL 1.1 §13.2: dataset clauses replace the dataset the query runs against.
+# Graphs are taken from the dataset the caller supplied; when `load_datasets` is
+# enabled they may also be read from local files, which is what the W3C suite
+# expects (its FROM IRIs point at fixture files next to the query).
+
+# Convert a file: IRI to a local path, or return nothing for any other scheme.
+function _sp_file_iri_to_path(iri::AbstractString)::Union{String, Nothing}
+    startswith(iri, "file:") || return nothing
+    rest = iri[6:end]                      # strip "file:"
+    rest = replace(rest, r"^//[^/]*" => "")  # strip "//" and any authority
+    path = _sp_percent_decode(rest)
+    # Windows: "/C:/x" → "C:/x"
+    if Sys.iswindows() && occursin(r"^/[A-Za-z]:", path)
+        path = path[2:end]
+    end
+    return path
+end
+
+function _sp_percent_decode(s::AbstractString)::String
+    occursin('%', s) || return String(s)
+    buf = IOBuffer(); i = firstindex(s)
+    while i <= lastindex(s)
+        c = s[i]
+        if c == '%' && i + 2 <= lastindex(s)
+            hex = s[i+1:i+2]
+            b = tryparse(UInt8, hex; base=16)
+            if b === nothing
+                write(buf, c); i = nextind(s, i)
+            else
+                write(buf, b); i += 3
+            end
+        else
+            write(buf, c); i = nextind(s, i)
+        end
+    end
+    String(take!(buf))
+end
+
+# Read a graph named by a dataset-clause IRI from disk. Returns nothing when the
+# IRI is not a local file or cannot be read — a FROM naming an unavailable graph
+# contributes nothing rather than raising, per §13.2.
+function _sp_load_dataset_graph(iri::AbstractString)::Union{Graph, Nothing}
+    path = _sp_file_iri_to_path(iri)
+    (path === nothing || !isfile(path)) && return nothing
+    try
+        loaded = rdf_read(path)
+        return loaded isa Graph ? loaded : _dataset_to_graph(loaded::Dataset)
+    catch
+        return nothing
+    end
+end
+
+# Build the evaluation context a query's dataset clauses call for. Returns `ctx`
+# unchanged when the query has none.
+function _sp_dataset_context(datasets::Vector{SpDatasetClause}, ctx::_SpEvalCtx)::_SpEvalCtx
+    isempty(datasets) && return ctx
+    new_default = Graph()
+    new_named   = Dict{IRI, Graph}()
+    for dc in datasets
+        iri_str = dc.iri
+        # Resolve relative IRI against base (the parser may or may not have done this)
+        if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", iri_str)
+            iri_str = _sp_resolve_iri(ctx.base, iri_str)
+        end
+        iri_key = IRI(iri_str)
+        g = get(ctx.dataset, iri_key, nothing)
+        if g === nothing && ctx.load_datasets
+            g = _sp_load_dataset_graph(iri_str)
+        end
+        g === nothing && continue
+        if dc.named
+            new_named[iri_key] = g
+        else
+            merge!(new_default, g)
+        end
+    end
+    tmp_ds = Dataset(; default_graph=new_default)
+    for (k, g) in new_named
+        tmp_ds[k] = g
+    end
+    _SpEvalCtx(tmp_ds, ctx.base; load_datasets=ctx.load_datasets)
+end
+
 # ── CONSTRUCT execution ───────────────────────────────────────────────────────
 
 function _sp_execute_construct(q::SpConstructQuery, ctx::_SpEvalCtx)::Graph
-    # Handle FROM / FROM NAMED dataset clauses
-    eval_ctx = if !isempty(q.datasets)
-        new_default = Graph()
-        new_named   = Dict{IRI, Graph}()
-        for dc in q.datasets
-            iri_str = dc.iri
-            # Resolve relative IRI against base (the parser may or may not have done this)
-            if ctx.base !== nothing && !occursin(r"^[A-Za-z][A-Za-z0-9+\-.]*:", iri_str)
-                iri_str = _sp_resolve_iri(ctx.base, iri_str)
-            end
-            iri_key = IRI(iri_str)
-            g = get(ctx.dataset, iri_key, nothing)
-            if g !== nothing
-                if dc.named
-                    new_named[iri_key] = g
-                else
-                    merge!(new_default, g)
-                end
-            end
-        end
-        tmp_ds = Dataset(; default_graph=new_default)
-        for (k, g) in new_named
-            tmp_ds[k] = g
-        end
-        _SpEvalCtx(tmp_ds, ctx.base)
-    else
-        ctx
-    end
+    eval_ctx = _sp_dataset_context(q.datasets, ctx)
 
     sols = _sp_eval_pattern(q.pattern, eval_ctx, [_SpSolution()])
 
@@ -2752,7 +2865,7 @@ function _sp_execute_construct(q::SpConstructQuery, ctx::_SpEvalCtx)::Graph
     for μ in sols
         # Fresh anonymous blank node map per solution — ensures each solution
         # gets its own blank nodes for RDF list / anonymous patterns in the template.
-        anon_map = Dict{UInt64, BlankNode}()
+        anon_map = Dict{Union{UInt64, String}, BlankNode}()
         for tp in template
             s_term = _sp_instantiate_term(tp.subject, ctx, μ, anon_map)
             o_term = _sp_instantiate_term(tp.object, ctx, μ, anon_map)
@@ -2776,7 +2889,8 @@ function _sp_execute_construct(q::SpConstructQuery, ctx::_SpEvalCtx)::Graph
 end
 
 function _sp_instantiate_term(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution,
-                               anon_map::Dict{UInt64,BlankNode}=Dict{UInt64,BlankNode}())::Union{RDFTerm, Nothing}
+                               anon_map::Dict{Union{UInt64, String},BlankNode}=
+                                   Dict{Union{UInt64, String},BlankNode}())::Union{RDFTerm, Nothing}
     if expr isa SpVar
         return get(μ, expr.name, nothing)
     elseif expr isa SpIRI
@@ -2792,9 +2906,16 @@ function _sp_instantiate_term(expr::SpExpr, ctx::_SpEvalCtx, μ::_SpSolution,
         # Blank nodes in templates: reuse per-solution mapping
         bnode_sym = Symbol("_sp_bnode_construct_" * expr.label)
         haskey(μ, bnode_sym) && return μ[bnode_sym]
-        # Map based on the BGP blank node binding if available
+        # If the label is also used in the WHERE pattern it acts as a variable
+        # there, so take its binding.
         bgp_sym = Symbol("_sp_bnode_" * expr.label)
-        get(μ, bgp_sym, nothing)
+        bound = get(μ, bgp_sym, nothing)
+        bound !== nothing && return bound
+        # Otherwise it is a template-only label: mint one fresh blank node per
+        # solution, shared by every template triple that mentions the label
+        # (`CONSTRUCT { _:a rdf:subject ?s ; rdf:predicate ?p ; rdf:object ?o }`
+        # must produce one node per solution, not drop the triples).
+        return get!(anon_map, expr.label, _mint_blank_node())
     elseif expr isa SpAnonBNode
         # Anonymous blank nodes in CONSTRUCT templates: mint one fresh blank node
         # per (anon-node-instance, solution) pair so that list structure is preserved
@@ -2817,6 +2938,7 @@ end
 # ── ASK execution ─────────────────────────────────────────────────────────────
 
 function _sp_execute_ask(q::SpAskQuery, ctx::_SpEvalCtx)::Bool
+    ctx  = _sp_dataset_context(q.datasets, ctx)   # FROM / FROM NAMED
     sols = _sp_eval_pattern(q.pattern, ctx, [_SpSolution()])
     !isempty(sols)
 end
@@ -2824,6 +2946,7 @@ end
 # ── DESCRIBE execution ────────────────────────────────────────────────────────
 
 function _sp_execute_describe(q::SpDescribeQuery, ctx::_SpEvalCtx)::Graph
+    ctx = _sp_dataset_context(q.datasets, ctx)   # FROM / FROM NAMED
     triples = Triple[]
     resources = RDFTerm[]
 

@@ -145,10 +145,18 @@ end
 
 function _sp_numeric_add(a::Literal, b::Literal)::Literal
     adt = a.datatype.value; bdt = b.datatype.value
-    # SPARQL type promotion: double > decimal > integer
-    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE || adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+    # SPARQL 1.1 §17.4.1 numeric type promotion, widest first:
+    #   double > float > decimal > integer
+    # float is its own rung — `"3"^^xsd:float + "3"^^xsd:float` is an xsd:float,
+    # not an xsd:double (W3C sparql10 type-promotion/tP-float-float).
+    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE
         v = _sp_to_float(a) + _sp_to_float(b)
         return Literal(_double_lexical(v), _XSD_DOUBLE, "")
+    elseif adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+        # xsd:float only promotes to xsd:double when a double is present;
+        # otherwise the result stays float, evaluated in single precision.
+        v = Float32(_sp_to_float(a)) + Float32(_sp_to_float(b))
+        return Literal(_float_lexical(v), _XSD_FLOAT, "")
     elseif adt == _SP_XSD_DECIMAL || bdt == _SP_XSD_DECIMAL
         v = _sp_to_decimal(a) + _sp_to_decimal(b)
         return Literal(_sp_decimal_string(v), IRI(_SP_XSD_DECIMAL), "")
@@ -161,9 +169,14 @@ end
 
 function _sp_numeric_sub(a::Literal, b::Literal)::Literal
     adt = a.datatype.value; bdt = b.datatype.value
-    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE || adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE
         v = _sp_to_float(a) - _sp_to_float(b)
         return Literal(_double_lexical(v), _XSD_DOUBLE, "")
+    elseif adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+        # xsd:float only promotes to xsd:double when a double is present;
+        # otherwise the result stays float, evaluated in single precision.
+        v = Float32(_sp_to_float(a)) - Float32(_sp_to_float(b))
+        return Literal(_float_lexical(v), _XSD_FLOAT, "")
     elseif adt == _SP_XSD_DECIMAL || bdt == _SP_XSD_DECIMAL
         v = _sp_to_decimal(a) - _sp_to_decimal(b)
         return Literal(_sp_decimal_string(v), IRI(_SP_XSD_DECIMAL), "")
@@ -175,9 +188,14 @@ end
 
 function _sp_numeric_mul(a::Literal, b::Literal)::Literal
     adt = a.datatype.value; bdt = b.datatype.value
-    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE || adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE
         v = _sp_to_float(a) * _sp_to_float(b)
         return Literal(_double_lexical(v), _XSD_DOUBLE, "")
+    elseif adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+        # xsd:float only promotes to xsd:double when a double is present;
+        # otherwise the result stays float, evaluated in single precision.
+        v = Float32(_sp_to_float(a)) * Float32(_sp_to_float(b))
+        return Literal(_float_lexical(v), _XSD_FLOAT, "")
     elseif adt == _SP_XSD_DECIMAL || bdt == _SP_XSD_DECIMAL
         v = _sp_to_decimal(a) * _sp_to_decimal(b)
         return Literal(_sp_decimal_string(v), IRI(_SP_XSD_DECIMAL), "")
@@ -189,9 +207,14 @@ end
 
 function _sp_numeric_div(a::Literal, b::Literal)::Literal
     adt = a.datatype.value; bdt = b.datatype.value
-    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE || adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+    if adt == _SP_XSD_DOUBLE || bdt == _SP_XSD_DOUBLE
         v = _sp_to_float(a) / _sp_to_float(b)
         return Literal(_double_lexical(v), _XSD_DOUBLE, "")
+    elseif adt == _SP_XSD_FLOAT || bdt == _SP_XSD_FLOAT
+        # xsd:float only promotes to xsd:double when a double is present;
+        # otherwise the result stays float, evaluated in single precision.
+        v = Float32(_sp_to_float(a)) / Float32(_sp_to_float(b))
+        return Literal(_float_lexical(v), _XSD_FLOAT, "")
     else
         # Integer / Decimal → Decimal (exact rational arithmetic)
         va = _sp_to_decimal(a); vb = _sp_to_decimal(b)
@@ -204,9 +227,12 @@ end
 function _sp_numeric_neg(a::Literal)::Literal
     dt = a.datatype.value
     _sp_is_numeric(dt) || error("Not numeric: $a")
-    if dt == _SP_XSD_DOUBLE || dt == _SP_XSD_FLOAT
+    if dt == _SP_XSD_DOUBLE
         v = -_sp_to_float(a)
         return Literal(_double_lexical(v), _XSD_DOUBLE, "")
+    elseif dt == _SP_XSD_FLOAT
+        v = -Float32(_sp_to_float(a))
+        return Literal(_float_lexical(v), _XSD_FLOAT, "")
     elseif dt == _SP_XSD_DECIMAL
         v = -_sp_to_decimal(a)
         return Literal(_sp_decimal_string(v), IRI(_SP_XSD_DECIMAL), "")
@@ -305,22 +331,63 @@ function _sp_compare_literals(a::Literal, b::Literal)::Int
 end
 
 # Date/time parsing helpers
-function _sp_parse_datetime(s::String)
-    # Parse ISO 8601 datetime — basic support
-    try
-        # Handle timezone suffix
-        s2 = replace(s, r"Z$" => "+00:00")
-        # Remove timezone for Dates.DateTime parsing
-        s3 = replace(s2, r"[+-]\d{2}:\d{2}$" => "")
-        Dates.DateTime(s3, "yyyy-mm-ddTHH:MM:SS")
-    catch
-        try Dates.DateTime(s[1:19], "yyyy-mm-ddTHH:MM:SS")
-        catch; error("Invalid dateTime: $s")
-        end
+# XSD lexical grammars. Julia's Dates parser is lenient — DateTime("13",
+# "yyyy-mm-ddTHH:MM:SS") happily yields year 13 — so the lexical form has to be
+# checked before parsing, or `xsd:dateTime("13")` would silently succeed.
+const _SP_RE_DATETIME = r"^-?\d{4,}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+const _SP_RE_DATE     = r"^-?\d{4,}-\d{2}-\d{2}(Z|[+-]\d{2}:\d{2})?$"
+const _SP_RE_DATETIME_PARTS =
+    r"^(-?\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+
+# The date/time accessors (YEAR, MONTH, DAY, HOURS, MINUTES, SECONDS) report the
+# components of the lexical form as written — SPARQL 1.1 §17.4.5 does not
+# normalize them to UTC. Comparison does normalize, so the two parses differ.
+function _sp_parse_datetime_local(s::String)
+    m = match(_SP_RE_DATETIME_PARTS, s)
+    m === nothing && error("Invalid dateTime: $s")
+    y  = parse(Int, m[1]); mo = parse(Int, m[2]); d = parse(Int, m[3])
+    h  = parse(Int, m[4]); mi = parse(Int, m[5]); se = parse(Int, m[6])
+    ms = m[7] === nothing ? 0 : round(Int, parse(Float64, "0" * m[7]) * 1000)
+    rollover = false
+    if h == 24
+        (mi == 0 && se == 0) || error("Invalid dateTime: $s")
+        h = 0; rollover = true
     end
+    dt = Dates.DateTime(y, mo, d, h, mi, se, ms)
+    rollover && (dt += Dates.Day(1))
+    return dt
+end
+
+function _sp_parse_datetime(s::String)
+    m = match(_SP_RE_DATETIME_PARTS, s)
+    m === nothing && error("Invalid dateTime: $s")
+    y  = parse(Int, m[1]); mo = parse(Int, m[2]); d = parse(Int, m[3])
+    h  = parse(Int, m[4]); mi = parse(Int, m[5]); se = parse(Int, m[6])
+    ms = m[7] === nothing ? 0 : round(Int, parse(Float64, "0" * m[7]) * 1000)
+
+    # XSD permits 24:00:00, denoting midnight at the start of the next day.
+    rollover = false
+    if h == 24
+        (mi == 0 && se == 0) || error("Invalid dateTime: $s")
+        h = 0; rollover = true
+    end
+    dt = Dates.DateTime(y, mo, d, h, mi, se, ms)
+    rollover && (dt += Dates.Day(1))
+
+    # Normalize to UTC so that values written with different offsets compare
+    # equal ("2002-04-02T23:00:00-04:00" and "2002-04-03T02:00:00-01:00" are the
+    # same instant). Values with no timezone are left as written; comparing one
+    # of those against a timezoned value is handled as indeterminate elsewhere.
+    tz = m[8]
+    if tz !== nothing && tz != "Z"
+        off = Dates.Hour(parse(Int, tz[2:3])) + Dates.Minute(parse(Int, tz[5:6]))
+        dt  = tz[1] == '-' ? dt + off : dt - off
+    end
+    return dt
 end
 
 function _sp_parse_date(s::String)
+    occursin(_SP_RE_DATE, s) || error("Invalid date: $s")
     try Dates.Date(s[1:10], "yyyy-mm-dd")
     catch; error("Invalid date: $s")
     end
@@ -341,9 +408,91 @@ function _sp_value_equal(a::RDFTerm, b::RDFTerm)::Bool
     return a == b  # IRI/IRI or BNode/BNode identity
 end
 
+# ── RDFterm-equal (the `=` / `!=` operators) ─────────────────────────────────
+#
+# SPARQL 1.1 §17.3: `=` compares by value for the datatypes the spec requires an
+# implementation to support. For anything else — an unknown datatype, or a
+# literal whose lexical form is not valid for its datatype — only term equality
+# is decidable: equal terms are `true`, and any other pair is a **type error**,
+# not `false`. A type error in a FILTER removes the solution, which is what the
+# W3C open-world tests check.
+
+# Datatypes with value-comparison semantics defined by the spec.
+function _sp_dt_comparable(lit::Literal)::Bool
+    dt = lit.datatype.value
+    (_sp_is_numeric(dt) || dt == _SP_XSD_STRING || dt == _SP_XSD_BOOLEAN ||
+     dt == _SP_XSD_DATETIME || dt == _SP_XSD_DATE ||
+     dt == _SP_RDF_LANGSTRING) || return false
+    return _sp_well_typed(lit)
+end
+
+# Is the lexical form valid for the literal's datatype?
+function _sp_well_typed(lit::Literal)::Bool
+    dt = lit.datatype.value
+    s  = lit.lexical_form
+    if _sp_is_integer(dt)
+        return tryparse(BigInt, s) !== nothing
+    elseif dt == _SP_XSD_DECIMAL
+        return occursin(r"^[+-]?(\d+(\.\d*)?|\.\d+)$", s)
+    elseif dt == _SP_XSD_DOUBLE || dt == _SP_XSD_FLOAT
+        return s in ("INF", "-INF", "NaN") || tryparse(Float64, s) !== nothing
+    elseif dt == _SP_XSD_BOOLEAN
+        return s in ("true", "false", "0", "1")
+    elseif dt == _SP_XSD_DATETIME
+        # _sp_parse_datetime raises on a bad lexical form rather than returning
+        # nothing, so an ill-typed dateTime is detected by the throw.
+        return try (_sp_parse_datetime(s); true) catch; false end
+    elseif dt == _SP_XSD_DATE
+        return try (_sp_parse_date(s); true) catch; false end
+    end
+    return true   # strings and language-tagged literals are always well-formed
+end
+
+# Does a date/dateTime lexical form carry an explicit timezone?
+_sp_has_timezone(s::AbstractString)::Bool =
+    endswith(s, "Z") || occursin(r"[+-]\d{2}:\d{2}$", s)
+
+function _sp_op_equal(a::RDFTerm, b::RDFTerm)::Bool
+    # xsd:date / xsd:dateTime: a value without a timezone denotes a ~28-hour
+    # span, so comparing it with a timezoned value is only determinate when the
+    # two are far enough apart. Same instant + mismatched timezone presence is
+    # *indeterminate* — a type error, not `false`. The W3C date-1 / date-2 pair
+    # pins this down: "2006-08-23Z" is excluded from both the `=` results and
+    # the `!=` results, which is only possible if the comparison errors.
+    if a isa Literal && b isa Literal &&
+       a.datatype == b.datatype &&
+       (a.datatype.value == _SP_XSD_DATE || a.datatype.value == _SP_XSD_DATETIME)
+        tza = _sp_has_timezone(a.lexical_form)
+        tzb = _sp_has_timezone(b.lexical_form)
+        if tza != tzb
+            same = try _sp_compare_literals(a, b) == 0 catch; false end
+            same && error("Indeterminate comparison: $(a.lexical_form) and " *
+                          "$(b.lexical_form) differ only in timezone presence")
+            return false
+        end
+    end
+    if a isa Literal && b isa Literal
+        # A language-tagged literal is never equal to one without a language
+        # tag: their value spaces are disjoint, so the comparison is decidable
+        # even when the other side has an unknown or ill-typed datatype.
+        isempty(a.language_tag) == isempty(b.language_tag) || return false
+        (_sp_dt_comparable(a) && _sp_dt_comparable(b)) &&
+            return _sp_literal_value_equal(a, b)
+        a == b && return true
+        error("Cannot compare $(a.datatype.value) with $(b.datatype.value): " *
+              "unknown or ill-typed datatype")
+    end
+    return _sp_value_equal(a, b)
+end
+
 function _sp_literal_value_equal(a::Literal, b::Literal)::Bool
     adt = a.datatype.value; bdt = b.datatype.value
     if _sp_is_numeric(adt) && _sp_is_numeric(bdt)
+        # An ill-typed lexical form ("xyz"^^xsd:integer) has no value to compare,
+        # so fall back to term equality instead of throwing. This function is
+        # total by contract — `_sp_op_equal` is the one that raises type errors.
+        (_sp_well_typed(a) && _sp_well_typed(b)) ||
+            return adt == bdt && a.lexical_form == b.lexical_form
         return _sp_compare_literals(a, b) == 0
     end
     adt == bdt || return false
@@ -356,6 +505,14 @@ function _sp_literal_value_equal(a::Literal, b::Literal)::Bool
     if adt == _SP_XSD_BOOLEAN
         normalize_bool(s) = s in ("true","1")
         return normalize_bool(a.lexical_form) == normalize_bool(b.lexical_form)
+    end
+    if adt == _SP_XSD_DATETIME || adt == _SP_XSD_DATE
+        # Compare by value, not lexically: "2006-08-23Z" and "2006-08-23" denote
+        # the same date (an untimezoned value takes the implicit timezone), so a
+        # lexical test would wrongly call them different.
+        return try _sp_compare_literals(a, b) == 0 catch
+            a.lexical_form == b.lexical_form
+        end
     end
     # Same non-numeric, non-string, non-boolean type: lexical comparison
     a.lexical_form == b.lexical_form
@@ -523,7 +680,9 @@ function _sp_strbefore(t::RDFTerm, pattern::RDFTerm)::Literal
     idx = findfirst(p, s)
     # If not found: empty xsd:string (plain, not inheriting arg1 type)
     idx === nothing && return Literal("", IRI(_SP_XSD_STRING), "")
-    result = s[1:first(idx)-1]
+    # prevind, not first(idx)-1: Julia requires a slice to end on a character
+    # boundary, and `s` is arbitrary user data that may be non-ASCII.
+    result = s[1:prevind(s, first(idx))]
     # If found: inherit type/lang from arg1
     Literal(result, t_lit.datatype, t_lit.language_tag)
 end
@@ -543,7 +702,9 @@ function _sp_strafter(t::RDFTerm, pattern::RDFTerm)::Literal
     idx = findfirst(p, s)
     # If not found: empty xsd:string (plain, not inheriting arg1 type)
     idx === nothing && return Literal("", IRI(_SP_XSD_STRING), "")
-    result = s[last(idx)+1:end]
+    # nextind, not last(idx)+1: findfirst reports the last *valid index* of the
+    # match, so for a multi-byte final character last(idx)+1 lands inside it.
+    result = s[nextind(s, last(idx)):end]
     # If found: inherit type/lang from arg1
     Literal(result, t_lit.datatype, t_lit.language_tag)
 end
@@ -624,14 +785,28 @@ function _sp_build_regex_flags(f::String)::String
     'i' in f && (flags *= "i")
     's' in f && (flags *= "s")
     'm' in f && (flags *= "m")
-    'x' in f && (flags *= "x")
+    # XPath 3.0: when `q` is present, `x` is ignored.
+    ('x' in f && !('q' in f)) && (flags *= "x")
     flags
+end
+
+# XPath 3.0 `q` flag: every character in the pattern stands for itself rather
+# than acting as a metacharacter. Escaping is done per character instead of with
+# \Q…\E so that a pattern containing "\E" cannot terminate the quoted span.
+function _sp_regex_quote(p::AbstractString)::String
+    buf = IOBuffer()
+    for c in p
+        c in raw"\^$.[]|()?*+{}-" && write(buf, '\\')
+        write(buf, c)
+    end
+    String(take!(buf))
 end
 
 function _sp_regex(text::RDFTerm, pattern::RDFTerm, flags::Union{RDFTerm,Nothing}=nothing)::Literal
     text isa Literal && pattern isa Literal || error("REGEX requires string arguments")
     t = text.lexical_form; p = pattern.lexical_form
     f = flags === nothing ? "" : (flags isa Literal ? flags.lexical_form : "")
+    'q' in f && (p = _sp_regex_quote(p))
     jflags = _sp_build_regex_flags(f)
     re = try Regex(p, jflags) catch err; error("Invalid regex: $p: $err") end
     _sp_bool_literal(occursin(re, t))
@@ -644,6 +819,7 @@ function _sp_replace(text::RDFTerm, pattern::RDFTerm, replacement::RDFTerm, flag
         error("REPLACE: first argument must be a string literal, got $((text::Literal).datatype.value)")
     t = text.lexical_form; p = pattern.lexical_form; r = replacement.lexical_form
     f = flags === nothing ? "" : (flags isa Literal ? flags.lexical_form : "")
+    'q' in f && (p = _sp_regex_quote(p))
     jflags = _sp_build_regex_flags(f)
     re = try Regex(p, jflags) catch err; error("Invalid regex: $p: $err") end
     # Convert SPARQL $N backreferences to Julia \N format
@@ -863,31 +1039,31 @@ end
 
 function _sp_year(t::RDFTerm)::Literal
     t isa Literal || error("YEAR requires a dateTime literal")
-    dt = _sp_parse_datetime(t.lexical_form)
+    dt = _sp_parse_datetime_local(t.lexical_form)
     Literal(string(Dates.year(dt)), IRI(_SP_XSD_INTEGER), "")
 end
 
 function _sp_month(t::RDFTerm)::Literal
     t isa Literal || error("MONTH requires a dateTime literal")
-    dt = _sp_parse_datetime(t.lexical_form)
+    dt = _sp_parse_datetime_local(t.lexical_form)
     Literal(string(Dates.month(dt)), IRI(_SP_XSD_INTEGER), "")
 end
 
 function _sp_day(t::RDFTerm)::Literal
     t isa Literal || error("DAY requires a dateTime literal")
-    dt = _sp_parse_datetime(t.lexical_form)
+    dt = _sp_parse_datetime_local(t.lexical_form)
     Literal(string(Dates.day(dt)), IRI(_SP_XSD_INTEGER), "")
 end
 
 function _sp_hours(t::RDFTerm)::Literal
     t isa Literal || error("HOURS requires a dateTime literal")
-    dt = _sp_parse_datetime(t.lexical_form)
+    dt = _sp_parse_datetime_local(t.lexical_form)
     Literal(string(Dates.hour(dt)), IRI(_SP_XSD_INTEGER), "")
 end
 
 function _sp_minutes(t::RDFTerm)::Literal
     t isa Literal || error("MINUTES requires a dateTime literal")
-    dt = _sp_parse_datetime(t.lexical_form)
+    dt = _sp_parse_datetime_local(t.lexical_form)
     Literal(string(Dates.minute(dt)), IRI(_SP_XSD_INTEGER), "")
 end
 
@@ -896,7 +1072,7 @@ function _sp_seconds(t::RDFTerm)::Literal
     s = t.lexical_form
     # Extract seconds (with optional fractional part) directly from the string
     m = match(r"T\d{2}:\d{2}:(\d{2}(?:\.\d+)?)", s)
-    sec_str = m !== nothing ? String(m.captures[1]) : string(Dates.second(_sp_parse_datetime(s)))
+    sec_str = m !== nothing ? String(m.captures[1]) : string(Dates.second(_sp_parse_datetime_local(s)))
     v = _sp_parse_decimal_rational(sec_str)
     Literal(_sp_decimal_string(v; min_places=0), IRI(_SP_XSD_DECIMAL), "")
 end

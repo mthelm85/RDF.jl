@@ -269,7 +269,8 @@ function _sp_execute_update_op!(op::SpModify, ctx::_SpEvalCtx)
     # Override graph context with WITH iri for apply
     apply_ctx = if op.with_iri !== nothing
         _SpEvalCtx(ctx.dataset, _sp_upd_get_or_create_named(ctx, op.with_iri),
-                   ctx.base, Dict{String, BlankNode}(), Dict{String, BlankNode}())
+                   ctx.base, Dict{String, BlankNode}(), Dict{String, BlankNode}(),
+                   ctx.load_datasets)
     else
         ctx
     end

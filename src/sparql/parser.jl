@@ -12,6 +12,44 @@ mutable struct SpParser
     lex::SpLexer
     base::Union{String, Nothing}
     prefixes::Dict{String, String}   # prefix label → expanded IRI
+    # SPARQL 1.1 §19.6: a blank node label may not be reused in a different
+    # basic graph pattern. BGP boundaries are only knowable while parsing — the
+    # AST collapses a single-element nested group into a bare SpBGP, so
+    # `{ ?a :p _:x . { :s :q _:x } }` and `{ ?a :p _:x . :s :q _:x }` are
+    # indistinguishable afterwards. `current_bgp` labels the run of triple
+    # patterns being parsed; it advances whenever a nested pattern intervenes.
+    bgp_counter::Int
+    current_bgp::Int
+    bnode_bgp::Dict{String, Int}     # blank node label → BGP it first appeared in
+    # The restriction covers basic graph patterns only. Blank nodes in a
+    # CONSTRUCT/INSERT template or an INSERT DATA quad block are not in a BGP —
+    # reusing a label there is legal and means a fresh node per solution — so
+    # the check is active only while a group graph pattern is being parsed.
+    in_pattern::Bool
+end
+
+SpParser(lex::SpLexer, base, prefixes) =
+    SpParser(lex, base, prefixes, 1, 1, Dict{String, Int}(), false)
+
+# Start a new basic graph pattern; subsequent blank node labels belong to it.
+function _sp_new_bgp!(p::SpParser)
+    p.bgp_counter += 1
+    p.current_bgp = p.bgp_counter
+end
+
+# Build an SpBNode for `tok`, enforcing the §19.6 cross-BGP restriction.
+function _sp_bnode!(p::SpParser, tok::SpToken)::SpBNode
+    label = tok.value
+    p.in_pattern || return SpBNode(label)
+    prev  = get(p.bnode_bgp, label, nothing)
+    if prev === nothing
+        p.bnode_bgp[label] = p.current_bgp
+    elseif prev != p.current_bgp
+        _sp_parse_error(p, tok,
+            "Blank node label _:$(label) is used in more than one basic graph " *
+            "pattern (SPARQL 1.1 §19.6)")
+    end
+    return SpBNode(label)
 end
 
 # ── Error helpers ─────────────────────────────────────────────────────────────
@@ -121,6 +159,9 @@ end
 function _remove_dot_segments(path::String)::String
     # RFC 3986 Section 5.2.4
     inp = path
+    # NOTE: findlast/findnext return byte indices, and Julia requires the end
+    # of a string slice to be a character boundary — so step back with
+    # prevind rather than idx-1. IRI path segments may be non-ASCII.
     out = IOBuffer()
     while !isempty(inp)
         if startswith(inp, "../")
@@ -137,14 +178,14 @@ function _remove_dot_segments(path::String)::String
             s = String(take!(out))
             idx = findlast('/', s)
             if idx !== nothing
-                write(out, s[1:idx-1])
+                write(out, s[1:prevind(s, idx)])
             end
         elseif inp == "/.."
             inp = "/"
             s = String(take!(out))
             idx = findlast('/', s)
             if idx !== nothing
-                write(out, s[1:idx-1])
+                write(out, s[1:prevind(s, idx)])
             end
         elseif inp == "." || inp == ".."
             inp = ""
@@ -156,7 +197,7 @@ function _remove_dot_segments(path::String)::String
                 write(out, inp)
                 inp = ""
             else
-                write(out, inp[1:idx-1])
+                write(out, inp[1:prevind(inp, idx)])
                 inp = inp[idx:end]
             end
         end
@@ -267,8 +308,10 @@ function _sp_expand_pname(p::SpParser, tok::SpToken)::String
     v = tok.value
     colon_idx = findfirst(':', v)
     colon_idx === nothing && _sp_parse_error(p, tok, "Invalid prefixed name: $(repr(v))")
-    prefix = v[1:colon_idx-1]
-    local_part = v[colon_idx+1:end]
+    # findfirst returns a byte index; step by character so a non-ASCII prefix
+    # or local part (e.g. `食:食べる`) does not slice mid-character.
+    prefix = v[1:prevind(v, colon_idx)]
+    local_part = v[nextind(v, colon_idx):end]
     if !haskey(p.prefixes, prefix)
         _sp_parse_error(p, tok, "Unknown prefix $(repr(prefix)) in $(repr(v))")
     end
@@ -387,7 +430,9 @@ function _sp_parse_prologue!(p::SpParser)::Vector{SpPrefixDecl}
             iri_tok = _sp_expect!(p, SP_TOK_IRIREF)
             # Extract prefix label (without trailing colon)
             ns_raw = ns_tok.value  # e.g. "rdf:"
-            prefix_label = ns_raw[1:end-1]  # remove trailing ':'
+            # chop, not ns_raw[1:end-1]: a prefix label may be non-ASCII
+            # (`PREFIX 食: <...>`), and byte arithmetic lands mid-character.
+            prefix_label = chop(ns_raw)  # remove trailing ':'
             expanded = _sp_expand_iriref(p, iri_tok)
             p.prefixes[prefix_label] = expanded
             push!(decls, SpPrefixDecl(prefix_label, expanded))
@@ -675,7 +720,7 @@ function _sp_parse_tt_simple_node(p::SpParser, in_expr::Bool)::Union{SpExpr, Not
         in_expr && _sp_parse_error(p, tok,
             "Blank nodes are not allowed in a triple term used in an expression")
         _sp_next!(p)
-        return SpBNode(tok.value)
+        return _sp_bnode!(p, tok)
     elseif tok.kind == SP_TOK_ANON
         in_expr && _sp_parse_error(p, tok,
             "Blank nodes are not allowed in a triple term used in an expression")
@@ -766,7 +811,7 @@ function _sp_parse_reifier_node(p::SpParser)::SpExpr
         return _sp_parse_iri_node(p)
     elseif tok.kind == SP_TOK_BLANK_LABEL
         _sp_next!(p)
-        return SpBNode(tok.value)
+        return _sp_bnode!(p, tok)
     elseif tok.kind == SP_TOK_ANON
         _sp_next!(p)
         return SpAnonBNode()
@@ -848,7 +893,7 @@ function _sp_parse_var_or_term(p::SpParser)::SpExpr
         return _sp_parse_iri_node(p)
     elseif tok.kind == SP_TOK_BLANK_LABEL
         _sp_next!(p)
-        return SpBNode(tok.value)
+        return _sp_bnode!(p, tok)
     elseif tok.kind == SP_TOK_ANON
         _sp_next!(p)
         return SpAnonBNode()
@@ -1042,9 +1087,14 @@ function _sp_parse_triples_same_subject_path(p::SpParser)::Vector{SpTriple}
     elseif tok.kind == SP_TOK_NIL
         _sp_next!(p)
         subject = SpIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
-        if _sp_next_is_verb(p)
-            _sp_parse_property_list_path_not_empty!(p, subject, triples)
-        end
+        # TriplesSameSubjectPath ::= VarOrTerm PropertyListPathNotEmpty
+        #                          | TriplesNodePath PropertyListPath
+        # `()` is NIL — a plain term, not a TriplesNodePath — so unlike a
+        # collection with elements it must be followed by a property list.
+        # `{ () }` alone is a syntax error (syntax-sparql3/syn-bad-lone-list).
+        _sp_next_is_verb(p) || _sp_parse_error_here(p,
+            "Expected a property list after '()' — a lone term is not a triple pattern")
+        _sp_parse_property_list_path_not_empty!(p, subject, triples)
     elseif tok.kind == SP_TOK_RT_OPEN
         # SPARQL 1.2: reified triple as subject (property list optional —
         # the reified triple already contributes its rdf:reifies pattern)
@@ -1637,6 +1687,11 @@ end
 function _sp_parse_group_graph_pattern_sub(p::SpParser)::SpPat
     elements = SpPat[]
 
+    # This group's own triple patterns form a fresh basic graph pattern.
+    was_in_pattern = p.in_pattern
+    p.in_pattern = true
+    _sp_new_bgp!(p)
+
     # Accumulate triples for BGP
     current_triples = SpTriple[]
 
@@ -1662,6 +1717,13 @@ function _sp_parse_group_graph_pattern_sub(p::SpParser)::SpPat
             flush_bgp!()
             gpnt = _sp_parse_graph_pattern_not_triples(p)
             push!(elements, gpnt)
+            # FILTER and BIND do not start a new basic graph pattern — they
+            # apply to the enclosing group, so a blank node label may legally
+            # span them (syntax-sparql3/syn-blabel-cross-filter). Any other
+            # nested pattern does end the current BGP.
+            if !(gpnt isa SpFilter || gpnt isa SpBind)
+                _sp_new_bgp!(p)
+            end
             # Optional '.' after
             _sp_eat!(p, SP_TOK_DOT)
             # Optional TriplesBlock after
@@ -1669,22 +1731,38 @@ function _sp_parse_group_graph_pattern_sub(p::SpParser)::SpPat
                 append!(current_triples, _sp_parse_triples_block(p))
             end
         elseif tok.kind == SP_TOK_DOT
-            _sp_next!(p)  # consume stray '.'
-            if _sp_next_starts_triples(p)
-                append!(current_triples, _sp_parse_triples_block(p))
-            end
+            # GroupGraphPatternSub ::=
+            #     TriplesBlock? ( GraphPatternNotTriples '.'? TriplesBlock? )*
+            # A '.' is only ever legal as a separator inside a TriplesBlock
+            # (consumed there) or once after a GraphPatternNotTriples (eaten
+            # above). One reaching this point is stray or doubled — `{ . }`,
+            # `{ ?s ?p ?o .. }`, `{ . FILTER(?x) }` — and is a syntax error.
+            _sp_parse_error(p, tok, "Unexpected '.'")
         else
             break
         end
     end
 
     flush_bgp!()
+    p.in_pattern = was_in_pattern
 
     if isempty(elements)
         return SpBGP()
-    elseif length(elements) == 1
+    elseif length(elements) == 1 && elements[1] isa SpBGP
+        # A group whose only element is a basic graph pattern is equivalent to
+        # that BGP — joining it with the enclosing group changes nothing — so
+        # collapsing keeps the common `{ ?s ?p ?o }` on the fast paths.
         return elements[1]
     else
+        # Every other single-element group KEEPS its SpGroup wrapper. The
+        # boundary is semantically load-bearing and cannot be recovered later:
+        #   { :x :p ?v . { FILTER(?v = 1) } }  is not
+        #   { :x :p ?v .   FILTER(?v = 1)   }
+        # because a FILTER only sees variables bound inside its own group, and
+        #   { A . { OPTIONAL { B } } }        is not
+        #   { A .   OPTIONAL { B }   }
+        # because the first joins an independently-evaluated left join. Both
+        # used to collapse to the same AST.
         return SpGroup(elements)
     end
 end
@@ -1761,9 +1839,15 @@ function _sp_parse_constraint(p::SpParser)::SpExpr
         return expr
     elseif tok.kind == SP_TOK_KW && tok.value in ("exists", "not")
         return _sp_parse_primary(p)
+    elseif tok.kind == SP_TOK_VAR
+        # Constraint ::= BrackettedExpression | BuiltInCall | FunctionCall
+        # A bare variable is none of those: `FILTER ?x` must be written
+        # `FILTER(?x)` (W3C sparql10 syntax-sparql3/syn-bad-filter-missing-parens).
+        _sp_parse_error(p, tok,
+            "FILTER requires a bracketted expression, built-in call or function " *
+            "call — a bare variable needs parentheses: FILTER(?$(tok.value))")
     else
-        # Bracketed expression is required for FILTER; but SPARQL also allows
-        # BuiltInCall which may start with a keyword
+        # A keyword starts a BuiltInCall; an IRI starts a FunctionCall.
         return _sp_parse_primary(p)
     end
 end
@@ -2632,6 +2716,9 @@ function _sp_parse_unit(p::SpParser)::SpUnit
                 # Empty update operation between two semicolons is a syntax error
                 _sp_parse_error(p, tok3, "Empty update operation between consecutive ';' separators")
             elseif tok3.kind == SP_TOK_KW && tok3.value in _SP_UPDATE_KEYWORDS
+                # Each operation in a request is its own scope for §19.6: the
+                # same label in two operations denotes different blank nodes.
+                empty!(p.bnode_bgp)
                 push!(ops, _sp_parse_update_op(p))
             else
                 _sp_parse_error(p, tok3, "Expected update operation after ';', got $(tok3.kind)")

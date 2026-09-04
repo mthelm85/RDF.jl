@@ -176,18 +176,31 @@ Execute a SPARQL 1.1 query against a `Graph` or `Dataset`.
 (e.g. `FROM <relative.ttl>`). When `nothing`, relative IRIs in the query that
 lack a `BASE` declaration are resolved against an implementation-defined default.
 
+`load_datasets` (default `false`) controls whether a `FROM` / `FROM NAMED` clause
+may load a graph the caller did not supply. When `false`, a dataset clause can
+only select among the graphs already in `g`; an IRI naming anything else
+contributes nothing, per SPARQL 1.1 §13.2. When `true`, a clause whose IRI is a
+`file:` IRI (or a relative IRI resolved against `base` to one) is also read from
+disk, with the format taken from the file extension.
+
+!!! warning "load_datasets reads local files"
+    Enable it only for queries you trust. A query string is otherwise untrusted
+    input, and this lets it read any file the process can open. It never
+    performs network requests, whatever the IRI scheme.
+
 Throws `ParseError` on a syntactically invalid query, and `RDFError` on
 evaluation errors (e.g. an undeclared prefix).
 """
 function sparql(g::Union{Graph, Dataset}, query::AbstractString;
-                base::Union{AbstractString, Nothing} = nothing)
+                base::Union{AbstractString, Nothing} = nothing,
+                load_datasets::Bool = false)
     unit = sparql_parse(query)
     unit isa SpQueryUnit ||
         throw(ArgumentError("expected a SPARQL query, got an update — use sparql_update!"))
     base_str = base === nothing ? nothing : String(base)
     # Prefer BASE declaration from query over external base
     effective_base = unit.base !== nothing ? unit.base : base_str
-    ctx = _SpEvalCtx(g, effective_base)
+    ctx = _SpEvalCtx(g, effective_base; load_datasets=load_datasets)
     _sp_execute_query(unit, ctx)
 end
 

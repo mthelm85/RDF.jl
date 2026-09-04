@@ -248,10 +248,12 @@ function _read_pn_local!(lex::SpLexer)::String
     s = String(take!(buf))
     while !isempty(s) && s[end] == '.'
         # A trailing dot that was the second char of '\.' must not be trimmed.
-        if length(s) >= 2 && s[end-1] == '\\'
+        # Index by character, not byte: the char before the dot may be
+        # multi-byte (e.g. a kanji local name), and s[end-1] lands inside it.
+        if length(s) >= 2 && s[prevind(s, lastindex(s))] == '\\'
             break
         end
-        s = s[1:end-1]
+        s = chop(s)
         # Return one byte back to the lexer (the dot we consumed)
         # We need to walk back lex.pos by 1 byte; col too.
         lex.pos -= 1
@@ -456,7 +458,7 @@ function _read_blank_label!(lex::SpLexer, sline::Int, scol::Int)::SpToken
     # Strip trailing dots
     s = String(take!(buf))
     while !isempty(s) && s[end] == '.'
-        s = s[1:end-1]
+        s = chop(s)   # character-wise: the label may end in a multi-byte char
         lex.pos -= 1
         lex.col -= 1
     end
