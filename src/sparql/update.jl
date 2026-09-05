@@ -21,9 +21,11 @@ end
 # Materialize a SpQuadBlock into actual triples, grouped by target graph.
 # Used for INSERT DATA / DELETE DATA (no variable binding).
 # Blank node labels are scoped to the entire block (per SPARQL Update spec).
+# INSERT DATA / DELETE DATA carry no WHERE clause, so a variable graph cannot be
+# resolved and is rejected at parse-validation time; only IRIs reach here.
 function _sp_materialise_quad_block_static(quads::SpQuadBlock, ctx::_SpEvalCtx)::Vector{Pair{Union{String, Nothing}, Vector{Triple}}}
     result = Pair{Union{String, Nothing}, Vector{Triple}}[]
-    bnode_map = Dict{String, BlankNode}()  # shared across all graphs in one DATA block
+    bnode_map = Dict{Union{String, UInt64}, BlankNode}()  # shared across all graphs in one DATA block
     for (graph_iri, triples) in quads
         materialised = Triple[]
         for tp in triples
@@ -35,7 +37,7 @@ function _sp_materialise_quad_block_static(quads::SpQuadBlock, ctx::_SpEvalCtx):
     result
 end
 
-function _sp_upd_materialise_triple_static(tp::SpTriple, bnode_map::Dict{String,BlankNode})::Union{Triple, Nothing}
+function _sp_upd_materialise_triple_static(tp::SpTriple, bnode_map::Dict{Union{String, UInt64}, BlankNode})::Union{Triple, Nothing}
     s = _sp_upd_static_term(tp.subject, bnode_map)
     p = if tp.predicate isa SpExpr
         _sp_upd_static_term(tp.predicate::SpExpr, bnode_map)
@@ -55,7 +57,7 @@ function _sp_upd_path_to_iri(path::SpPath)::Union{IRI, Nothing}
 end
 
 # Convert a constant SpExpr (no variables) to an RDFTerm
-function _sp_upd_static_term(expr::SpExpr, bnode_map::Dict{String,BlankNode})::Union{RDFTerm, Nothing}
+function _sp_upd_static_term(expr::SpExpr, bnode_map::Dict{Union{String, UInt64}, BlankNode})::Union{RDFTerm, Nothing}
     if expr isa SpIRI
         return IRI(expr.value)
     elseif expr isa SpLiteral
@@ -68,7 +70,18 @@ function _sp_upd_static_term(expr::SpExpr, bnode_map::Dict{String,BlankNode})::U
         # Same label in one block → same blank node (SPARQL Update scoping rule)
         return get!(bnode_map, expr.label, _mint_blank_node())
     elseif expr isa SpAnonBNode
-        return _mint_blank_node()
+        # Keyed like a labelled blank node so that the several triples an
+        # annotation expands to share one reifier: `:s :p :o {| :src :x |}`
+        # must produce `_:r rdf:reifies <<( … )>>` and `_:r :src :x` about the
+        # same _:r, not two unrelated nodes.
+        return get!(bnode_map, expr.id, _mint_blank_node())
+    elseif expr isa SpTripleTerm
+        st = _sp_upd_static_term(expr.subject,   bnode_map)
+        pt = _sp_upd_static_term(expr.predicate, bnode_map)
+        ot = _sp_upd_static_term(expr.object,    bnode_map)
+        (st === nothing || pt === nothing || ot === nothing) && return nothing
+        (st isa SubjectTerm && pt isa IRI) || return nothing
+        return try TripleTerm(st, pt::IRI, ot) catch; nothing end
     else
         return nothing  # variables not allowed in DATA blocks
     end
@@ -79,20 +92,29 @@ end
 function _sp_materialise_quad_block_template(quads::SpQuadBlock, ctx::_SpEvalCtx, μ::_SpSolution)::Vector{Pair{Union{String, Nothing}, Vector{Triple}}}
     result = Pair{Union{String, Nothing}, Vector{Triple}}[]
     # Blank node label → BlankNode mapping per solution
-    bnode_map = Dict{String, BlankNode}()
+    bnode_map = Dict{Union{String, UInt64}, BlankNode}()
     for (graph_iri, triples) in quads
+        # `GRAPH ?g { … }` in a template names a different graph per solution.
+        # A solution that leaves ?g unbound, or binds it to something that is
+        # not an IRI, contributes nothing.
+        target = graph_iri
+        if graph_iri isa SpVar
+            v = get(μ, (graph_iri::SpVar).name, nothing)
+            v isa IRI || continue
+            target = (v::IRI).value
+        end
         materialised = Triple[]
         for tp in triples
             t = _sp_upd_materialise_template_triple(tp, ctx, μ, bnode_map)
             t !== nothing && push!(materialised, t)
         end
-        push!(result, graph_iri => materialised)
+        push!(result, target => materialised)
     end
     result
 end
 
 function _sp_upd_materialise_template_triple(tp::SpTriple, ctx::_SpEvalCtx, μ::_SpSolution,
-                                               bnode_map::Dict{String, BlankNode})::Union{Triple, Nothing}
+                                               bnode_map::Dict{Union{String, UInt64}, BlankNode})::Union{Triple, Nothing}
     s = _sp_upd_template_term(tp.subject, μ, bnode_map)
     p = if tp.predicate isa SpExpr
         _sp_upd_template_term(tp.predicate::SpExpr, μ, bnode_map)
@@ -104,7 +126,7 @@ function _sp_upd_materialise_template_triple(tp::SpTriple, ctx::_SpEvalCtx, μ::
     Triple(s::SubjectTerm, p::IRI, o::ObjectTerm)
 end
 
-function _sp_upd_template_term(expr::SpExpr, μ::_SpSolution, bnode_map::Dict{String, BlankNode})::Union{RDFTerm, Nothing}
+function _sp_upd_template_term(expr::SpExpr, μ::_SpSolution, bnode_map::Dict{Union{String, UInt64}, BlankNode})::Union{RDFTerm, Nothing}
     if expr isa SpVar
         return get(μ, expr.name, nothing)
     elseif expr isa SpIRI
@@ -119,7 +141,20 @@ function _sp_upd_template_term(expr::SpExpr, μ::_SpSolution, bnode_map::Dict{St
         # Blank node labels in templates are scoped per solution (bnode_map is per-solution)
         return get!(bnode_map, expr.label, _mint_blank_node())
     elseif expr isa SpAnonBNode
-        return nothing  # anonymous blank nodes in templates are discarded
+        # A blank node in a template denotes a fresh node per solution, and `[]`
+        # is no different from `_:label` in that respect. Keying by the node's
+        # id keeps the several triples an annotation expands to — the reifier's
+        # rdf:reifies triple and its properties — pointing at the same node.
+        return get!(bnode_map, expr.id, _mint_blank_node())
+    elseif expr isa SpTripleTerm
+        # SPARQL 1.2: the object of the rdf:reifies triple that `<< s p o >>` or
+        # an annotation block `{| … |}` expands to.
+        st = _sp_upd_template_term(expr.subject,   μ, bnode_map)
+        pt = _sp_upd_template_term(expr.predicate, μ, bnode_map)
+        ot = _sp_upd_template_term(expr.object,    μ, bnode_map)
+        (st === nothing || pt === nothing || ot === nothing) && return nothing
+        (st isa SubjectTerm && pt isa IRI) || return nothing
+        return try TripleTerm(st, pt::IRI, ot) catch; nothing end
     else
         return nothing
     end
@@ -193,7 +228,7 @@ function _sp_collect_pattern_quads!(pat::SpPat, μ::_SpSolution, ctx::_SpEvalCtx
                                      graph_iri::Union{String,Nothing},
                                      out::Vector{Pair{Union{String,Nothing},Triple}})
     if pat isa SpBGP
-        bnode_map = Dict{String, BlankNode}()
+        bnode_map = Dict{Union{String, UInt64}, BlankNode}()
         for tp in pat.triples
             t = _sp_upd_materialise_template_triple(tp, ctx, μ, bnode_map)
             t !== nothing && push!(out, graph_iri => t)
@@ -269,7 +304,7 @@ function _sp_execute_update_op!(op::SpModify, ctx::_SpEvalCtx)
     # Override graph context with WITH iri for apply
     apply_ctx = if op.with_iri !== nothing
         _SpEvalCtx(ctx.dataset, _sp_upd_get_or_create_named(ctx, op.with_iri),
-                   ctx.base, Dict{String, BlankNode}(), Dict{String, BlankNode}(),
+                   ctx.base, Dict{Union{String, UInt64}, BlankNode}(), Dict{Union{String, UInt64}, BlankNode}(),
                    ctx.load_datasets)
     else
         ctx

@@ -397,10 +397,12 @@ _sp_is_dataset_file(path::String) = lowercase(last(splitext(path))) in (".nq", "
 
 function _sp_load_dataset_file(path::String)::Dataset
     ext = lowercase(last(splitext(path)))
-    ext == ".nq" || error("Unsupported dataset format: $ext (file: $path)")
-    open(path) do io
-        read(io, MIME"application/n-quads"(), Dataset)
+    if ext == ".nq"
+        return open(io -> read(io, :nq, Dataset), path)
+    elseif ext == ".trig"
+        return open(io -> read(io, :trig, Dataset, _sp_path_to_file_uri(path)), path)
     end
+    error("Unsupported dataset format: $ext (file: $path)")
 end
 
 function _sp_build_dataset(data_file::Union{String,Nothing},
@@ -953,18 +955,6 @@ end
 
 # ─── Test runners ─────────────────────────────────────────────────────────────
 
-# RDF.jl does not implement TriG; eval tests whose data is supplied as a .trig
-# file are not applicable yet and are skipped (rather than failed) so the rest
-# of the suite stays green.  Returns true if any data file uses an unsupported
-# serialization.
-function _sp_uses_unsupported_data(files...)::Bool
-    for f in files
-        f === nothing && continue
-        lowercase(last(splitext(f))) == ".trig" && return true
-    end
-    return false
-end
-
 # Positive syntax: sparql_parse must succeed without throwing.
 function _sp_run_test(t::_SpPosSyntaxTest)
     src = read(t.action_file, String)
@@ -979,10 +969,6 @@ end
 
 # Query evaluation: run query, compare result bag/graph/bool.
 function _sp_run_test(t::_SpQueryEvalTest)
-    if _sp_uses_unsupported_data(t.data_file, first.(t.graph_data)...)
-        @test_skip "TriG data not supported"
-        return
-    end
     ds       = _sp_build_dataset(t.data_file, t.graph_data)
     src      = read(t.query_file, String)
     base     = _sp_path_to_file_uri(t.query_file)
@@ -995,18 +981,30 @@ end
 
 # Update evaluation: apply update, check resulting dataset state.
 function _sp_run_test(t::_SpUpdateEvalTest)
-    if _sp_uses_unsupported_data(t.pre_data, t.post_data,
-                                 first.(t.pre_graphs)..., first.(t.post_graphs)...)
-        @test_skip "TriG data not supported"
-        return
-    end
     ds   = _sp_build_dataset(t.pre_data, t.pre_graphs)
     src  = read(t.request_file, String)
     base = _sp_path_to_file_uri(t.request_file)
     sparql_update!(ds, src; base)
 
     if t.post_data !== nothing
-        @test isomorphic(ds.default_graph, _sp_load_graph(t.post_data))
+        if _sp_is_dataset_file(t.post_data)
+            # A dataset-format post state (N-Quads or TriG) carries the expected
+            # named graphs as well, so compare the whole dataset rather than
+            # only the default graph.
+            want = _sp_load_dataset_file(t.post_data)
+            @test isomorphic(ds.default_graph, want.default_graph)
+            # Emptying a graph does not have to remove it, and the reference
+            # serialization cannot distinguish "absent" from "present but
+            # empty", so compare only the graphs that hold triples.
+            nonempty(d) = Set(k for (k, g) in d.named_graphs if !isempty(g))
+            @test nonempty(ds) == nonempty(want)
+            for (name, g) in want.named_graphs
+                isempty(g) && continue
+                haskey(ds, name) && @test isomorphic(ds[name], g)
+            end
+        else
+            @test isomorphic(ds.default_graph, _sp_load_graph(t.post_data))
+        end
     end
     for (file, iri_str) in t.post_graphs
         key = IRI(iri_str)

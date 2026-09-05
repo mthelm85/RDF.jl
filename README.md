@@ -254,6 +254,10 @@ g = read(io, :nt, Graph)
 write(io, :nq, ds)
 ds = read(io, :nq, Dataset)
 
+# TriG — datasets with named graphs, Turtle syntax plus graph blocks
+ds = read(io, :trig, Dataset)
+write(io, :trig, ds)
+
 # JSON-LD (parse + write)
 g = read(io, :jsonld, Graph)
 ds = read(io, :jsonld, Dataset)
@@ -513,6 +517,8 @@ julia --project=benchmarks benchmarks/benchmarks.jl --compare=baseline.json
 | W3C SPARQL 1.1 (query + update) | **657 / 657** |
 | W3C SPARQL 1.2 | **263 / 263** |
 | W3C RDF 1.1 Semantics (rdf-mt) | **38 / 49** (11 skipped, see below) |
+| W3C TriG 1.1 | **358 / 358** |
+| W3C TriG 1.2 | **63 / 63** |
 | W3C Turtle 1.1 | ✓ |
 | W3C N-Triples | ✓ |
 | W3C N-Quads | ✓ |

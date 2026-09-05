@@ -32,6 +32,7 @@ include("serialization/ntriples.jl")
 include("serialization/nquads.jl")
 include("graph_conversion.jl")
 include("serialization/turtle.jl")
+include("serialization/trig.jl")
 include("serialization/jsonld.jl")
 
 # ── Query ─────────────────────────────────────────────────────────────────────

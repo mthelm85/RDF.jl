@@ -23,6 +23,7 @@ Normalize an RDF serialization format specifier to its `MIME` value.  Accepts a
 | `:ttl`, `:turtle` | `text/turtle` |
 | `:nt`, `:ntriples` | `application/n-triples` |
 | `:nq`, `:nquads` | `application/n-quads` |
+| `:trig` | `application/trig` |
 | `:jsonld` | `application/ld+json` |
 | `:rdfxml`, `:xml` | `application/rdf+xml` |
 """
@@ -33,12 +34,13 @@ function _format_mime(fmt::Symbol)
     fmt === :ttl    || fmt === :turtle   ? MIME"text/turtle"()          :
     fmt === :nt     || fmt === :ntriples ? MIME"application/n-triples"() :
     fmt === :nq     || fmt === :nquads   ? MIME"application/n-quads"()   :
+    fmt === :trig                        ? MIME"application/trig"()      :
     fmt === :jsonld                      ? MIME"application/ld+json"()   :
     fmt === :rdfxml || fmt === :xml      ? MIME"application/rdf+xml"()   :
     throw(ArgumentError(
         "unknown RDF format $(repr(fmt)). Valid formats are :ttl (:turtle), " *
-        ":nt (:ntriples), :nq (:nquads), :jsonld, :rdfxml (:xml) — or a MIME " *
-        "value such as MIME\"text/turtle\"()."))
+        ":nt (:ntriples), :nq (:nquads), :trig, :jsonld, :rdfxml (:xml) — or a " *
+        "MIME value such as MIME\"text/turtle\"()."))
 end
 
 """
@@ -92,6 +94,9 @@ Base.read(io::IO, fmt::Symbol, ::Type{Graph}, base::AbstractString) =
 
 Base.read(io::IO, fmt::Symbol, ::Type{Dataset}; kw...) =
     Base.read(io, _format_mime(fmt), Dataset; kw...)
+
+Base.read(io::IO, fmt::Symbol, ::Type{Dataset}, base::AbstractString) =
+    Base.read(io, _format_mime(fmt), Dataset, base)
 
 Base.read(io::IO, fmt::Symbol, ::Type{Vector{Triple}}) =
     Base.read(io, _format_mime(fmt), Vector{Triple})

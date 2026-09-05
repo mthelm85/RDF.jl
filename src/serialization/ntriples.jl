@@ -631,6 +631,7 @@ explicit `format` keyword):
 | `.nt` | `:nt`, `:ntriples` | N-Triples | `Graph` |
 | `.ttl` | `:ttl`, `:turtle` | Turtle 1.1 | `Graph` |
 | `.nq` | `:nq`, `:nquads` | N-Quads | `Dataset` |
+| `.trig` | `:trig` | TriG 1.2 | `Dataset` |
 | `.jsonld`, `.json-ld` | `:jsonld` | JSON-LD 1.1 | `Dataset` |
 | `.rdf`, `.owl`, `.xml` | `:rdfxml`, `:xml` | RDF/XML (requires EzXML.jl) | `Graph` |
 
@@ -655,6 +656,7 @@ function _rdf_mime_from_path(path::AbstractString, verb::AbstractString)::MIME
     endswith(lp, ".nt")      && return _MIME_NT()
     endswith(lp, ".nq")      && return MIME"application/n-quads"()
     endswith(lp, ".ttl")     && return MIME"text/turtle"()
+    endswith(lp, ".trig")    && return MIME"application/trig"()
     endswith(lp, ".jsonld")  && return MIME"application/ld+json"()
     endswith(lp, ".json-ld") && return MIME"application/ld+json"()
     endswith(lp, ".rdf")     && return MIME"application/rdf+xml"()
@@ -662,7 +664,7 @@ function _rdf_mime_from_path(path::AbstractString, verb::AbstractString)::MIME
     endswith(lp, ".xml")     && return MIME"application/rdf+xml"()
     throw(ArgumentError(
         "Cannot infer RDF format from path $(repr(path)). " *
-        "Pass `format=:ttl` (or :nt, :nq, :jsonld, :rdfxml) to rdf_$(verb) " *
+        "Pass `format=:ttl` (or :nt, :nq, :trig, :jsonld, :rdfxml) to rdf_$(verb) " *
         "explicitly."))
 end
 
@@ -676,6 +678,7 @@ end
 # Dataset-producing formats
 function _rdf_read_with_mime(path::AbstractString,
                               mime::Union{MIME"application/n-quads",
+                                          MIME"application/trig",
                                           MIME"application/ld+json"})::Dataset
     open(path, "r") do io
         Base.read(io, mime, Dataset)
@@ -694,6 +697,7 @@ explicit `format` keyword, which takes the same symbols as [`rdf_read`](@ref)):
 | `.nt` | `:nt`, `:ntriples` | N-Triples (`Graph` only) |
 | `.ttl` | `:ttl`, `:turtle` | Turtle 1.1 (`Graph` only) |
 | `.nq` | `:nq`, `:nquads` | N-Quads (`Dataset` only) |
+| `.trig` | `:trig` | TriG 1.2 (`Dataset` only) |
 | `.jsonld`, `.json-ld` | `:jsonld` | JSON-LD 1.1 |
 
 An extension that maps to no known format, or to one with no serializer for the
@@ -733,7 +737,7 @@ function _rdf_check_writer(mime::MIME, x)
     throw(ArgumentError(
         "No $(nameof(typeof(x))) serializer for $(string(mime)). " *
         "Graphs can be written as :ttl, :nt or :jsonld; " *
-        "Datasets as :nq or :jsonld."))
+        "Datasets as :nq, :trig or :jsonld."))
 end
 
 # IO-level dispatch: write(io, g) → N-Triples; write(io, ds) → N-Quads.

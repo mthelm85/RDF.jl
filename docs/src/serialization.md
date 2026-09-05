@@ -17,6 +17,7 @@ Name a format with a symbol — that is the everyday API:
 | N-Triples 1.2 | `:nt`, `:ntriples` | `application/n-triples` | `.nt` | ✅ | ✅ |
 | N-Quads 1.2 | `:nq`, `:nquads` | `application/n-quads` | `.nq` | ✅ | ✅ |
 | Turtle 1.2 | `:ttl`, `:turtle` | `text/turtle` | `.ttl` | ✅ | ✅ |
+| TriG 1.2 | `:trig` | `application/trig` | `.trig` | ✅ | ✅ |
 | JSON-LD 1.1 | `:jsonld` | `application/ld+json` | `.jsonld` | ✅ | ✅ |
 | RDF/XML | `:rdfxml`, `:xml` | `application/rdf+xml` | `.rdf` | ✅ (with EzXML.jl) | ❌ |
 
@@ -67,6 +68,34 @@ write(io, :nq, ds)
 # Read a Dataset from N-Quads
 ds = read(io, :nq, Dataset)
 ```
+
+## TriG
+
+TriG is Turtle plus graph blocks — the dataset serialization. Everything Turtle
+accepts is valid inside a block, including the RDF 1.2 additions.
+
+```julia
+ds = read(io, :trig, Dataset)
+write(io, :trig, ds; prefixes=Dict("ex" => "http://example.org/"))
+
+# Reading as a Graph merges every graph, discarding the names
+g = read(io, :trig, Graph)
+```
+
+```trig
+@prefix ex: <http://example.org/> .
+
+ex:a ex:p ex:b .                      # default graph
+{ ex:c ex:p ex:d . }                  # also the default graph
+ex:g1 { ex:s ex:p "in g1" }           # a named graph
+GRAPH ex:g2 { ex:s2 ex:p2 "in g2" }   # the same, SPARQL-style
+_:bg { ex:s3 ex:p3 "bnode-labelled" } # a blank node may name a graph
+ex:empty {}                           # an empty named graph
+```
+
+Unlike N-Quads, TriG can represent an *empty* named graph, so a `Dataset`
+round-trips through it without losing one. Blank node labels are scoped to the
+document, not the graph: `_:x` in two blocks is the same node.
 
 ## Turtle
 

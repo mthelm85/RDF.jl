@@ -350,7 +350,11 @@ struct SpGraphRefIRI     <: SpGraphRef; iri::String end
 
 # Quads (for data operations): each entry is (graph_iri_or_nothing, triples)
 # where nothing = default graph.
-const SpQuadBlock = Vector{Pair{Union{String,Nothing}, Vector{SpTriple}}}
+# The graph of a quad block: an IRI, a variable (SPARQL 1.1
+# `QuadsNotTriples ::= 'GRAPH' VarOrIri '{' TriplesTemplate? '}'`), or nothing
+# for the default graph. A variable is resolved per solution when the template
+# is instantiated.
+const SpQuadBlock = Vector{Pair{Union{String, SpVar, Nothing}, Vector{SpTriple}}}
 
 struct SpInsertData <: SpUpdateOp
     quads::SpQuadBlock

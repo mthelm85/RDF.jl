@@ -140,12 +140,17 @@ end
 # ── Turtle writer ─────────────────────────────────────────────────────────────
 
 function Base.write(io::IO, ::_MIME_TTL, g::Graph;
-                    prefixes::Dict{String,String}=Dict{String,String}())
-    # Emit @prefix declarations
-    for (pn, pi) in sort(collect(prefixes), by=first)
-        println(io, "@prefix $pn: <$pi> .")
+                    prefixes::Dict{String,String}=Dict{String,String}(),
+                    emit_prefixes::Bool=true)
+    # Emit @prefix declarations. TriG writes one header for the whole dataset
+    # and then calls this per graph with emit_prefixes=false, so the prefixes
+    # still abbreviate IRIs in each body without being redeclared.
+    if emit_prefixes
+        for (pn, pi) in sort(collect(prefixes), by=first)
+            println(io, "@prefix $pn: <$pi> .")
+        end
+        !isempty(prefixes) && println(io)
     end
-    !isempty(prefixes) && println(io)
 
     isempty(g) && return nothing
 
@@ -381,13 +386,13 @@ function _ttl_parse_iriref!(p::_TurtleParser)::IRI
             e = _ttl_peek(p); _ttl_advance!(p)
             if e == 'u'
                 cp = _ttl_parse_hex_escape!(p, 4)
-                uc = Char(cp)
+                uc = _ttl_checked_codepoint(p, cp)
                 _ttl_iriref_forbidden(uc) &&
                     _ttl_error(p, "Forbidden char U+$(string(cp; base=16, pad=4)) in IRI")
                 write(buf, uc)
             elseif e == 'U'
                 cp = _ttl_parse_hex_escape!(p, 8)
-                uc = Char(cp)
+                uc = _ttl_checked_codepoint(p, cp)
                 _ttl_iriref_forbidden(uc) &&
                     _ttl_error(p, "Forbidden char U+$(string(cp; base=16, pad=8)) in IRI")
                 write(buf, uc)
@@ -1057,7 +1062,11 @@ function _ttl_parse_po_list!(p::_TurtleParser, subj::SubjectTerm)
         _ttl_peek(p) == ';' || break
         while _ttl_peek(p) == ';'; _ttl_advance!(p); _ttl_skip!(p); end
         c = _ttl_peek(p)
-        (c == '.' || c == ']' || c == '|' || _ttl_eof(p)) && break
+        # '}' closes a TriG graph block, so it terminates a predicate-object
+        # list exactly as '.' does: `{ <s> <p> <o> ; }` is legal TriG. Accepting
+        # it here costs Turtle nothing — a '}' in a Turtle document still fails
+        # at the mandatory '.' that follows.
+        (c == '.' || c == ']' || c == '|' || c == '}' || _ttl_eof(p)) && break
     end
 end
 
@@ -1131,12 +1140,28 @@ end
 
 # ── Statement ─────────────────────────────────────────────────────────────────
 
-function _ttl_parse_statement!(p::_TurtleParser)
+# One `triples` production — subject plus its predicate-object list, stopping
+# before the terminating '.'. Factored out of _ttl_parse_statement! so TriG can
+# reuse it inside a graph block, where the final '.' before '}' is optional.
+#
+# `subj0` lets a caller that has already consumed the subject hand it over. TriG
+# needs that: `<g> { … }` and `<s> <p> <o> .` are only distinguishable after the
+# subject term has been read and the next character looked at.
+function _ttl_parse_triples!(p::_TurtleParser,
+                             subj0::Union{SubjectTerm, Nothing}=nothing)
+    if subj0 !== nothing
+        _ttl_parse_po_list!(p, subj0)
+        _ttl_skip!(p)
+        return nothing
+    end
     c = _ttl_peek(p)
     if c == '['
         subj = _ttl_parse_bnode_proplist!(p)
         _ttl_skip!(p)
-        if _ttl_peek(p) != '.'
+        # A blank node property list can stand alone as a whole statement, in
+        # which case what follows is the terminator rather than a predicate:
+        # '.' in Turtle, and also '}' at the end of a TriG graph block.
+        if _ttl_peek(p) != '.' && _ttl_peek(p) != '}'
             _ttl_parse_po_list!(p, subj)
             _ttl_skip!(p)
         end
@@ -1156,6 +1181,11 @@ function _ttl_parse_statement!(p::_TurtleParser)
             _ttl_skip!(p)
         end
     end
+    return nothing
+end
+
+function _ttl_parse_statement!(p::_TurtleParser)
+    _ttl_parse_triples!(p)
     _ttl_expect_char!(p, '.')
 end
 

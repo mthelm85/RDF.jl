@@ -23,6 +23,7 @@ using Test
         @test RDF._format_mime(:ntriples) == MIME"application/n-triples"()
         @test RDF._format_mime(:nq)       == MIME"application/n-quads"()
         @test RDF._format_mime(:nquads)   == MIME"application/n-quads"()
+        @test RDF._format_mime(:trig)     == MIME"application/trig"()
         @test RDF._format_mime(:jsonld)   == MIME"application/ld+json"()
         @test RDF._format_mime(:rdfxml)   == MIME"application/rdf+xml"()
         @test RDF._format_mime(:xml)      == MIME"application/rdf+xml"()
@@ -277,6 +278,83 @@ using Test
         finally
             isfile(path) && rm(path)
         end
+    end
+
+    @testset "TriG — graph blocks" begin
+        src = """
+        @prefix ex: <http://example.org/> .
+        ex:a ex:p ex:b .
+        ex:g1 { ex:s ex:p "one" . ex:s ex:q "two" }
+        GRAPH ex:g2 { ex:s2 ex:p2 "three" . }
+        { ex:d ex:p "default block" . }
+        ex:empty {}
+        """
+        d = read(IOBuffer(src), :trig, Dataset)
+
+        # Triples outside a block and those in an anonymous block both land in
+        # the default graph.
+        @test length(d.default_graph) == 2
+        @test Triple(IRI("http://example.org/a"), IRI("http://example.org/p"),
+                     IRI("http://example.org/b")) in d.default_graph
+
+        @test length(d[IRI("http://example.org/g1")]) == 2
+        @test length(d[IRI("http://example.org/g2")]) == 1
+        # TriG can express an empty named graph; N-Quads cannot.
+        @test haskey(d, IRI("http://example.org/empty"))
+        @test isempty(d[IRI("http://example.org/empty")])
+
+        # A blank node may label a graph.
+        src_bn = "@prefix ex: <http://example.org/> .
+_:g { ex:s ex:p ex:o . }"
+        dbn = read(IOBuffer(src_bn), :trig, Dataset)
+        @test any(k -> k isa BlankNode, keys(dbn.named_graphs))
+
+        # Blank node labels are document-scoped, so the same label in two graphs
+        # is the same node.
+        shared = read(IOBuffer("""
+            @prefix ex: <http://example.org/> .
+            ex:g1 { _:x ex:p "a" . }
+            ex:g2 { _:x ex:q "b" . }
+            """), :trig, Dataset)
+        b1 = only(collect(subjects(shared[IRI("http://example.org/g1")])))
+        b2 = only(collect(subjects(shared[IRI("http://example.org/g2")])))
+        @test b1 == b2
+
+        # Round-trip through the writer.
+        io = IOBuffer()
+        write(io, :trig, d; prefixes=Dict("ex" => "http://example.org/"))
+        back = read(IOBuffer(String(take!(io))), :trig, Dataset)
+        @test back.default_graph ≅ d.default_graph
+        for k in keys(d.named_graphs)
+            k isa IRI || continue
+            @test haskey(back, k) && (back[k] ≅ d[k])
+        end
+
+        # Reading a TriG document as a Graph merges every graph.
+        merged = read(IOBuffer(src), :trig, Graph)
+        @test length(merged) == 5
+
+        # rdf_read/rdf_write dispatch on the .trig extension.
+        path = tempname() * ".trig"
+        try
+            rdf_write(path, d)
+            @test rdf_read(path) isa Dataset
+            @test length(rdf_read(path).default_graph) == 2
+        finally
+            isfile(path) && rm(path)
+        end
+    end
+
+    @testset "TriG — syntax errors" begin
+        # The grammar has no '.' after a wrapped graph.
+        @test_throws ParseError read(IOBuffer("<http://e/g> { } ."), :trig, Dataset)
+        # A blank node property list carrying properties cannot label a graph.
+        @test_throws ParseError read(
+            IOBuffer("@prefix : <http://e/> .
+[:p :o] { :s :p :o }"), :trig, Dataset)
+        # Unterminated block.
+        @test_throws ParseError read(IOBuffer("<http://e/g> { <http://e/s> <http://e/p> <http://e/o> ."),
+                                     :trig, Dataset)
     end
 
     @testset "_format_accept for content negotiation" begin

@@ -2345,6 +2345,14 @@ function _sp_parse_quad_data(p::SpParser)::SpQuadBlock
     _sp_expect!(p, SP_TOK_LBRACE)
     result = _sp_parse_quads(p)
     _sp_expect!(p, SP_TOK_RBRACE)
+    # QuadData is ground (SPARQL 1.1 §19.8): with no WHERE clause there is
+    # nothing to bind a graph variable to, so `INSERT DATA { GRAPH ?g { … } }`
+    # is a syntax error rather than a no-op.
+    for (graph, _) in result
+        graph isa SpVar && _sp_parse_error_here(p,
+            "Variable ?$((graph::SpVar).name) is not allowed as a graph in " *
+            "INSERT DATA / DELETE DATA")
+    end
     return result
 end
 
@@ -2371,7 +2379,12 @@ function _sp_parse_quads(p::SpParser)::SpQuadBlock
             empty!(default_triples)
         end
         _sp_next!(p)  # consume 'graph'
-        graph_iri = _sp_parse_iri(p)
+        # QuadsNotTriples ::= 'GRAPH' VarOrIri '{' TriplesTemplate? '}'
+        graph_iri = if _sp_peek_kind(p) == SP_TOK_VAR
+            SpVar(Symbol(_sp_next!(p).value))
+        else
+            _sp_parse_iri(p)
+        end
         _sp_expect!(p, SP_TOK_LBRACE)
         triples = SpTriple[]
         if _sp_next_starts_triples(p)
