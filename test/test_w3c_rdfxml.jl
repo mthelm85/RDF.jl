@@ -151,3 +151,115 @@ if isdir(_RDFXML_FIXTURES_DIR)
 else
     @warn "RDF/XML fixtures not found at $_RDFXML_FIXTURES_DIR — skipping W3C RDF/XML tests"
 end
+
+# ── RDF 1.2 RDF/XML ───────────────────────────────────────────────────────────
+#
+# Source: https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-xml/
+#
+# Covers what RDF 1.2 adds to the syntax: rdf:annotation reifiers, rdf:dir
+# directional language tags, and triple terms. Unlike the 1.1 fixtures above —
+# which were flattened, so their base URIs have to be reconstructed from the
+# filename — this suite keeps its manifest, so it is driven from that.
+
+const _RDFXML12_DIR  = joinpath(@__DIR__, "w3c", "fixtures", "rdfxml12", "eval")
+const _RDFXML12_BASE = "https://w3c.github.io/rdf-tests/rdf/rdf12/rdf-xml/eval/"
+
+if isdir(_RDFXML12_DIR)
+
+    const _RX12_MF        = "http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#"
+    const _RX12_TYPE      = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+    const _RX12_FIRST     = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#first")
+    const _RX12_REST      = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest")
+    const _RX12_NIL       = IRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
+    const _RX12_ENTRIES   = IRI(_RX12_MF * "entries")
+    const _RX12_NAME      = IRI(_RX12_MF * "name")
+    const _RX12_ACTION    = IRI(_RX12_MF * "action")
+    const _RX12_RESULT    = IRI(_RX12_MF * "result")
+    const _RX12_EVAL      = IRI("http://www.w3.org/ns/rdftest#TestXMLEval")
+    const _RX12_NEGSYNTAX = IRI("http://www.w3.org/ns/rdftest#TestXMLNegativeSyntax")
+
+    # RDF 1.2 additions the RDF/XML parser does not implement. Turtle,
+    # N-Triples and N-Quads support all three — their RDF 1.2 suites pass — so
+    # this is an RDF/XML gap, not a data-model one. The list is explicit rather
+    # than a blanket skip so the tests light up the moment a feature lands:
+    # delete a group and its entries start running.
+    const _RX12_UNIMPLEMENTED = Set([
+        # rdf:annotation="IRI" on a property element: the triple gets a reifier,
+        # emitting `<reifier> rdf:reifies <<( s p o )>>` alongside it.
+        "rdf12-xml-an-01", "rdf12-xml-an-02", "rdf12-xml-an-03", "rdf12-xml-an-04",
+        "rdf12-xml-an-05", "rdf12-xml-an-06", "rdf12-xml-an-07", "rdf12-xml-an-08",
+        "rdf12-xml-an-09", "rdf12-xml-an-10", "rdf12-xml-an-11", "rdf12-xml-an-12",
+        "rdf12-xml-an-13", "rdf12-xml-an-14", "rdf12-xml-an-15", "rdf12-xml-an-16",
+        "rdf12-xml-an-reif-01.rdf",
+        # rdf:parseType="Triple": the property value is a triple term.
+        "rdf12-xml-tt-01", "rdf12-xml-tt-02", "rdf12-xml-tt-03", "rdf12-xml-tt-04",
+        "rdf12-xml-tt-05", "rdf12-xml-tt-06", "rdf12-xml-tt-07", "rdf12-xml-tt-08",
+        # its:dir / rdf:dir: directional language tags, inherited down the tree
+        # like xml:lang and combining with it ("bar"@en--ltr).
+        "rdf12-xml-dir-01", "rdf12-xml-dir-03", "rdf12-xml-dir-04",
+        "rdf12-xml-dir-05",
+    ])
+
+    _rx12_one(g, s, p) = begin
+        for t in match(g; subject=s, predicate=p); return t.object; end
+        nothing
+    end
+
+    function _rx12_list(g, head)
+        out = RDFTerm[]
+        node = head
+        while node !== nothing && node != _RX12_NIL
+            v = _rx12_one(g, node, _RX12_FIRST)
+            v === nothing && break
+            push!(out, v)
+            node = _rx12_one(g, node, _RX12_REST)
+        end
+        out
+    end
+
+    # Manifest IRIs are absolute against the assumed test base; map back to disk.
+    _rx12_file(iri::AbstractString) =
+        joinpath(_RDFXML12_DIR, basename(iri))
+
+    let mpath = joinpath(_RDFXML12_DIR, "manifest.ttl")
+        g = open(io -> read(io, :ttl, Graph, _RDFXML12_BASE), mpath)
+
+        head = nothing
+        for t in match(g; predicate=_RX12_ENTRIES); head = t.object; break; end
+
+        entries = head === nothing ? RDFTerm[] : _rx12_list(g, head)
+
+        @testset "W3C RDF 1.2 RDF/XML" begin
+            @test !isempty(entries)
+            for entry in entries
+                types = Set(t.object for t in match(g; subject=entry, predicate=_RX12_TYPE))
+                nm_l  = _rx12_one(g, entry, _RX12_NAME)
+                name  = nm_l isa Literal ? nm_l.lexical_form : string(entry)
+                act   = _rx12_one(g, entry, _RX12_ACTION)
+                act isa IRI || continue
+                action = _rx12_file(act.value)
+                base   = _RDFXML12_BASE * basename(act.value)
+
+                @testset "$name" begin
+                    if name in _RX12_UNIMPLEMENTED
+                        @test_skip "RDF 1.2 RDF/XML feature not implemented"
+                    elseif _RX12_EVAL in types
+                        res = _rx12_one(g, entry, _RX12_RESULT)
+                        if !(res isa IRI) || !isfile(_rx12_file(res.value))
+                            @test_skip "no result fixture"
+                        else
+                            g_rdf = _parse_rdfxml_file(action, base)
+                            g_nt  = _parse_nt_rdfxml_file(_rx12_file(res.value))
+                            @test g_rdf ≅ g_nt
+                        end
+                    elseif _RX12_NEGSYNTAX in types
+                        @test_throws Exception _parse_rdfxml_file(action, base)
+                    end
+                end
+            end
+        end
+    end
+
+else
+    @warn "RDF 1.2 RDF/XML fixtures not found at $_RDFXML12_DIR — skipping"
+end
