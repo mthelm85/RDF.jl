@@ -67,16 +67,9 @@ function _sp_to_float(lit::Literal)::Float64
     dt = lit.datatype.value
     dt in _SP_NUMERIC_TYPES || error("Not a numeric literal: $lit")
     s = lit.lexical_form
-    s in ("INF", "+INF")  && return Inf
-    s == "-INF"           && return -Inf
-    s == "NaN"            && return NaN
-    # Base.parse, not Parsers.parse: the latter is not correctly rounded at the
-    # Float64 boundary — it turns "9007199254740991.5" into 9.007199254740991e15
-    # where the nearest double is 9.007199254740992e15. tryparse rather than
-    # parse because it returns nothing on an out-of-range magnitude, which XSD
-    # maps to ±INF instead of treating as an error.
-    parsed = tryparse(Float64, s)
-    v = parsed === nothing ? (startswith(s, "-") ? -Inf : Inf) : parsed
+    parsed = _xsd_parse_floating(s)
+    parsed === nothing && error("Not a valid numeric lexical form: $s")
+    v = parsed
     # xsd:float has a single-precision value space, so two lexical forms that
     # round to the same Float32 denote the same value: "16777206.5"^^xsd:float
     # and "16777205.5"^^xsd:float are equal (W3C rdf-mt float-round-same).
@@ -341,57 +334,27 @@ function _sp_compare_literals(a::Literal, b::Literal)::Int
     error("Incomparable literal types: $adt vs $bdt")
 end
 
-# Date/time parsing helpers
-# XSD lexical grammars. Julia's Dates parser is lenient — DateTime("13",
-# "yyyy-mm-ddTHH:MM:SS") happily yields year 13 — so the lexical form has to be
-# checked before parsing, or `xsd:dateTime("13")` would silently succeed.
-const _SP_RE_DATETIME = r"^-?\d{4,}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
-const _SP_RE_INTEGER  = r"^[+-]?\d+$"
-const _SP_RE_FLOAT    = r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$"
-const _SP_RE_DATE     = r"^-?\d{4,}-\d{2}-\d{2}(Z|[+-]\d{2}:\d{2})?$"
-const _SP_RE_DATETIME_PARTS =
-    r"^(-?\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+# Date/time parsing helpers. The lexical grammars and the field split live in
+# xsd_lexical.jl so that `value`/`tryvalue` and SPARQL agree on what is
+# well-formed; only the timezone policy differs between the two callers below.
 
 # The date/time accessors (YEAR, MONTH, DAY, HOURS, MINUTES, SECONDS) report the
 # components of the lexical form as written — SPARQL 1.1 §17.4.5 does not
 # normalize them to UTC. Comparison does normalize, so the two parses differ.
 function _sp_parse_datetime_local(s::String)
-    m = match(_SP_RE_DATETIME_PARTS, s)
-    m === nothing && error("Invalid dateTime: $s")
-    y  = parse(Int, m[1]); mo = parse(Int, m[2]); d = parse(Int, m[3])
-    h  = parse(Int, m[4]); mi = parse(Int, m[5]); se = parse(Int, m[6])
-    ms = m[7] === nothing ? 0 : round(Int, parse(Float64, "0" * m[7]) * 1000)
-    rollover = false
-    if h == 24
-        (mi == 0 && se == 0) || error("Invalid dateTime: $s")
-        h = 0; rollover = true
-    end
-    dt = Dates.DateTime(y, mo, d, h, mi, se, ms)
-    rollover && (dt += Dates.Day(1))
-    return dt
+    fields = _xsd_datetime_fields(s)
+    fields === nothing && error("Invalid dateTime: $s")
+    return fields[1]
 end
 
 function _sp_parse_datetime(s::String)
-    m = match(_SP_RE_DATETIME_PARTS, s)
-    m === nothing && error("Invalid dateTime: $s")
-    y  = parse(Int, m[1]); mo = parse(Int, m[2]); d = parse(Int, m[3])
-    h  = parse(Int, m[4]); mi = parse(Int, m[5]); se = parse(Int, m[6])
-    ms = m[7] === nothing ? 0 : round(Int, parse(Float64, "0" * m[7]) * 1000)
-
-    # XSD permits 24:00:00, denoting midnight at the start of the next day.
-    rollover = false
-    if h == 24
-        (mi == 0 && se == 0) || error("Invalid dateTime: $s")
-        h = 0; rollover = true
-    end
-    dt = Dates.DateTime(y, mo, d, h, mi, se, ms)
-    rollover && (dt += Dates.Day(1))
-
+    fields = _xsd_datetime_fields(s)
+    fields === nothing && error("Invalid dateTime: $s")
+    dt, tz = fields
     # Normalize to UTC so that values written with different offsets compare
     # equal ("2002-04-02T23:00:00-04:00" and "2002-04-03T02:00:00-01:00" are the
     # same instant). Values with no timezone are left as written; comparing one
     # of those against a timezoned value is handled as indeterminate elsewhere.
-    tz = m[8]
     if tz !== nothing && tz != "Z"
         off = Dates.Hour(parse(Int, tz[2:3])) + Dates.Minute(parse(Int, tz[5:6]))
         dt  = tz[1] == '-' ? dt + off : dt - off
@@ -400,10 +363,9 @@ function _sp_parse_datetime(s::String)
 end
 
 function _sp_parse_date(s::String)
-    occursin(_SP_RE_DATE, s) || error("Invalid date: $s")
-    try Dates.Date(s[1:10], "yyyy-mm-dd")
-    catch; error("Invalid date: $s")
-    end
+    d = _xsd_parse_date(s)
+    d === nothing && error("Invalid date: $s")
+    return d
 end
 
 # ── Equality (SPARQL value equality, distinct from term equality) ─────────────
@@ -443,27 +405,12 @@ end
 function _sp_well_typed(lit::Literal)::Bool
     dt = lit.datatype.value
     s  = lit.lexical_form
-    if _sp_is_integer(dt)
-        # Not tryparse: Julia's integer parsing skips surrounding whitespace, so
-        # it accepts " 3 ", which is outside the XSD lexical space and must stay
-        # ill-typed (W3C rdf-mt xmlsch-02-whitespace-facet-1).
-        return occursin(_SP_RE_INTEGER, s)
-    elseif dt == _SP_XSD_DECIMAL
-        return occursin(r"^[+-]?(\d+(\.\d*)?|\.\d+)$", s)
-    elseif dt == _SP_XSD_DOUBLE || dt == _SP_XSD_FLOAT
-        # tryparse returns nothing on overflow ("1E400"), but XSD maps an
-        # out-of-range magnitude to ±INF, so such a literal is well-formed.
-        s in ("INF", "+INF", "-INF", "NaN") && return true
-        return occursin(_SP_RE_FLOAT, s)
-    elseif dt == _SP_XSD_BOOLEAN
-        return s in ("true", "false", "0", "1")
-    elseif dt == _SP_XSD_DATETIME
-        # _sp_parse_datetime raises on a bad lexical form rather than returning
-        # nothing, so an ill-typed dateTime is detected by the throw.
-        return try (_sp_parse_datetime(s); true) catch; false end
-    elseif dt == _SP_XSD_DATE
-        return try (_sp_parse_date(s); true) catch; false end
-    end
+    _sp_is_integer(dt)                          && return xsd_is_integer_lexical(s)
+    dt == _SP_XSD_DECIMAL                       && return xsd_is_decimal_lexical(s)
+    (dt == _SP_XSD_DOUBLE || dt == _SP_XSD_FLOAT) && return xsd_is_floating_lexical(s)
+    dt == _SP_XSD_BOOLEAN                       && return xsd_is_boolean_lexical(s)
+    dt == _SP_XSD_DATETIME                      && return xsd_is_datetime_lexical(s)
+    dt == _SP_XSD_DATE                          && return xsd_is_date_lexical(s)
     return true   # strings and language-tagged literals are always well-formed
 end
 

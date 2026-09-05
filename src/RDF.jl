@@ -22,6 +22,7 @@ include("dataset.jl")
 include("namespaces.jl")
 include("match.jl")
 include("display.jl")
+include("xsd_lexical.jl")     # shared XSD lexical-space predicates
 include("literal_values.jl")
 include("validation.jl")
 include("inference.jl")

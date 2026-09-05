@@ -43,7 +43,18 @@ The **one-argument form** infers the target type from the datatype IRI:
 | `xsd:float` | `Float32` |
 | `xsd:decimal` | `BigFloat` (finite-precision approximation) |
 | `xsd:date` | `Dates.Date` |
-| `xsd:dateTime`, `xsd:dateTimeStamp` | `Dates.DateTime` (timezone stripped) |
+| `xsd:dateTime`, `xsd:dateTimeStamp` | `Dates.DateTime` (timezone dropped) |
+
+A lexical form outside the datatype's XSD lexical space is a
+`LiteralValueError`, not a value. That covers forms Julia's own parsers accept
+but XSD does not — `"0x10"^^xsd:integer`, `" 3 "^^xsd:int`, `"1E5"^^xsd:decimal`
+— so an ill-formed literal cannot come back as a plausible-looking number.
+Range constraints on the bounded integer types are *not* checked: `value` reads
+`"999"^^xsd:byte` as `999`.
+
+An out-of-range magnitude such as `"1E400"^^xsd:double` is `Inf`, per XSD, and
+`Dates.DateTime` has no timezone, so an offset is dropped rather than applied:
+`"2006-08-23T09:00:00+01:00"` reads as `09:00`, not the UTC instant.
 
 The **two-argument form** additionally converts the result to `T` using Julia's
 `convert`. This means numeric widening works naturally:
@@ -72,33 +83,35 @@ function value(lit::Literal)
            dt == _LV_XSD_NONPOS_INT || dt == _LV_XSD_NEG_INT  ||
            dt == _LV_XSD_ULONG   || dt == _LV_XSD_UINT     ||
            dt == _LV_XSD_USHORT  || dt == _LV_XSD_UBYTE
-        v = tryparse(Int64, lit.lexical_form)
-        v !== nothing && return v
-        v2 = tryparse(BigInt, lit.lexical_form)
-        v2 !== nothing && return v2
+        # Check the lexical space first: Julia's integer parsing accepts hex
+        # ("0x10" → 16) and surrounding whitespace, neither of which XSD admits.
+        if xsd_is_integer_lexical(lit.lexical_form)
+            v = tryparse(Int64, lit.lexical_form)
+            v !== nothing && return v
+            v2 = tryparse(BigInt, lit.lexical_form)
+            v2 !== nothing && return v2
+        end
     elseif dt == _LV_XSD_DOUBLE
-        lit.lexical_form == "INF"  && return Inf64
-        lit.lexical_form == "-INF" && return -Inf64
-        lit.lexical_form == "NaN"  && return NaN64
-        v = tryparse(Float64, lit.lexical_form)
+        v = _xsd_parse_floating(lit.lexical_form)
         v !== nothing && return v
     elseif dt == _LV_XSD_FLOAT
-        lit.lexical_form == "INF"  && return Inf32
-        lit.lexical_form == "-INF" && return -Inf32
-        lit.lexical_form == "NaN"  && return NaN32
-        v = tryparse(Float32, lit.lexical_form)
-        v !== nothing && return v
+        v = _xsd_parse_floating(lit.lexical_form)
+        v !== nothing && return Float32(v)
     elseif dt == _LV_XSD_DECIMAL
-        v = tryparse(BigFloat, lit.lexical_form)
-        v !== nothing && return v
+        # xsd:decimal admits no exponent, so "1E5" is ill-formed even though
+        # BigFloat parses it happily.
+        if xsd_is_decimal_lexical(lit.lexical_form)
+            v = tryparse(BigFloat, lit.lexical_form)
+            v !== nothing && return v
+        end
     elseif dt == _LV_XSD_DATE
-        v = tryparse(Dates.Date, lit.lexical_form)
+        v = _xsd_parse_date(lit.lexical_form)
         v !== nothing && return v
     elseif dt == _LV_XSD_DATETIME || dt == _LV_XSD_DT_STAMP
-        # Remove timezone suffix if present (Julia DateTime doesn't support TZ)
-        s = replace(lit.lexical_form, r"(Z|[+-]\d{2}:\d{2})$" => "")
-        v = tryparse(Dates.DateTime, s)
-        v !== nothing && return v
+        # Julia's DateTime carries no timezone, so the offset is dropped and the
+        # time is returned as written (see the note in the docstring).
+        fields = _xsd_datetime_fields(lit.lexical_form)
+        fields !== nothing && return fields[1]
     end
     throw(LiteralValueError(lit, Any))
 end
