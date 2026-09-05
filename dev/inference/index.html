@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inference & Validation — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=ad3fb7f1">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a4249e9d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -51,7 +51,7 @@
 <div class="md-docstring" id="RDF.infer_rdfs">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.infer_rdfs</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/3792cf00f42cae00f18be028d20671b674bc36b9/src/inference.jl#L6-L19" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/inference.jl#L6-L19" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -70,7 +70,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))  # checks via RDFS closure</co
 <div class="md-docstring" id="RDF.infer_rdfs!">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.infer_rdfs!</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/3792cf00f42cae00f18be028d20671b674bc36b9/src/inference.jl#L27-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/inference.jl#L27-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -83,7 +83,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal))  # checks via RDFS closure</co
 <div class="md-docstring" id="RDF.entails">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.entails</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/3792cf00f42cae00f18be028d20671b674bc36b9/src/inference.jl#L213-L225" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/inference.jl#L213-L225" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -184,7 +184,7 @@ entails(g, Triple(ex.alice, rdf.type, ex.Animal); regime=:simple)  # direct memb
 <div class="md-docstring" id="RDF.validate">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.validate</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/3792cf00f42cae00f18be028d20671b674bc36b9/src/validation.jl#L15-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/validation.jl#L15-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -210,7 +210,7 @@ isempty(warns) || foreach(w -&gt; @warn(w.message), warns)</code></pre>
 <div class="md-docstring" id="RDF.ValidationWarning">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.ValidationWarning</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/3792cf00f42cae00f18be028d20671b674bc36b9/src/validation.jl#L1-L8" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/validation.jl#L1-L8" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -273,6 +273,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=ad3fb7f1"></script>
+  <script src="../assets/materialdocs.js?v=a4249e9d"></script>
 </body>
 </html>
