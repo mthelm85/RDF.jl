@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Serialization — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=bb5dc2cd">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=6b4f4455">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>
     (function(){
@@ -87,6 +87,14 @@
 <td style="text-align:right">✅</td>
 </tr>
 <tr>
+<td style="text-align:right">TriG 1.2</td>
+<td style="text-align:right"><code class="md-code-inline">:trig</code></td>
+<td style="text-align:right"><code class="md-code-inline">application/trig</code></td>
+<td style="text-align:right"><code class="md-code-inline">.trig</code></td>
+<td style="text-align:right">✅</td>
+<td style="text-align:right">✅</td>
+</tr>
+<tr>
 <td style="text-align:right">JSON-LD 1.1</td>
 <td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right"><code class="md-code-inline">application/ld+json</code></td>
@@ -139,6 +147,28 @@ write(io, :nq, ds)
 # Read a Dataset from N-Quads
 ds = read(io, :nq, Dataset)</code></pre>
 </div>
+<h2 id="TriG" class="md-heading">TriG<a href="#TriG" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>TriG is Turtle plus graph blocks — the dataset serialization. Everything Turtle accepts is valid inside a block, including the RDF 1.2 additions.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ds = read(io, :trig, Dataset)
+write(io, :trig, ds; prefixes=Dict(&quot;ex&quot; =&gt; &quot;http://example.org/&quot;))
+
+# Reading as a Graph merges every graph, discarding the names
+g = read(io, :trig, Graph)</code></pre>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-trig">@prefix ex: &lt;http://example.org/&gt; .
+
+ex:a ex:p ex:b .                      # default graph
+{ ex:c ex:p ex:d . }                  # also the default graph
+ex:g1 { ex:s ex:p &quot;in g1&quot; }           # a named graph
+GRAPH ex:g2 { ex:s2 ex:p2 &quot;in g2&quot; }   # the same, SPARQL-style
+_:bg { ex:s3 ex:p3 &quot;bnode-labelled&quot; } # a blank node may name a graph
+ex:empty {}                           # an empty named graph</code></pre>
+</div>
+<p>Unlike N-Quads, TriG can represent an <em>empty</em> named graph, so a <code class="md-code-inline">Dataset</code> round-trips through it without losing one. Blank node labels are scoped to the document, not the graph: <code class="md-code-inline">_:x</code> in two blocks is the same node.</p>
 <h2 id="Turtle" class="md-heading">Turtle<a href="#Turtle" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -215,7 +245,7 @@ g = read(IOBuffer(jsonld), :jsonld, Graph)
 <div class="md-docstring" id="RDF.rdf_read">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.rdf_read</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/serialization/ntriples.jl#L623-L646" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/894299b3a7ab5239339be3c80ca491e1deaf32ef/src/serialization/ntriples.jl#L623-L647" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -253,6 +283,12 @@ g = read(IOBuffer(jsonld), :jsonld, Graph)
 <td style="text-align:right"><code class="md-code-inline">Dataset</code></td>
 </tr>
 <tr>
+<td style="text-align:right"><code class="md-code-inline">.trig</code></td>
+<td style="text-align:right"><code class="md-code-inline">:trig</code></td>
+<td style="text-align:right">TriG 1.2</td>
+<td style="text-align:right"><code class="md-code-inline">Dataset</code></td>
+</tr>
+<tr>
 <td style="text-align:right"><code class="md-code-inline">.jsonld</code>, <code class="md-code-inline">.json-ld</code></td>
 <td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right">JSON-LD 1.1</td>
@@ -279,7 +315,7 @@ rdf_read(&quot;data.txt&quot;; format=MIME&quot;text/turtle&quot;())   # MIME va
 <div class="md-docstring" id="RDF.rdf_write">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.rdf_write</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/serialization/ntriples.jl#L685-L703" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/894299b3a7ab5239339be3c80ca491e1deaf32ef/src/serialization/ntriples.jl#L688-L707" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -314,6 +350,11 @@ rdf_write(path::AbstractString, ds::Dataset; format=nothing)</code></pre>
 <td style="text-align:right">N-Quads (<code class="md-code-inline">Dataset</code> only)</td>
 </tr>
 <tr>
+<td style="text-align:right"><code class="md-code-inline">.trig</code></td>
+<td style="text-align:right"><code class="md-code-inline">:trig</code></td>
+<td style="text-align:right">TriG 1.2 (<code class="md-code-inline">Dataset</code> only)</td>
+</tr>
+<tr>
 <td style="text-align:right"><code class="md-code-inline">.jsonld</code>, <code class="md-code-inline">.json-ld</code></td>
 <td style="text-align:right"><code class="md-code-inline">:jsonld</code></td>
 <td style="text-align:right">JSON-LD 1.1</td>
@@ -346,7 +387,7 @@ rdf_write(&quot;export.txt&quot;, g;  format=:ttl)</code></pre>
 <div class="md-docstring" id="RDF.parse_triples">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.parse_triples</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/7fcbc12c52e4350fd8b767fbfebd06611f1e83fa/src/serialization/ntriples.jl#L233-L253" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/894299b3a7ab5239339be3c80ca491e1deaf32ef/src/serialization/ntriples.jl#L233-L253" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -391,6 +432,7 @@ println(n[])  # number of triples</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Symbols-and-MIME-types">Symbols and MIME types</a>
           <a class="md-toc-link md-toc-h2" href="#N-Triples">N-Triples</a>
           <a class="md-toc-link md-toc-h2" href="#N-Quads">N-Quads</a>
+          <a class="md-toc-link md-toc-h2" href="#TriG">TriG</a>
           <a class="md-toc-link md-toc-h2" href="#Turtle">Turtle</a>
           <a class="md-toc-link md-toc-h2" href="#JSON-LD">JSON-LD</a>
             <a class="md-toc-link md-toc-h3" href="#JSON-LD-example">JSON-LD example</a>
@@ -405,6 +447,6 @@ println(n[])  # number of triples</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=bb5dc2cd"></script>
+  <script src="../assets/materialdocs.js?v=6b4f4455"></script>
 </body>
 </html>
