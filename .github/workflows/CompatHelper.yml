@@ -7,6 +7,10 @@ jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
       - name: Install CompatHelper
         run: using Pkg; Pkg.add("CompatHelper")
         shell: julia --color=yes {0}
