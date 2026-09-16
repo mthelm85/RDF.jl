@@ -24,12 +24,12 @@ projects = ["dev"]
 [compat]
 MD5 = "0.2.3"
 Graphs = "1"
-HTTP = "1"
+HTTP = "1, 2"
 PrecompileTools = "1"
 SHA = "0.7, 1"
 Bumper = "0.7.2"
 JSON = "1"
-DataStructures = "0.18"
+DataStructures = "0.18, 0.19"
 Tables = "1"
 Base64 = "1"
 EzXML = "1"
@@ -37,7 +37,7 @@ SimpleWeightedGraphs = "1.5.1"
 Dates = "1"
 julia = "1.9"
 LRUCache = "1.6.2"
-Parsers = "2.8.4"
+Parsers = "2.8.4, 3"
 Printf = "1"
 
 [weakdeps]
