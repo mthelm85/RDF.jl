@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Querying — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a9f428ac">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=2736b977">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Querying — RDF.jl">
+  <meta property="og:title" content="Querying — RDF.jl">
+  <meta property="twitter:title" content="Querying — RDF.jl">
+  <meta name="description" content="Documentation for RDF.jl.">
+  <meta property="og:description" content="Documentation for RDF.jl.">
+  <meta property="twitter:description" content="Documentation for RDF.jl.">
   <script>
     (function(){
       document.documentElement.classList.add('no-transition');
@@ -13,7 +19,7 @@
     })()
   </script>
 </head>
-<body>
+<body data-warn-outdated>
   <header class="md-navbar">
     <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
     <span class="md-navbar-title">RDF.jl</span>
@@ -38,13 +44,14 @@
       <a href="../terms/">Terms</a>
       <a href="../graphs/">Graphs &amp; Datasets</a>
       <a href="../serialization/">Serialization</a>
-      <a href="../querying/">Querying</a>
+      <a href="../querying/" class="md-nav-active">Querying</a>
       <a href="../ai/">AI &amp; GraphRAG</a>
       <a href="../vocabulary/">Vocabulary API</a>
       <a href="../inference/">Inference &amp; Validation</a>
     </nav>
     <main class="md-content">
       <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/querying.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
 <h1 id="Querying" class="md-heading">Querying<a href="#Querying" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><a href="../graphs/#Base.match"><code class="md-code-inline">match</code></a>, <a href="../graphs/#RDF.subjects"><code class="md-code-inline">subjects</code></a>, <a href="../graphs/#RDF.predicates"><code class="md-code-inline">predicates</code></a>, and <a href="../graphs/#RDF.objects"><code class="md-code-inline">objects</code></a> are documented in the <a href="../graphs/#Graphs-and-Datasets">Graphs &amp; Datasets</a> page.</p>
@@ -740,7 +747,7 @@ write_sparql_results(io, :json, result)    # SELECT and ASK both work</code></pr
 <p>The SPARQL engine reorders the triple patterns inside each basic graph pattern before evaluation, so the order you write patterns in does not affect performance (or results). The optimizer uses <strong>exact</strong> cardinalities — the hexastore answers &quot;how many triples match this pattern?&quot; in O(log n) with two binary searches — and greedily evaluates the most selective pattern first, preferring patterns that share a variable with the already-bound set so that Cartesian products are avoided. No statistics, configuration, or query hints are needed.</p>
       </article>
       <footer class="md-footer">
-        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
       </footer>
     </main>
     <aside class="md-toc">
@@ -778,6 +785,6 @@ write_sparql_results(io, :json, result)    # SELECT and ASK both work</code></pr
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a9f428ac"></script>
+  <script src="../assets/materialdocs.js?v=2736b977"></script>
 </body>
 </html>

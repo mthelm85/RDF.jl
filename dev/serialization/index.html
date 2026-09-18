@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Serialization — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=47466fc5">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=53fca160">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Serialization — RDF.jl">
+  <meta property="og:title" content="Serialization — RDF.jl">
+  <meta property="twitter:title" content="Serialization — RDF.jl">
+  <meta name="description" content="Documentation for RDF.jl.">
+  <meta property="og:description" content="Documentation for RDF.jl.">
+  <meta property="twitter:description" content="Documentation for RDF.jl.">
   <script>
     (function(){
       document.documentElement.classList.add('no-transition');
@@ -13,7 +19,7 @@
     })()
   </script>
 </head>
-<body>
+<body data-warn-outdated>
   <header class="md-navbar">
     <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
     <span class="md-navbar-title">RDF.jl</span>
@@ -37,7 +43,7 @@
       <a href="../">Home</a>
       <a href="../terms/">Terms</a>
       <a href="../graphs/">Graphs &amp; Datasets</a>
-      <a href="../serialization/">Serialization</a>
+      <a href="../serialization/" class="md-nav-active">Serialization</a>
       <a href="../querying/">Querying</a>
       <a href="../ai/">AI &amp; GraphRAG</a>
       <a href="../vocabulary/">Vocabulary API</a>
@@ -45,6 +51,7 @@
     </nav>
     <main class="md-content">
       <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/serialization.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
 <h1 id="Serialization" class="md-heading">Serialization<a href="#Serialization" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>RDF.jl uses Julia&#39;s standard <code class="md-code-inline">Base.read</code> / <code class="md-code-inline">Base.write</code> API. All parsers and serializers work with <code class="md-code-inline">IO</code> streams; <code class="md-code-inline">rdf_read</code> and <code class="md-code-inline">rdf_write</code> add file-extension–based dispatch.</p>
 <h2 id="Supported-formats" class="md-heading">Supported formats<a href="#Supported-formats" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -422,7 +429,7 @@ println(n[])  # number of triples</code></pre>
 </div>
       </article>
       <footer class="md-footer">
-        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
       </footer>
     </main>
     <aside class="md-toc">
@@ -447,6 +454,6 @@ println(n[])  # number of triples</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=47466fc5"></script>
+  <script src="../assets/materialdocs.js?v=53fca160"></script>
 </body>
 </html>

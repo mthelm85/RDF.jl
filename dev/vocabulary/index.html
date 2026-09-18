@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vocabulary API — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=320a4eb0">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c288fa6d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Vocabulary API — RDF.jl">
+  <meta property="og:title" content="Vocabulary API — RDF.jl">
+  <meta property="twitter:title" content="Vocabulary API — RDF.jl">
+  <meta name="description" content="Documentation for RDF.jl.">
+  <meta property="og:description" content="Documentation for RDF.jl.">
+  <meta property="twitter:description" content="Documentation for RDF.jl.">
   <script>
     (function(){
       document.documentElement.classList.add('no-transition');
@@ -13,7 +19,7 @@
     })()
   </script>
 </head>
-<body>
+<body data-warn-outdated>
   <header class="md-navbar">
     <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
     <span class="md-navbar-title">RDF.jl</span>
@@ -40,11 +46,12 @@
       <a href="../serialization/">Serialization</a>
       <a href="../querying/">Querying</a>
       <a href="../ai/">AI &amp; GraphRAG</a>
-      <a href="../vocabulary/">Vocabulary API</a>
+      <a href="../vocabulary/" class="md-nav-active">Vocabulary API</a>
       <a href="../inference/">Inference &amp; Validation</a>
     </nav>
     <main class="md-content">
       <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/mthelm85/RDF.jl/blob/main/docs/src/vocabulary.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
 <h1 id="Vocabulary-API" class="md-heading">Vocabulary API<a href="#Vocabulary-API" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>RDF.jl ships <a href="../terms/#Built-in-vocabulary-modules">built-in constants</a> for the core W3C namespaces (<code class="md-code-inline">rdf</code>, <code class="md-code-inline">rdfs</code>, <code class="md-code-inline">xsd</code>, <code class="md-code-inline">owl</code>, <code class="md-code-inline">skos</code>, <code class="md-code-inline">dc</code>, <code class="md-code-inline">dcterms</code>, <code class="md-code-inline">foaf</code>, <code class="md-code-inline">schema</code>).  For everything else — domain-specific ontologies, frequently-updated vocabularies, or any namespace you want to introspect — <code class="md-code-inline">Vocabulary</code> and <code class="md-code-inline">load_vocabulary</code> provide a unified API.</p>
 <div class="md-docstring" id="RDF.Vocabulary">
@@ -399,7 +406,7 @@ dwc.decimalLatitude   # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/decimalLati
 </div>
       </article>
       <footer class="md-footer">
-        <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a></p>
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
       </footer>
     </main>
     <aside class="md-toc">
@@ -422,6 +429,6 @@ dwc.decimalLatitude   # =&gt; IRI(&quot;http://rs.tdwg.org/dwc/terms/decimalLati
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=320a4eb0"></script>
+  <script src="../assets/materialdocs.js?v=c288fa6d"></script>
 </body>
 </html>

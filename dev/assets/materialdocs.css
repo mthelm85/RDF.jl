@@ -141,24 +141,40 @@
   --md-sys-state-hover-opacity: 0.08;
   --md-sys-state-focus-opacity: 0.10;
   --md-sys-state-pressed-opacity: 0.10;
-  /* Syntax highlighting */
-  --md-code-addition: #116329;
-  --md-code-addition-bg: #dafbe1;
-  --md-code-attr: #116329;
-  --md-code-builtin: #0550ae;
-  --md-code-comment: #6e7781;
-  --md-code-deletion: #82071e;
-  --md-code-deletion-bg: #ffebe9;
-  --md-code-function: #8250df;
-  --md-code-keyword: #cf222e;
-  --md-code-literal: #0550ae;
-  --md-code-meta: #8250df;
-  --md-code-number: #0550ae;
-  --md-code-operator: #cf222e;
-  --md-code-punctuation: #24292f;
-  --md-code-string: #0a3069;
-  --md-code-type: #953800;
-  --md-code-variable: #24292f;
+  /* Syntax highlighting and ANSI output, generated from the seed */
+  --md-code-number: #5565B6;
+  --md-code-type: #985D00;
+  --md-code-function: #8656A6;
+  --md-code-string: #53751E;
+  --md-code-meta: #007774;
+  --md-code-keyword: #AA4C5D;
+  --md-code-operator: #AA4C5D;
+  --md-code-builtin: #5565B6;
+  --md-code-literal: #5565B6;
+  --md-code-attr: #53751E;
+  --md-code-comment: #4E4639;
+  --md-code-variable: #1E1B16;
+  --md-code-punctuation: #1E1B16;
+  --md-code-deletion-bg: #FFE2D8;
+  --md-code-deletion: #A64F29;
+  --md-code-addition-bg: #DDEFBE;
+  --md-code-addition: #50721B;
+  --md-ansi-black: #1B1B1B;
+  --md-ansi-bright-black: #070707;
+  --md-ansi-red: #A9512C;
+  --md-ansi-bright-red: #903F1A;
+  --md-ansi-green: #53751E;
+  --md-ansi-bright-green: #406008;
+  --md-ansi-yellow: #8E6200;
+  --md-ansi-bright-yellow: #755000;
+  --md-ansi-blue: #5565B6;
+  --md-ansi-bright-blue: #4151A1;
+  --md-ansi-magenta: #985091;
+  --md-ansi-bright-magenta: #823D7C;
+  --md-ansi-cyan: #007774;
+  --md-ansi-bright-cyan: #00625F;
+  --md-ansi-white: #5E5E5E;
+  --md-ansi-bright-white: #4B4B4B;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -197,24 +213,40 @@
     --md-sys-color-surface-variant: #4E4639;
     --md-sys-color-tertiary: #B3CEA7;
     --md-sys-color-tertiary-container: #354D2F;
-    /* Syntax highlighting */
-    --md-code-addition: #7ee787;
-    --md-code-addition-bg: #04260f;
-    --md-code-attr: #7ee787;
-    --md-code-builtin: #79c0ff;
-    --md-code-comment: #8b949e;
-    --md-code-deletion: #ffa198;
-    --md-code-deletion-bg: #490202;
-    --md-code-function: #d2a8ff;
-    --md-code-keyword: #ff7b72;
-    --md-code-literal: #79c0ff;
-    --md-code-meta: #d2a8ff;
-    --md-code-number: #79c0ff;
-    --md-code-operator: #ff7b72;
-    --md-code-punctuation: #c9d1d9;
-    --md-code-string: #a5d6ff;
-    --md-code-type: #ffa657;
-    --md-code-variable: #c9d1d9;
+    /* Syntax highlighting and ANSI output, generated from the seed */
+    --md-code-number: #96A6FC;
+    --md-code-type: #E79B3A;
+    --md-code-function: #CB97EC;
+    --md-code-string: #91B759;
+    --md-code-meta: #25BEB9;
+    --md-code-keyword: #F88B9C;
+    --md-code-operator: #F88B9C;
+    --md-code-builtin: #96A6FC;
+    --md-code-literal: #96A6FC;
+    --md-code-attr: #91B759;
+    --md-code-comment: #D1C5B4;
+    --md-code-variable: #E9E1D9;
+    --md-code-punctuation: #E9E1D9;
+    --md-code-deletion-bg: #4B2717;
+    --md-code-deletion: #F98F64;
+    --md-code-addition-bg: #273513;
+    --md-code-addition: #91B759;
+    --md-ansi-black: #919191;
+    --md-ansi-bright-black: #ABABAB;
+    --md-ansi-red: #F98F64;
+    --md-ansi-bright-red: #FFB599;
+    --md-ansi-green: #91B759;
+    --md-ansi-bright-green: #ACD371;
+    --md-ansi-yellow: #DCA031;
+    --md-ansi-bright-yellow: #FBBB4B;
+    --md-ansi-blue: #96A6FC;
+    --md-ansi-bright-blue: #BAC3FF;
+    --md-ansi-magenta: #E190D5;
+    --md-ansi-bright-magenta: #FFABF2;
+    --md-ansi-cyan: #25BEB9;
+    --md-ansi-bright-cyan: #50DAD4;
+    --md-ansi-white: #E2E2E2;
+    --md-ansi-bright-white: #FFFFFF;
   }
 }
 
@@ -253,25 +285,49 @@
   --md-sys-color-surface-variant: #4E4639;
   --md-sys-color-tertiary: #B3CEA7;
   --md-sys-color-tertiary-container: #354D2F;
-  /* Syntax highlighting */
-  --md-code-addition: #7ee787;
-  --md-code-addition-bg: #04260f;
-  --md-code-attr: #7ee787;
-  --md-code-builtin: #79c0ff;
-  --md-code-comment: #8b949e;
-  --md-code-deletion: #ffa198;
-  --md-code-deletion-bg: #490202;
-  --md-code-function: #d2a8ff;
-  --md-code-keyword: #ff7b72;
-  --md-code-literal: #79c0ff;
-  --md-code-meta: #d2a8ff;
-  --md-code-number: #79c0ff;
-  --md-code-operator: #ff7b72;
-  --md-code-punctuation: #c9d1d9;
-  --md-code-string: #a5d6ff;
-  --md-code-type: #ffa657;
-  --md-code-variable: #c9d1d9;
+  /* Syntax highlighting and ANSI output, generated from the seed */
+  --md-code-number: #96A6FC;
+  --md-code-type: #E79B3A;
+  --md-code-function: #CB97EC;
+  --md-code-string: #91B759;
+  --md-code-meta: #25BEB9;
+  --md-code-keyword: #F88B9C;
+  --md-code-operator: #F88B9C;
+  --md-code-builtin: #96A6FC;
+  --md-code-literal: #96A6FC;
+  --md-code-attr: #91B759;
+  --md-code-comment: #D1C5B4;
+  --md-code-variable: #E9E1D9;
+  --md-code-punctuation: #E9E1D9;
+  --md-code-deletion-bg: #4B2717;
+  --md-code-deletion: #F98F64;
+  --md-code-addition-bg: #273513;
+  --md-code-addition: #91B759;
+  --md-ansi-black: #919191;
+  --md-ansi-bright-black: #ABABAB;
+  --md-ansi-red: #F98F64;
+  --md-ansi-bright-red: #FFB599;
+  --md-ansi-green: #91B759;
+  --md-ansi-bright-green: #ACD371;
+  --md-ansi-yellow: #DCA031;
+  --md-ansi-bright-yellow: #FBBB4B;
+  --md-ansi-blue: #96A6FC;
+  --md-ansi-bright-blue: #BAC3FF;
+  --md-ansi-magenta: #E190D5;
+  --md-ansi-bright-magenta: #FFABF2;
+  --md-ansi-cyan: #25BEB9;
+  --md-ansi-bright-cyan: #50DAD4;
+  --md-ansi-white: #E2E2E2;
+  --md-ansi-bright-white: #FFFFFF;
 }
+
+.md-logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .md-logo-light { display: none; }
+  :root:not([data-theme="light"]) .md-logo-dark { display: inline-block; }
+}
+:root[data-theme="dark"] .md-logo-light { display: none; }
+:root[data-theme="dark"] .md-logo-dark { display: inline-block; }
 
 
 /* ── base.css ── */
@@ -448,7 +504,8 @@ hr {
 .md-toc-link,
 .md-copy-btn,
 .md-search-item,
-.md-docstring-source {
+.md-docstring-source,
+.md-text-btn {
   position: relative;
   isolation: isolate;
 }
@@ -461,7 +518,8 @@ hr {
 .md-toc-link::before,
 .md-copy-btn::before,
 .md-search-item::before,
-.md-docstring-source::before {
+.md-docstring-source::before,
+.md-text-btn::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -481,7 +539,8 @@ hr {
 .md-toc-link:hover::before,
 .md-copy-btn:hover::before,
 .md-search-item:hover::before,
-.md-docstring-source:hover::before {
+.md-docstring-source:hover::before,
+.md-text-btn:hover::before {
   opacity: var(--md-sys-state-hover-opacity);
 }
 
@@ -493,7 +552,8 @@ hr {
 .md-toc-link:focus-visible::before,
 .md-copy-btn:focus-visible::before,
 .md-search-item:focus-visible::before,
-.md-docstring-source:focus-visible::before {
+.md-docstring-source:focus-visible::before,
+.md-text-btn:focus-visible::before {
   opacity: var(--md-sys-state-focus-opacity);
 }
 
@@ -505,7 +565,8 @@ hr {
 .md-toc-link:active::before,
 .md-copy-btn:active::before,
 .md-search-item:active::before,
-.md-docstring-source:active::before {
+.md-docstring-source:active::before,
+.md-text-btn:active::before {
   opacity: var(--md-sys-state-pressed-opacity);
 }
 
@@ -530,7 +591,8 @@ select:focus-visible,
 .md-copy-btn:focus-visible,
 .md-search-item:focus-visible,
 .md-docstring-source:focus-visible,
-.md-nav-section-title:focus-visible {
+.md-nav-section-title:focus-visible,
+.md-text-btn:focus-visible {
   outline: 3px solid var(--md-sys-color-secondary);
   outline-offset: 2px;
   border-radius: var(--md-sys-shape-corner-extra-small);
@@ -1013,6 +1075,49 @@ del { color: var(--md-sys-color-on-surface-variant); }
   .md-search-results { flex: 1; }
 }
 
+/* ── Text button (MD3) ── */
+.md-text-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: none;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ── Outdated-version banner — filled card with supporting text and actions ── */
+.md-outdated-banner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin: 1rem 0 0.5rem;
+  padding: 1rem 1rem 0.5rem;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+.md-outdated-icon { color: var(--md-sys-color-tertiary); }
+.md-outdated-dev .md-outdated-icon { color: var(--md-sys-color-primary); }
+.md-outdated-text {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+.md-outdated-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 
 /* ── nav.css ── */
 /* ── MaterialDocs: Navigation ──
@@ -1381,6 +1486,16 @@ del { color: var(--md-sys-color-on-surface-variant); }
 .md-footer p { max-width: none; }
 .md-footer a { color: var(--md-sys-color-primary); }
 
+/* ── Edit link ── */
+/* Stacked above the page's H1, whose box runs underneath the float and is
+   positioned (for its anchor link) — without this it covers the button. */
+.md-article-actions {
+  float: right;
+  margin: 0.25rem 0 0.5rem 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
 
 /* ── highlight.css ── */
 /* ── Syntax highlighting ──────────────────────────────────────────────────── */
@@ -1440,6 +1555,50 @@ del { color: var(--md-sys-color-on-surface-variant); }
 /* REPL prompt styling */
 .hljs-meta.prompt_ { color: var(--md-code-meta); user-select: none; }
 
+/* ── ANSI colors in @example / @repl output (tokens from _write_ansi_vars) ── */
+.ansi .sgr1 { font-weight: bolder; }
+.ansi .sgr2 { font-weight: lighter; }
+.ansi .sgr3 { font-style: italic; }
+.ansi .sgr4 { text-decoration: underline; }
+.ansi .sgr7 { color: var(--md-sys-color-surface); background: var(--md-sys-color-on-surface); }
+.ansi .sgr8, .ansi .sgr8 span { color: transparent; }
+.ansi .sgr9 { text-decoration: line-through; }
+.ansi .sgr30 { color: var(--md-ansi-black); }
+.ansi .sgr90 { color: var(--md-ansi-bright-black); }
+.ansi .sgr40 { background: var(--md-ansi-black); }
+.ansi .sgr100 { background: var(--md-ansi-bright-black); }
+.ansi .sgr31 { color: var(--md-ansi-red); }
+.ansi .sgr91 { color: var(--md-ansi-bright-red); }
+.ansi .sgr41 { background: var(--md-ansi-red); }
+.ansi .sgr101 { background: var(--md-ansi-bright-red); }
+.ansi .sgr32 { color: var(--md-ansi-green); }
+.ansi .sgr92 { color: var(--md-ansi-bright-green); }
+.ansi .sgr42 { background: var(--md-ansi-green); }
+.ansi .sgr102 { background: var(--md-ansi-bright-green); }
+.ansi .sgr33 { color: var(--md-ansi-yellow); }
+.ansi .sgr93 { color: var(--md-ansi-bright-yellow); }
+.ansi .sgr43 { background: var(--md-ansi-yellow); }
+.ansi .sgr103 { background: var(--md-ansi-bright-yellow); }
+.ansi .sgr34 { color: var(--md-ansi-blue); }
+.ansi .sgr94 { color: var(--md-ansi-bright-blue); }
+.ansi .sgr44 { background: var(--md-ansi-blue); }
+.ansi .sgr104 { background: var(--md-ansi-bright-blue); }
+.ansi .sgr35 { color: var(--md-ansi-magenta); }
+.ansi .sgr95 { color: var(--md-ansi-bright-magenta); }
+.ansi .sgr45 { background: var(--md-ansi-magenta); }
+.ansi .sgr105 { background: var(--md-ansi-bright-magenta); }
+.ansi .sgr36 { color: var(--md-ansi-cyan); }
+.ansi .sgr96 { color: var(--md-ansi-bright-cyan); }
+.ansi .sgr46 { background: var(--md-ansi-cyan); }
+.ansi .sgr106 { background: var(--md-ansi-bright-cyan); }
+.ansi .sgr37 { color: var(--md-ansi-white); }
+.ansi .sgr97 { color: var(--md-ansi-bright-white); }
+.ansi .sgr47 { background: var(--md-ansi-white); }
+.ansi .sgr107 { background: var(--md-ansi-bright-white); }
+
+/* @repl blocks: each input/output is its own <code>, stacked inside one <pre> */
+.md-code-block pre > code.md-repl-part { display: block; }
+
 
 /* ── print.css ── */
 /* ── MaterialDocs: Print Styles ── */
@@ -1448,6 +1607,8 @@ del { color: var(--md-sys-color-on-surface-variant); }
   .md-sidebar,
   .md-toc,
   .md-footer,
+  .md-outdated-banner,
+  .md-article-actions,
   .md-copy-btn,
   .md-theme-toggle,
   .md-heading-anchor {
