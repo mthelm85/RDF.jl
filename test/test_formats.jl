@@ -345,6 +345,25 @@ _:g { ex:s ex:p ex:o . }"
         end
     end
 
+    @testset "TriG — graph label with an invalid PN_LOCAL (issue #16)" begin
+        # A graph label is abbreviated with the same rule as any other IRI, so
+        # a label whose local part is not a PN_LOCAL has to be written in full.
+        ns = "http://ex.org/ns/"
+        d = Dataset()
+        g = Graph()
+        push!(g, Triple(IRI("http://ex.org/s"), IRI("http://ex.org/p"),
+                        Literal("v")))
+        d[IRI(ns * "g/1")] = g
+        io = IOBuffer()
+        write(io, :trig, d; prefixes=Dict("ns" => ns))
+        out = String(take!(io))
+        @test occursin("<$(ns)g/1>", out)
+        @test !occursin("ns:g/1", out)
+        back = read(IOBuffer(out), :trig, Dataset)
+        @test haskey(back, IRI(ns * "g/1"))
+        @test back[IRI(ns * "g/1")] ≅ g
+    end
+
     @testset "TriG — syntax errors" begin
         # The grammar has no '.' after a wrapped graph.
         @test_throws ParseError read(IOBuffer("<http://e/g> { } ."), :trig, Dataset)

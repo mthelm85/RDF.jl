@@ -12,9 +12,9 @@ function parse_ttl(ttl::AbstractString; base=nothing)
     end
 end
 
-function serialize_ttl(g::Graph)
+function serialize_ttl(g::Graph; prefixes::Dict{String,String}=Dict{String,String}())
     buf = IOBuffer()
-    write(buf, MIME"text/turtle"(), g)
+    write(buf, MIME"text/turtle"(), g; prefixes=prefixes)
     String(take!(buf))
 end
 
@@ -339,6 +339,79 @@ end
         @test !isempty(s)
         g2 = parse_ttl(s)
         @test g ≅ g2
+    end
+
+    # ── Prefixed names are only written for a valid PN_LOCAL (issue #16) ──────
+
+    @testset "Serialize — PN_LOCAL-hostile local part falls back to full IRI" begin
+        ns = "http://ex.org/ns/"
+        # None of these can follow `ns:`: '/', '?', '=', '#' and '~' are outside
+        # PN_CHARS (Turtle admits them only as PN_LOCAL_ESC escapes), a local
+        # part may not end in '.', '-' and '.' are not legal start characters,
+        # and a '%' is a PLX only when two hex digits follow.
+        hostile = ["C2250/label/1", "x?y=1", "a#b", "a~b",
+                   "trailing.", "-leading", ".leading", "pct%zz"]
+        g = Graph()
+        for (i, lp) in enumerate(hostile)
+            push!(g, Triple(IRI("http://ex.org/s$i"), IRI("http://ex.org/p"),
+                            IRI(ns * lp)))
+        end
+        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
+        for lp in hostile
+            @test occursin("<$ns$lp>", s)
+            @test !occursin("ns:$lp", s)
+        end
+        @test g ≅ parse_ttl(s)
+    end
+
+    @testset "Serialize — hostile local part in subject and predicate position" begin
+        ns = "http://ex.org/ns/"
+        g = Graph()
+        push!(g, Triple(IRI(ns * "s/1"), IRI(ns * "p?x=1"), Literal("v")))
+        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
+        @test g ≅ parse_ttl(s)
+    end
+
+    @testset "Serialize — space in local part is not abbreviated" begin
+        # A raw space is forbidden inside an IRIREF as well, so this IRI cannot
+        # round-trip through any of the line-based formats; what is asserted
+        # here is only that the writer does not pass it off as a prefixed name.
+        ns = "http://ex.org/ns/"
+        g = Graph()
+        push!(g, Triple(IRI("http://ex.org/s"), IRI("http://ex.org/p"),
+                        IRI(ns * "a b")))
+        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
+        @test !occursin("ns:a b", s)
+        @test occursin("<$(ns)a b>", s)
+    end
+
+    @testset "Serialize — valid local parts are still abbreviated" begin
+        ns = "http://ex.org/ns/"
+        # PN_LOCAL permits '_', ':' and '.' inside, a leading digit, '-' after
+        # the first character, PERCENT escapes, and every PN_CHARS_BASE
+        # character — which is a Unicode range, not just ASCII letters.
+        valid = ["ok", "Ärzte", "日本語", "a.b", "a:b", "2250", "_x", "x-1",
+                 "a%20b", "ends:"]
+        g = Graph()
+        for (i, lp) in enumerate(valid)
+            push!(g, Triple(IRI("http://ex.org/s$i"), IRI("http://ex.org/p"),
+                            IRI(ns * lp)))
+        end
+        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
+        for lp in valid
+            @test occursin("ns:$lp", s)
+        end
+        @test g ≅ parse_ttl(s)
+    end
+
+    @testset "Serialize — empty local part abbreviates to `ns:`" begin
+        # An empty PN_LOCAL is legal: `ns:` on its own is a PNAME_NS.
+        ns = "http://ex.org/ns/"
+        g = Graph()
+        push!(g, Triple(IRI("http://ex.org/s"), IRI("http://ex.org/p"), IRI(ns)))
+        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
+        @test occursin("ns: .", s)
+        @test g ≅ parse_ttl(s)
     end
 
     @testset "Serialize — empty graph" begin
