@@ -64,6 +64,13 @@ Base.show(io::IO, r::ValidationReport) =
 
 _sh_objects(g::Graph, s, p::IRI) = ObjectTerm[t.object for t in match(g; subject=s, predicate=p)]
 
+# Every value of a constraint parameter is a separate constraint (§2.1.3), so
+# the components iterate a shape's values rather than reading one.  These loops
+# run once per focus node, so they iterate lazily instead of materialising a
+# vector per parameter; _sh_objects is for the few places that need the values
+# more than once or need their count.
+_sh_each(g::Graph, s, p::IRI) = (t.object for t in match(g; subject=s, predicate=p))
+
 function _sh_one(g::Graph, s, p::IRI)
     for t in match(g; subject=s, predicate=p)
         return t.object
@@ -201,6 +208,7 @@ end
 
 # Severity declared on a shape (default sh:Violation).
 function _sh_severity(ctx::_ShCtx, shape)::IRI
+    # A shape has at most one value for sh:severity, so _sh_one is right here.
     s = _sh_one(ctx.shapes, shape, _sh("severity"))
     s isa IRI ? s : _sh("Violation")
 end
@@ -232,6 +240,11 @@ targets; predicate / inverse / sequence / alternative / zeroOrMore /
 oneOrMore / zeroOrOne paths; and the core constraint components (value type,
 cardinality, value range, string, property-pair, logical, shape-based,
 `sh:closed`, `sh:hasValue`, `sh:in`).  See also [`conforms`](@ref).
+
+Each value of a constraint parameter is a separate constraint and all of them
+must hold (SHACL §2.1.3), so a shape with two `sh:or` lists — or two
+`sh:pattern` values — is only satisfied by data that meets every one of them,
+and each violated value is reported as its own [`ValidationResult`](@ref).
 """
 function validate_shapes(data::Graph, shapes::Graph)::ValidationReport
     ctx = _ShCtx(data, shapes, ValidationResult[])
@@ -254,7 +267,11 @@ wrapper over [`validate_shapes`](@ref).
 """
 conforms(data::Graph, shapes::Graph)::Bool = validate_shapes(data, shapes).conforms
 
-_sh_truthy(g, s, p::IRI) = (o = _sh_one(g, s, p); o isa Literal && o.lexical_form == "true")
+# Boolean parameter (sh:uniqueLang, sh:closed, sh:deactivated).  Every value is
+# its own constraint and a `false` value constrains nothing, so a single `true`
+# among the values switches the parameter on (§2.1.3).
+_sh_truthy(g, s, p::IRI) =
+    any(o -> o isa Literal && o.lexical_form == "true", _sh_each(g, s, p))
 
 # Shapes that carry at least one target declaration (the validation roots).
 function _sh_all_shapes_with_targets(shapes::Graph)
@@ -314,6 +331,8 @@ end
 # Validate a focus node against a shape (node or property shape).
 function _sh_validate(ctx::_ShCtx, shape, focus::RDFTerm)
     _sh_truthy(ctx.shapes, shape, _sh("deactivated")) && return
+    # A property shape has exactly one value for sh:path (several makes it
+    # ill-formed), so _sh_one is right here.
     path = _sh_one(ctx.shapes, shape, _sh("path"))
     if path === nothing
         # Node shape: the focus node is the single value node.

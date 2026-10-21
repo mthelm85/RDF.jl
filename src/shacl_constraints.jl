@@ -2,6 +2,13 @@
 #
 # Each component is checked for a shape against its value nodes (and, for some,
 # the focus node).  Violations are appended to ctx.results via _sh_report!.
+#
+# SHACL 1.0 §2.1.3: "If a shape has multiple values for a parameter, the
+# constraint component is applied for each value."  Every parameter is therefore
+# iterated (_sh_each / _sh_objects) and checked once per value, so each violated
+# value produces its own validation result.  The only parameters still read with
+# _sh_one are the ones the spec itself restricts to a single value (sh:path,
+# sh:severity) — see the notes at their call sites.
 
 # Component IRIs
 _shc(name::String) = _sh(name * "ConstraintComponent")
@@ -11,35 +18,37 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
     s = ctx.shapes
 
     # ── Cardinality (shape-level, on the value-node count) ───────────────────
-    mn = _sh_one(s, shape, _sh("minCount"))
-    if mn isa Literal && (m = tryvalue(Int, mn)) !== nothing && length(vals) < m
-        _sh_report!(ctx, shape, focus, path, nothing, _shc("MinCount");
-                    message="Fewer than $m values")
+    for mn in _sh_each(s, shape, _sh("minCount"))
+        if mn isa Literal && (m = tryvalue(Int, mn)) !== nothing && length(vals) < m
+            _sh_report!(ctx, shape, focus, path, nothing, _shc("MinCount");
+                        message="Fewer than $m values")
+        end
     end
-    mx = _sh_one(s, shape, _sh("maxCount"))
-    if mx isa Literal && (m = tryvalue(Int, mx)) !== nothing && length(vals) > m
-        _sh_report!(ctx, shape, focus, path, nothing, _shc("MaxCount");
-                    message="More than $m values")
+    for mx in _sh_each(s, shape, _sh("maxCount"))
+        if mx isa Literal && (m = tryvalue(Int, mx)) !== nothing && length(vals) > m
+            _sh_report!(ctx, shape, focus, path, nothing, _shc("MaxCount");
+                        message="More than $m values")
+        end
     end
 
     # ── Value type (per value node) ──────────────────────────────────────────
-    dt = _sh_one(s, shape, _sh("datatype"))
-    if dt isa IRI
+    for dt in _sh_each(s, shape, _sh("datatype"))
+        dt isa IRI || continue
         for v in vals
             ok = v isa Literal && v.datatype == dt && _sh_lexical_ok(v)
             ok || _sh_report!(ctx, shape, focus, path, v, _shc("Datatype");
                               message="Value is not a well-formed $(dt.value)")
         end
     end
-    for cls in _sh_objects(s, shape, _sh("class"))
+    for cls in _sh_each(s, shape, _sh("class"))
         for v in vals
             _sh_is_instance(ctx.data, v, cls) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("Class");
                             message="Value is not an instance of $(_sh_term_str(cls))")
         end
     end
-    nk = _sh_one(s, shape, _sh("nodeKind"))
-    if nk isa IRI
+    for nk in _sh_each(s, shape, _sh("nodeKind"))
+        nk isa IRI || continue
         for v in vals
             _sh_nodekind_ok(v, nk) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("NodeKind");
@@ -54,8 +63,8 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
     _sh_range!(ctx, shape, focus, path, vals, "maxExclusive", <,  "MaxExclusive")
 
     # ── String-based ─────────────────────────────────────────────────────────
-    mnl = _sh_one(s, shape, _sh("minLength"))
-    if mnl isa Literal && (m = tryvalue(Int, mnl)) !== nothing
+    for mnl in _sh_each(s, shape, _sh("minLength"))
+        (mnl isa Literal && (m = tryvalue(Int, mnl)) !== nothing) || continue
         for v in vals
             # Blank nodes have no string representation → always a violation.
             (!(v isa BlankNode) && length(_sh_lex(v)) >= m) ||
@@ -63,34 +72,45 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
                             message="Shorter than $m characters")
         end
     end
-    mxl = _sh_one(s, shape, _sh("maxLength"))
-    if mxl isa Literal && (m = tryvalue(Int, mxl)) !== nothing
+    for mxl in _sh_each(s, shape, _sh("maxLength"))
+        (mxl isa Literal && (m = tryvalue(Int, mxl)) !== nothing) || continue
         for v in vals
             (!(v isa BlankNode) && length(_sh_lex(v)) <= m) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("MaxLength");
                             message="Longer than $m characters")
         end
     end
-    pat = _sh_one(s, shape, _sh("pattern"))
-    if pat isa Literal
-        flags = _sh_one(s, shape, _sh("flags"))
-        re = _sh_build_regex(pat.lexical_form, flags isa Literal ? flags.lexical_form : "")
-        if re !== nothing
+    # sh:flags is a parameter of the pattern component, not a per-pattern
+    # annotation, and the order of a node's objects carries no meaning — so each
+    # pattern is checked against each of the shape's sh:flags values (no
+    # sh:flags → no regex options).
+    flagvals = nothing   # the shape's sh:flags values, read on first pattern
+    for pat in _sh_each(s, shape, _sh("pattern"))
+        pat isa Literal || continue
+        if flagvals === nothing
+            flagvals = String[f.lexical_form for f in _sh_each(s, shape, _sh("flags"))
+                              if f isa Literal]
+            isempty(flagvals) && push!(flagvals, "")
+        end
+        for fl in flagvals
+            re = _sh_build_regex(pat.lexical_form, fl)
+            re === nothing && continue
             for v in vals
                 (!(v isa BlankNode) && occursin(re, _sh_lex(v))) ||
                     _sh_report!(ctx, shape, focus, path, v, _shc("Pattern");
-                                message="Value does not match pattern $(pat.lexical_form)")
+                                message="Value does not match pattern $(pat.lexical_form)" *
+                                        (isempty(fl) ? "" : " (flags $fl)"))
             end
         end
     end
-    langs = _sh_one(s, shape, _sh("languageIn"))
-    if langs !== nothing
+    for langs in _sh_each(s, shape, _sh("languageIn"))
         allowed = String[(l::Literal).lexical_form for l in _sh_list(s, langs) if l isa Literal]
         for v in vals
             ok = v isa Literal && !isempty(v.language_tag) &&
                  any(a -> _sh_lang_match(v.language_tag, a), allowed)
             ok || _sh_report!(ctx, shape, focus, path, v, _shc("LanguageIn");
-                              message="Language tag not in the allowed set")
+                              message="Language tag not in the allowed set " *
+                                      "($(_sh_terms_str(allowed)))")
         end
     end
     if _sh_truthy(s, shape, _sh("uniqueLang"))
@@ -106,16 +126,17 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
     end
 
     # ── sh:in / sh:hasValue ──────────────────────────────────────────────────
-    inl = _sh_one(s, shape, _sh("in"))
-    if inl !== nothing
-        allowed = Set{RDFTerm}(_sh_list(s, inl))
+    for inl in _sh_each(s, shape, _sh("in"))
+        members = _sh_list(s, inl)
+        allowed = Set{RDFTerm}(members)
         for v in vals
             v in allowed ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("In");
-                            message="Value is not in the allowed list")
+                            message="Value is not in the allowed list " *
+                                    "($(_sh_terms_str(members)))")
         end
     end
-    for hv in _sh_objects(s, shape, _sh("hasValue"))
+    for hv in _sh_each(s, shape, _sh("hasValue"))
         (hv in vals) ||
             _sh_report!(ctx, shape, focus, path, nothing, _shc("HasValue");
                         message="Missing required value $(_sh_term_str(hv))")
@@ -125,50 +146,51 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
     _sh_pair!(ctx, shape, focus, path, vals)
 
     # ── Logical ──────────────────────────────────────────────────────────────
-    for ns in _sh_objects(s, shape, _sh("not"))
+    for ns in _sh_each(s, shape, _sh("not"))
         for v in vals
             _sh_node_conforms(ctx, ns, v) &&
                 _sh_report!(ctx, shape, focus, path, v, _shc("Not");
                             message="Value conforms to a negated shape")
         end
     end
-    andl = _sh_one(s, shape, _sh("and"))
-    if andl !== nothing
+    # Each sh:and / sh:or / sh:xone value is its own list of shapes, and the
+    # message names that list's members so two violated lists on the same shape
+    # stay apart in the report.
+    for andl in _sh_each(s, shape, _sh("and"))
         subs = _sh_list(s, andl)
         for v in vals
             all(sub -> _sh_node_conforms(ctx, sub, v), subs) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("And");
-                            message="Value does not conform to all shapes")
+                            message="Value does not conform to all of $(_sh_terms_str(subs))")
         end
     end
-    orl = _sh_one(s, shape, _sh("or"))
-    if orl !== nothing
+    for orl in _sh_each(s, shape, _sh("or"))
         subs = _sh_list(s, orl)
         for v in vals
             any(sub -> _sh_node_conforms(ctx, sub, v), subs) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("Or");
-                            message="Value does not conform to any shape")
+                            message="Value does not conform to any of $(_sh_terms_str(subs))")
         end
     end
-    xonel = _sh_one(s, shape, _sh("xone"))
-    if xonel !== nothing
+    for xonel in _sh_each(s, shape, _sh("xone"))
         subs = _sh_list(s, xonel)
         for v in vals
             count(sub -> _sh_node_conforms(ctx, sub, v), subs) == 1 ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("Xone");
-                            message="Value does not conform to exactly one shape")
+                            message="Value does not conform to exactly one of " *
+                                    "$(_sh_terms_str(subs))")
         end
     end
 
     # ── Shape-based: sh:node / sh:property ───────────────────────────────────
-    for ns in _sh_objects(s, shape, _sh("node"))
+    for ns in _sh_each(s, shape, _sh("node"))
         for v in vals
             _sh_node_conforms(ctx, ns, v) ||
                 _sh_report!(ctx, shape, focus, path, v, _shc("Node");
                             message="Value does not conform to node shape $(_sh_term_str(ns))")
         end
     end
-    for ps in _sh_objects(s, shape, _sh("property"))
+    for ps in _sh_each(s, shape, _sh("property"))
         # property shape is validated with each value node as its focus
         for v in vals
             _sh_validate(ctx, ps, v)
@@ -176,18 +198,24 @@ function _sh_check_constraints(ctx::_ShCtx, shape, focus::RDFTerm,
     end
 
     # ── sh:qualifiedValueShape ───────────────────────────────────────────────
-    qvs = _sh_one(s, shape, _sh("qualifiedValueShape"))
-    if qvs !== nothing
+    # sh:qualifiedValueShape, sh:qualifiedMinCount and sh:qualifiedMaxCount are
+    # parameters of the same two components, so every (shape, count) pair is a
+    # constraint of its own.
+    for qvs in _sh_each(s, shape, _sh("qualifiedValueShape"))
         nconf = count(v -> _sh_node_conforms(ctx, qvs, v), vals)
-        qmin = _sh_one(s, shape, _sh("qualifiedMinCount"))
-        if qmin isa Literal && (m = tryvalue(Int, qmin)) !== nothing && nconf < m
-            _sh_report!(ctx, shape, focus, path, nothing, _shc("QualifiedMinCount");
-                        message="Fewer than $m values conform to the qualified shape")
+        for qmin in _sh_each(s, shape, _sh("qualifiedMinCount"))
+            if qmin isa Literal && (m = tryvalue(Int, qmin)) !== nothing && nconf < m
+                _sh_report!(ctx, shape, focus, path, nothing, _shc("QualifiedMinCount");
+                            message="Fewer than $m values conform to the qualified " *
+                                    "shape $(_sh_term_str(qvs))")
+            end
         end
-        qmax = _sh_one(s, shape, _sh("qualifiedMaxCount"))
-        if qmax isa Literal && (m = tryvalue(Int, qmax)) !== nothing && nconf > m
-            _sh_report!(ctx, shape, focus, path, nothing, _shc("QualifiedMaxCount");
-                        message="More than $m values conform to the qualified shape")
+        for qmax in _sh_each(s, shape, _sh("qualifiedMaxCount"))
+            if qmax isa Literal && (m = tryvalue(Int, qmax)) !== nothing && nconf > m
+                _sh_report!(ctx, shape, focus, path, nothing, _shc("QualifiedMaxCount");
+                            message="More than $m values conform to the qualified " *
+                                    "shape $(_sh_term_str(qvs))")
+            end
         end
     end
 
@@ -200,6 +228,13 @@ end
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 _sh_term_str(t::RDFTerm) = t isa IRI ? t.value : sprint(show, t)
+
+# Render a parameter's list of terms for a message, abbreviated when long.  Used
+# to tell apart two violated values of the same parameter (two sh:or lists, say).
+function _sh_terms_str(ts::AbstractVector; limit::Int=5)::String
+    shown = join((t isa AbstractString ? t : _sh_term_str(t) for t in first(ts, limit)), ", ")
+    length(ts) > limit ? shown * ", …" : shown
+end
 
 function _sh_lex(t::RDFTerm)::String
     t isa Literal && return t.lexical_form
@@ -242,16 +277,17 @@ end
 # Value-range comparison: numbers numerically, otherwise by SPARQL term compare.
 function _sh_range!(ctx::_ShCtx, shape, focus, path, vals, param::String,
                     op::Function, comp::String)
-    bound = _sh_one(ctx.shapes, shape, _sh(param))
-    bound isa Literal || return
-    for v in vals
-        ok = false
-        if v isa Literal
-            c = _sh_num_cmp(v, bound)
-            ok = c === nothing ? false : op(c, 0)
+    for bound in _sh_each(ctx.shapes, shape, _sh(param))
+        bound isa Literal || continue
+        for v in vals
+            ok = false
+            if v isa Literal
+                c = _sh_num_cmp(v, bound)
+                ok = c === nothing ? false : op(c, 0)
+            end
+            ok || _sh_report!(ctx, shape, focus, path, v, _shc(comp);
+                              message="Value out of range ($param $(bound.lexical_form))")
         end
-        ok || _sh_report!(ctx, shape, focus, path, v, _shc(comp);
-                          message="Value out of range ($param)")
     end
 end
 
@@ -272,8 +308,8 @@ end
 # Property-pair constraints (equals / disjoint / lessThan / lessThanOrEquals).
 function _sh_pair!(ctx::_ShCtx, shape, focus, path, vals)
     s = ctx.shapes
-    eqp = _sh_one(s, shape, _sh("equals"))
-    if eqp isa IRI
+    for eqp in _sh_each(s, shape, _sh("equals"))
+        eqp isa IRI || continue
         other = Set{RDFTerm}(_sh_path_values(ctx.data, focus, eqp))
         vs = Set{RDFTerm}(vals)
         for v in setdiff(vs, other)
@@ -285,16 +321,16 @@ function _sh_pair!(ctx::_ShCtx, shape, focus, path, vals)
                         message="Missing value present at $(eqp.value)")
         end
     end
-    dis = _sh_one(s, shape, _sh("disjoint"))
-    if dis isa IRI
+    for dis in _sh_each(s, shape, _sh("disjoint"))
+        dis isa IRI || continue
         other = Set{RDFTerm}(_sh_path_values(ctx.data, focus, dis))
         for v in vals
             v in other && _sh_report!(ctx, shape, focus, path, v, _shc("Disjoint");
                                       message="Value also present at $(dis.value)")
         end
     end
-    lt = _sh_one(s, shape, _sh("lessThan"))
-    if lt isa IRI
+    for lt in _sh_each(s, shape, _sh("lessThan"))
+        lt isa IRI || continue
         others = _sh_path_values(ctx.data, focus, lt)
         for v in vals, o in others
             c = (v isa Literal && o isa Literal) ? _sh_num_cmp(v, o) : nothing
@@ -303,8 +339,8 @@ function _sh_pair!(ctx::_ShCtx, shape, focus, path, vals)
                             message="Value not less than $(lt.value)")
         end
     end
-    lte = _sh_one(s, shape, _sh("lessThanOrEquals"))
-    if lte isa IRI
+    for lte in _sh_each(s, shape, _sh("lessThanOrEquals"))
+        lte isa IRI || continue
         others = _sh_path_values(ctx.data, focus, lte)
         for v in vals, o in others
             c = (v isa Literal && o isa Literal) ? _sh_num_cmp(v, o) : nothing
@@ -321,11 +357,24 @@ function _sh_closed!(ctx::_ShCtx, shape, focus::RDFTerm)
     focus isa SubjectTerm || return
     allowed = Set{IRI}()
     for ps in _sh_objects(ctx.shapes, shape, _sh("property"))
+        # sh:path is single-valued by definition (a property shape with several
+        # paths is ill-formed), so _sh_one is right here.
         p = _sh_one(ctx.shapes, ps, _sh("path"))
         p isa IRI && push!(allowed, p)
     end
-    ign = _sh_one(ctx.shapes, shape, _sh("ignoredProperties"))
-    ign !== nothing && for p in _sh_list(ctx.shapes, ign); p isa IRI && push!(allowed, p); end
+    # sh:ignoredProperties is a parameter of the same component as sh:closed, so
+    # each of its values is a constraint in its own right: a predicate has to be
+    # ignored by every one of the lists (no list → nothing is ignored).
+    ignlists = _sh_objects(ctx.shapes, shape, _sh("ignoredProperties"))
+    isempty(ignlists) && return _sh_closed_check!(ctx, shape, focus, allowed)
+    for ign in ignlists
+        ignored = copy(allowed)
+        for p in _sh_list(ctx.shapes, ign); p isa IRI && push!(ignored, p); end
+        _sh_closed_check!(ctx, shape, focus, ignored)
+    end
+end
+
+function _sh_closed_check!(ctx::_ShCtx, shape, focus::RDFTerm, allowed::Set{IRI})
     for t in match(ctx.data; subject=focus)
         t.predicate in allowed ||
             _sh_report!(ctx, shape, focus, t.predicate, t.object, _shc("Closed");
