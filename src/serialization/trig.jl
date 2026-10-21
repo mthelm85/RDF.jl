@@ -226,11 +226,16 @@ function _trig_label_string(name::GraphName, prefixes::Dict{String,String})::Str
         # Longest matching prefix wins, as in the Turtle writer.
         best_len = 0; best_pn = ""
         for (pn, pi) in prefixes
-            if startswith(v, pi) && length(pi) > best_len
-                best_len = length(pi); best_pn = pn
+            if startswith(v, pi) && ncodeunits(pi) > best_len
+                best_len = ncodeunits(pi); best_pn = pn
             end
         end
-        best_len > 0 && return "$best_pn:$(v[best_len+1:end])"
+        if best_len > 0
+            local_part = SubString(v, best_len + 1)
+            # Same PN_LOCAL check as the Turtle writer: a label that cannot be
+            # abbreviated legally is written in full.
+            _ttl_is_valid_pn_local(local_part) && return "$best_pn:$local_part"
+        end
         return "<$v>"
     end
     return "_:b$(name.id)"

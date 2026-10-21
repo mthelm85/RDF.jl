@@ -182,16 +182,22 @@ function Base.write(io::IO, ::_MIME_TTL, g::Graph;
             iri = _resolve(id)::IRI
             best_len = 0; best_pn = ""
             for (pn, pi) in prefixes
-                if startswith(iri.value, pi) && length(pi) > best_len
-                    best_len = length(pi); best_pn = pn
+                if startswith(iri.value, pi) && ncodeunits(pi) > best_len
+                    best_len = ncodeunits(pi); best_pn = pn
                 end
             end
+            # A prefix only helps if what follows it is a legal PN_LOCAL;
+            # otherwise the abbreviation would not parse back, so the IRI goes
+            # out in full.
             if best_len > 0
-                write(io, best_pn); write(io, ':')
-                write(io, iri.value[best_len+1:end])
-            else
-                @inbounds write(io, cache[id])
+                local_part = SubString(iri.value, best_len + 1)
+                if _ttl_is_valid_pn_local(local_part)
+                    write(io, best_pn); write(io, ':')
+                    write(io, local_part)
+                    return
+                end
             end
+            @inbounds write(io, cache[id])
         end
     end
 
@@ -346,6 +352,52 @@ function _is_pn_chars(c::AbstractChar)::Bool
     cp = UInt32(c)
     _is_pn_chars_u(c) || c == '-' || isdigit(c) ||
     cp == 0x00B7 || (0x0300 <= cp <= 0x036F) || (0x203F <= cp <= 0x2040)
+end
+
+# ── PN_LOCAL (writer side) ────────────────────────────────────────────────────
+#
+# An IRI may be abbreviated to `prefix:local` only when `local` is a PN_LOCAL:
+#
+#   PN_LOCAL ::= (PN_CHARS_U | ':' | [0-9] | PLX)
+#                ((PN_CHARS | '.' | ':' | PLX)* (PN_CHARS | ':' | PLX))?
+#   PLX      ::= PERCENT | PN_LOCAL_ESC
+#   PERCENT  ::= '%' HEX HEX
+#
+# so the first character is more restricted than the inner ones, '.' is legal
+# inside but not at the end, and characters such as '/', '?', '=' and '#' are
+# legal only as a PN_LOCAL_ESC escape. The writer emits the local part verbatim,
+# never escaped, so PN_LOCAL_ESC is deliberately not accepted here: a local part
+# that would need escaping is reported invalid and written as a full IRI.
+#
+# An empty local part is valid — `ns:` alone is a PNAME_NS.
+function _ttl_is_valid_pn_local(s::AbstractString)::Bool
+    isempty(s) && return true
+    i      = firstindex(s)
+    last_i = lastindex(s)
+    first  = true
+    while i <= last_i
+        c = @inbounds s[i]
+        if c == '%'
+            # PERCENT is a PLX, so it is legal in any position — including first
+            # and last — but only with two hex digits after it.
+            j = nextind(s, i); j > last_i && return false
+            k = nextind(s, j); k > last_i && return false
+            (isxdigit(@inbounds s[j]) && isxdigit(@inbounds s[k])) || return false
+            i = nextind(s, k)
+        else
+            nxt = nextind(s, i)
+            if first
+                (_is_pn_chars_u(c) || c == ':' || isdigit(c)) || return false
+            elseif nxt > last_i
+                (_is_pn_chars(c) || c == ':') || return false
+            else
+                (_is_pn_chars(c) || c == '.' || c == ':') || return false
+            end
+            i = nxt
+        end
+        first = false
+    end
+    return true
 end
 
 # Characters forbidden in IRIREF (both literal and after \u/\U unescape)
