@@ -372,17 +372,12 @@ end
         @test g ≅ parse_ttl(s)
     end
 
-    @testset "Serialize — space in local part is not abbreviated" begin
-        # A raw space is forbidden inside an IRIREF as well, so this IRI cannot
-        # round-trip through any of the line-based formats; what is asserted
-        # here is only that the writer does not pass it off as a prefixed name.
-        ns = "http://ex.org/ns/"
-        g = Graph()
-        push!(g, Triple(IRI("http://ex.org/s"), IRI("http://ex.org/p"),
-                        IRI(ns * "a b")))
-        s = serialize_ttl(g; prefixes=Dict("ns" => ns))
-        @test !occursin("ns:a b", s)
-        @test occursin("<$(ns)a b>", s)
+    @testset "Serialize — a space never reaches the writer" begin
+        # A space is outside PN_CHARS, but it is also forbidden inside an
+        # IRIREF, and IRI validation rejects it before a graph can hold one —
+        # so the writer has no space case to fall back on. Its percent-encoded
+        # form is a PLX and keeps being abbreviated (above).
+        @test_throws IRIError IRI("http://ex.org/ns/a b")
     end
 
     @testset "Serialize — valid local parts are still abbreviated" begin
