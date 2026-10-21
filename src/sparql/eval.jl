@@ -1473,6 +1473,44 @@ function _sp_reorder_bgp(triples::Vector{SpTriple}, ctx::_SpEvalCtx,
     out
 end
 
+# Extend a BindingTable by one triple pattern, choosing the right strategy.
+#
+# The columnar _bt_extend_tp fast path can only express positions that are
+# either a query constant or a single BT column, so two kinds of pattern have
+# to be evaluated per row instead:
+#
+#   • Complex property paths (*, +, ?, |, /, !) — graph traversal.
+#   • RDF-star triple-term patterns with inner variables — an inner slot is
+#     neither a constant nor a column of its own, so _bt_extend_tp would see
+#     the whole <<( … )>> position as an unconstrained wildcard: every triple
+#     term in the data would match and the inner variables would be left
+#     unbound, cross-joining the term's own bindings in afterwards.
+#
+# Every loop that joins a BGP's triples into a BT goes through here, so a
+# pattern cannot silently take the wildcard path in one of them (issue #18).
+function _bt_extend_tp_any(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
+    if _bt_is_complex_path(tp.predicate)
+        # Materialise, evaluate per-solution via _sp_eval_path_pattern, re-pack.
+        next = _SpSolution[]
+        for μ in _bt_to_solutions(bt)
+            append!(next, _sp_eval_path_pattern(
+                tp.subject, tp.predicate::SpPath, tp.object, ctx, μ))
+        end
+        return _solutions_to_bt(next)
+    elseif _tp_needs_tt_matching(tp)
+        # SpTripleTerm with inner variables: per-row matching so we can resolve
+        # the term against this row's bindings and bind its inner variables.
+        next = _SpSolution[]
+        for μ in _bt_to_solutions(bt)
+            append!(next, _sp_eval_tp_row(tp, ctx, μ))
+        end
+        return _solutions_to_bt(next)
+    else
+        # Plain IRI / SpPathIRI / SpPathA / SpVar predicate — use BT fast path.
+        return _bt_extend_tp(bt, tp, ctx)
+    end
+end
+
 # Evaluate a BGP against the active graph using a columnar BindingTable.
 #
 # Solutions are stored column-wise as parallel Vector{UInt32} arrays during
@@ -1484,30 +1522,7 @@ function _sp_eval_bgp(bgp::SpBGP, ctx::_SpEvalCtx, input::Vector{_SpSolution})::
 
     for tp in _sp_reorder_bgp(bgp.triples, ctx, Set(bt.vars))
         _bt_nrows(bt) == 0 && break
-
-        if _bt_is_complex_path(tp.predicate)
-            # Complex property path (*, +, ?, |, /, !): materialise, evaluate
-            # per-solution via _sp_eval_path_pattern, then re-pack into BT.
-            sols = _bt_to_solutions(bt)
-            next = _SpSolution[]
-            for μ in sols
-                append!(next, _sp_eval_path_pattern(
-                    tp.subject, tp.predicate::SpPath, tp.object, ctx, μ))
-            end
-            bt = _solutions_to_bt(next)
-        elseif _tp_needs_tt_matching(tp)
-            # SpTripleTerm with inner variables: per-row matching so we can
-            # filter for TripleTerm terms and bind their inner variables.
-            sols = _bt_to_solutions(bt)
-            next = _SpSolution[]
-            for μ in sols
-                append!(next, _sp_eval_tp_row(tp, ctx, μ))
-            end
-            bt = _solutions_to_bt(next)
-        else
-            # Plain IRI / SpPathIRI / SpPathA / SpVar predicate — use BT fast path.
-            bt = _bt_extend_tp(bt, tp, ctx)
-        end
+        bt = _bt_extend_tp_any(bt, tp, ctx)
     end
 
     _bt_to_solutions(bt)
@@ -2011,7 +2026,8 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
         # converting to Vector{_SpSolution} only when an element type forces it.
         #
         # Handled natively (zero intermediate Dict materialisation):
-        #   SpBGP     → _bt_extend_tp per triple (or path fallback)
+        #   SpBGP     → _bt_extend_tp_any per triple (path / triple-term
+        #                 patterns fall back to per-row evaluation there)
         #   SpOptional → _bt_left_join
         #   SpBind    → _bt_apply_bind
         #   SpFilter  → collected, applied in one pass at the end
@@ -2030,17 +2046,7 @@ function _sp_eval_pattern(pat::SpPat, ctx::_SpEvalCtx, input::Vector{_SpSolution
             elseif elem isa SpBGP
                 for tp in _sp_reorder_bgp((elem::SpBGP).triples, ctx, Set(bt.vars))
                     _bt_nrows(bt) == 0 && break
-                    if _bt_is_complex_path(tp.predicate)
-                        sols = _bt_to_solutions(bt)
-                        next = _SpSolution[]
-                        for μ in sols
-                            append!(next, _sp_eval_path_pattern(
-                                tp.subject, tp.predicate::SpPath, tp.object, ctx, μ))
-                        end
-                        bt = _solutions_to_bt(next)
-                    else
-                        bt = _bt_extend_tp(bt, tp, ctx)
-                    end
+                    bt = _bt_extend_tp_any(bt, tp, ctx)
                 end
 
             elseif elem isa SpOptional

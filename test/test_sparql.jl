@@ -27,6 +27,21 @@ function _sparql_ds()
     Dataset(; default_graph=read(IOBuffer(ttl), MIME"text/turtle"(), Graph))
 end
 
+# Graph for the RDF 1.2 triple-term binding tests (issue #18): one plain edge
+# a → e with no annotation, and one annotated edge b → e whose reifier carries
+# ex:w 5.0.  A triple-term pattern that ignores the incoming bindings matches
+# b's reifier whatever ?o is bound to, so a → e silently picks up the 5.0.
+function _tt_anno_graph()
+    ex = Namespace("http://ex.org/")
+    g  = Graph()
+    push!(g, Triple(ex.a, ex.p, ex.e))                          # a → e, NOT annotated
+    annotate!(g, Triple(ex.b, ex.p, ex.e), ex.w, Literal(5.0))  # b → e, annotated
+    g
+end
+
+const _TT_P = "PREFIX ex: <http://ex.org/> " *
+              "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+
 @testset "SPARQL 1.1" begin
 
     ex   = Namespace("http://example.org/")
@@ -951,6 +966,191 @@ end
             }
         """)
         @test isempty(result)
+    end
+
+    # ── RDF-star: solution bindings inside triple-term patterns (issue #18) ───
+    #
+    # A variable inside <<( … )>> is an ordinary triple-pattern position: it has
+    # to be matched against the incoming solution mapping, not re-bound from
+    # scratch and cross-joined in.  When it wasn't, a triple-term pattern
+    # matched every reified triple, so an edge with no annotation silently
+    # reported another subject's annotation values.
+
+    @testset "sparql — RDF-star: VALUES/FILTER bindings apply inside triple terms" begin
+        g = _tt_anno_graph()
+        nres(body) = length(sparql(g, _TT_P * "SELECT ?w WHERE { $body }"))
+
+        # The seven cases tabulated in issue #18.  Cases 1, 4, 6 and 7 always
+        # worked — they guard the join paths the fix must leave alone.
+        @test nres("?r rdf:reifies <<( ex:a ex:p ex:e )>> ; ex:w ?w") == 0
+        @test nres("?o ex:p ex:e . FILTER(?o = ex:a) " *
+                   "?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w") == 0
+        @test nres("VALUES ?o { ex:a } ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w") == 0
+        @test nres("ex:a ex:p ?el . ?r rdf:reifies <<( ex:a ex:p ?el )>> ; ex:w ?w") == 0
+        @test nres("VALUES ?pr { ex:p } ex:a ?pr ?el . " *
+                   "?r rdf:reifies <<( ex:a ?pr ?el )>> ; ex:w ?w") == 0
+        @test nres("?o ex:p ?el . ?r rdf:reifies <<( ?o ex:p ?el )>> ; ex:w ?w") == 1
+        @test nres("BIND(<<( ex:a ex:p ex:e )>> AS ?tt) ?r rdf:reifies ?tt ; ex:w ?w") == 0
+    end
+
+    @testset "sparql — RDF-star: triple-term solutions carry the right values" begin
+        ex = Namespace("http://ex.org/")
+        g  = _tt_anno_graph()
+
+        # Only b → e is annotated, so the two-row VALUES clause must keep one
+        # row — and it must be b's, with b's rating.  Returning a row per
+        # VALUES entry (or a's row with b's 5.0) is the bug.
+        res = sparql(g, _TT_P * """
+            SELECT ?o ?w WHERE {
+                VALUES ?o { ex:a ex:b }
+                ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:o] == ex.b
+        @test res[1][:w] == Literal(5.0)
+
+        res = sparql(g, _TT_P * """
+            SELECT ?o ?w WHERE {
+                ?o ex:p ex:e .
+                ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w
+                FILTER(?o = ex:b)
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:o] == ex.b
+        @test res[1][:w] == Literal(5.0)
+
+        # The reifier of a → e does not exist, so asking for it under FILTER
+        # must yield nothing rather than b's reifier.
+        res = sparql(g, _TT_P * """
+            SELECT ?r ?w WHERE {
+                ?o ex:p ex:e .
+                ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w
+                FILTER(?o = ex:a)
+            }
+        """)
+        @test isempty(res)
+    end
+
+    @testset "sparql — RDF-star: VALUES binds a triple term's predicate slot" begin
+        ex = Namespace("http://ex.org/")
+        g  = Graph()
+        annotate!(g, Triple(ex.b, ex.p, ex.e), ex.w, Literal(5.0))
+        annotate!(g, Triple(ex.b, ex.q, ex.e), ex.w, Literal(7.0))
+        annotate!(g, Triple(ex.b, ex.z, ex.e), ex.w, Literal(9.0))
+
+        # Two of the three annotated predicates are selected, so exactly two
+        # rows come back — one per VALUES entry, each with its own rating.
+        res = sparql(g, _TT_P * """
+            SELECT ?pr ?w WHERE {
+                VALUES ?pr { ex:p ex:q }
+                ?r rdf:reifies <<( ex:b ?pr ex:e )>> ; ex:w ?w
+            }
+            ORDER BY ?w
+        """)
+        @test length(res) == 2
+        @test res[1][:pr] == ex.p
+        @test res[1][:w]  == Literal(5.0)
+        @test res[2][:pr] == ex.q
+        @test res[2][:w]  == Literal(7.0)
+
+        # A VALUES entry that no triple term matches contributes no row.
+        res = sparql(g, _TT_P * """
+            SELECT ?pr ?w WHERE {
+                VALUES ?pr { ex:p ex:missing }
+                ?r rdf:reifies <<( ex:b ?pr ex:e )>> ; ex:w ?w
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:pr] == ex.p
+        @test res[1][:w]  == Literal(5.0)
+    end
+
+    @testset "sparql — RDF-star: BIND binds a variable inside a triple term" begin
+        ex = Namespace("http://ex.org/")
+        g  = _tt_anno_graph()
+
+        res = sparql(g, _TT_P * """
+            SELECT ?w WHERE {
+                BIND(ex:a AS ?o)
+                ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w
+            }
+        """)
+        @test isempty(res)
+
+        res = sparql(g, _TT_P * """
+            SELECT ?w WHERE {
+                BIND(ex:b AS ?o)
+                ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:w] == Literal(5.0)
+    end
+
+    @testset "sparql — RDF-star: triple term inside OPTIONAL" begin
+        ex = Namespace("http://ex.org/")
+        g  = _tt_anno_graph()
+
+        # Both edges survive the left join; only b → e gets a rating.
+        res = sparql(g, _TT_P * """
+            SELECT ?o ?w WHERE {
+                ?o ex:p ex:e .
+                OPTIONAL { ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w }
+            }
+            ORDER BY ?o
+        """)
+        @test length(res) == 2
+        @test res[1][:o] == ex.a
+        @test res[1][:w] === nothing
+        @test res[2][:o] == ex.b
+        @test res[2][:w] == Literal(5.0)
+
+        res = sparql(g, _TT_P * """
+            SELECT ?o ?w WHERE {
+                VALUES ?o { ex:a }
+                ?o ex:p ex:e .
+                OPTIONAL { ?r rdf:reifies <<( ?o ex:p ex:e )>> ; ex:w ?w }
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:o] == ex.a
+        @test res[1][:w] === nothing
+    end
+
+    @testset "sparql — RDF-star: triple term in subject position honours VALUES" begin
+        ex = Namespace("http://ex.org/")
+        g  = Graph()
+        push!(g, Triple(TripleTerm(ex.a, ex.p, ex.e), ex.cert, Literal(0.9)))
+        push!(g, Triple(TripleTerm(ex.b, ex.p, ex.e), ex.cert, Literal(0.1)))
+
+        res = sparql(g, _TT_P * """
+            SELECT ?o ?c WHERE {
+                VALUES ?o { ex:a }
+                <<( ?o ex:p ex:e )>> ex:cert ?c
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:o] == ex.a
+        @test res[1][:c] == Literal(0.9)
+    end
+
+    @testset "sparql — RDF-star: VALUES reaches a nested triple term" begin
+        ex = Namespace("http://ex.org/")
+        g  = Graph()
+        push!(g, Triple(ex.r1, ex.outer, TripleTerm(ex.s, ex.p, TripleTerm(ex.a, ex.q, ex.e))))
+        push!(g, Triple(ex.r2, ex.outer, TripleTerm(ex.s, ex.p, TripleTerm(ex.b, ex.q, ex.e))))
+
+        res = sparql(g, _TT_P * """
+            SELECT ?r ?o WHERE {
+                VALUES ?o { ex:a }
+                ?r ex:outer <<( ex:s ex:p <<( ?o ex:q ex:e )>> )>>
+            }
+        """)
+        @test length(res) == 1
+        @test res[1][:r] == ex.r1
+        @test res[1][:o] == ex.a
     end
 
 end
