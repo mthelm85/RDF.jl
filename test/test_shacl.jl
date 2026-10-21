@@ -110,6 +110,152 @@ const _sx = Namespace("http://shacl-test.example.org/")
         # the violating focus node's triples are dropped
         @test isempty(collect(match(kept; subject=_sx.b)))
     end
+
+    # ── Multiple values for one constraint parameter ─────────────────────────
+    #
+    # SHACL 1.0 §2.1.3: "If a shape has multiple values for a parameter, the
+    # constraint component is applied for each value."  Each value is its own
+    # constraint and all of them have to hold, so a shape carrying two sh:or
+    # lists must report a violation for each list that fails.
+    @testset "multiple values for one constraint parameter" begin
+        _ex = Namespace("http://ex.org/")
+        _shapes(body) = read(IOBuffer("""
+            @prefix sh:  <http://www.w3.org/ns/shacl#> .
+            @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+            @prefix ex:  <http://ex.org/> .
+            ex:S a sh:NodeShape ; sh:targetNode ex:x ;
+            """ * body), :ttl, Graph)
+        _data(body) = read(IOBuffer("@prefix ex: <http://ex.org/> .\n" * body), :ttl, Graph)
+        _n(rep, comp) =
+            count(r -> r.component == RDF._sh(comp * "ConstraintComponent"), rep.results)
+
+        @testset "sh:or" begin
+            shapes = _shapes("""
+                sh:or ( [ sh:path ex:a ; sh:minCount 1 ] [ sh:path ex:b ; sh:minCount 1 ] ) ;
+                sh:or ( [ sh:path ex:c ; sh:minCount 1 ] [ sh:path ex:d ; sh:minCount 1 ] ) .
+                """)
+            # satisfies the first list only → the second one is violated
+            rep = validate_shapes(_data("ex:x ex:a 1 ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "Or") == 1
+            @test rep.results[1].focus_node == _ex.x
+            # satisfies the second list only → the first one is violated
+            rep = validate_shapes(_data("ex:x ex:c 1 ."), shapes)
+            @test !rep.conforms
+            @test _n(rep, "Or") == 1
+            # neither list satisfied → one distinguishable result per list
+            rep = validate_shapes(_data("ex:x ex:e 1 ."), shapes)
+            @test _n(rep, "Or") == 2
+            @test length(unique(r.message for r in rep.results)) == 2
+            # both satisfied → conforms
+            @test conforms(_data("ex:x ex:a 1 ; ex:c 1 ."), shapes)
+        end
+
+        @testset "sh:pattern" begin
+            shapes = _shapes("""
+                sh:property [ sh:path ex:p ; sh:pattern "^a" ; sh:pattern "b\$" ] .
+                """)
+            rep = validate_shapes(_data("ex:x ex:p \"ax\" ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "Pattern") == 1
+            @test rep.results[1].path  == _ex.p
+            @test rep.results[1].value == Literal("ax")
+            @test occursin("b\$", rep.results[1].message)
+            # matches the second pattern only → one violation
+            @test _n(validate_shapes(_data("ex:x ex:p \"xb\" ."), shapes), "Pattern") == 1
+            @test conforms(_data("ex:x ex:p \"ab\" ."), shapes)
+
+            # sh:flags is a parameter of the same component, so it applies to
+            # every one of the shape's patterns — not just to one of them
+            shapes = _shapes("""
+                sh:property [ sh:path ex:p ; sh:pattern "^A" ; sh:pattern "B\$" ;
+                              sh:flags "i" ] .
+                """)
+            rep = validate_shapes(_data("ex:x ex:p \"ax\" ."), shapes)
+            @test _n(rep, "Pattern") == 1        # "^A" matches case-insensitively
+            @test occursin("B\$", rep.results[1].message)
+            @test conforms(_data("ex:x ex:p \"ab\" ."), shapes)
+        end
+
+        @testset "sh:and" begin
+            shapes = _shapes("""
+                sh:and ( [ sh:path ex:a ; sh:minCount 1 ] ) ;
+                sh:and ( [ sh:path ex:b ; sh:minCount 1 ] ) .
+                """)
+            rep = validate_shapes(_data("ex:x ex:a 1 ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "And") == 1
+            @test conforms(_data("ex:x ex:a 1 ; ex:b 1 ."), shapes)
+        end
+
+        @testset "sh:xone" begin
+            shapes = _shapes("""
+                sh:xone ( [ sh:path ex:a ; sh:minCount 1 ]
+                          [ sh:path ex:b ; sh:minCount 1 ] ) ;
+                sh:xone ( [ sh:path ex:c ; sh:minCount 1 ]
+                          [ sh:path ex:d ; sh:minCount 1 ] ) .
+                """)
+            # first list: exactly one of a/b — second list: both c and d conform
+            rep = validate_shapes(_data("ex:x ex:a 1 ; ex:c 1 ; ex:d 1 ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "Xone") == 1
+            @test conforms(_data("ex:x ex:a 1 ; ex:c 1 ."), shapes)
+        end
+
+        @testset "sh:in" begin
+            shapes = _shapes("""
+                sh:property [ sh:path ex:p ; sh:in ( "a" "b" ) ; sh:in ( "b" "c" ) ] .
+                """)
+            rep = validate_shapes(_data("ex:x ex:p \"a\" ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "In") == 1
+            @test rep.results[1].value == Literal("a")
+            @test conforms(_data("ex:x ex:p \"b\" ."), shapes)
+        end
+
+        @testset "sh:datatype" begin
+            shapes = _shapes("""
+                sh:property [ sh:path ex:p ;
+                              sh:datatype xsd:string ; sh:datatype xsd:integer ] .
+                """)
+            rep = validate_shapes(_data("ex:x ex:p \"s\" ."), shapes)
+            @test !rep.conforms
+            @test length(rep.results) == 1
+            @test _n(rep, "Datatype") == 1
+            @test occursin("integer", rep.results[1].message)
+            rep = validate_shapes(_data("ex:x ex:p 1 ."), shapes)
+            @test length(rep.results) == 1
+            @test occursin("string", rep.results[1].message)
+        end
+
+        @testset "scalar parameters" begin
+            # sh:minCount — 1 is met, 2 is not
+            shapes = _shapes(
+                "sh:property [ sh:path ex:p ; sh:minCount 1 ; sh:minCount 2 ] .")
+            @test _n(validate_shapes(_data("ex:x ex:p 1 ."), shapes), "MinCount") == 1
+            @test conforms(_data("ex:x ex:p 1 , 2 ."), shapes)
+
+            # sh:minInclusive — 1 is met, 5 is not
+            shapes = _shapes(
+                "sh:property [ sh:path ex:p ; sh:minInclusive 1 ; sh:minInclusive 5 ] .")
+            @test _n(validate_shapes(_data("ex:x ex:p 3 ."), shapes), "MinInclusive") == 1
+
+            # sh:nodeKind — an IRI satisfies sh:IRI but not sh:Literal
+            shapes = _shapes(
+                "sh:property [ sh:path ex:p ; sh:nodeKind sh:IRI ; sh:nodeKind sh:Literal ] .")
+            @test _n(validate_shapes(_data("ex:x ex:p ex:y ."), shapes), "NodeKind") == 1
+
+            # sh:maxLength — 3 is met, 1 is not
+            shapes = _shapes(
+                "sh:property [ sh:path ex:p ; sh:maxLength 3 ; sh:maxLength 1 ] .")
+            @test _n(validate_shapes(_data("ex:x ex:p \"ab\" ."), shapes), "MaxLength") == 1
+        end
+    end
 end
 
 # ── W3C SHACL core test suite ──────────────────────────────────────────────────
