@@ -401,6 +401,16 @@ function _parse_nt_iri(s, pos, lineno)
         isempty(raw)       && throw(ParseError("IRI must not be empty",                   lineno, pos, _MIME_NT()))
         occursin(' ', raw) && throw(ParseError("IRI must not contain unencoded spaces",   lineno, pos, _MIME_NT()))
         _nt_has_scheme(raw) || throw(ParseError("IRI must be absolute (no scheme found)", lineno, pos, _MIME_NT()))
+        # This branch bypasses IRI()'s validation, so it has to apply the IRIREF
+        # character class itself. '>' ends the token and '\' took the escape
+        # branch below, but <, ", {, }, |, ^, ` and #x00-#x20 can all appear raw
+        # — and an IRI holding one could not be written back out.  Only reached
+        # for an IRI not already interned, so repeats stay allocation-free.
+        for c in raw
+            _iri_forbidden_char(c) && throw(ParseError(
+                "IRI must not contain the unencoded character $(repr(c))",
+                lineno, pos, _MIME_NT()))
+        end
         return (IRI(String(raw), Val(:_trusted)), close + 1)
     else
         iri = try
