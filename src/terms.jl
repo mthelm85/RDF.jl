@@ -10,14 +10,39 @@ abstract type RDFTerm end
 # Scheme regex per RFC 3987: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 const _SCHEME_RE = r"^[A-Za-z][A-Za-z0-9+\-.]*:"
 
+# Characters that may not appear unencoded in an IRI.
+#
+# RFC 3986 §2 admits only unreserved / gen-delims / sub-delims / pct-encoded
+# characters and RFC 3987 adds only the non-ASCII ucschar ranges, so these are
+# excluded by the data model itself — they are not merely awkward to serialise.
+# The set is also exactly the character class the IRIREF production excludes:
+#
+#   IRIREF ::= '<' ([^#x00-#x20<>"{}|^`\] | UCHAR)* '>'
+#
+# Keeping the two in step is what guarantees that every IRI a graph can hold
+# can be written out and read back unchanged.  Note #x7F (DEL) is deliberately
+# NOT forbidden: it is outside #x00-#x20 and the production permits it.
+function _iri_forbidden_char(c::AbstractChar)::Bool
+    cp = UInt32(c)
+    cp <= 0x20 || c == '<' || c == '>' || c == '"' ||
+    c == '{'   || c == '}' || c == '|' || c == '^' || c == '`' || c == '\\'
+end
+
 function _validate_iri(s::String)
     isempty(s) && throw(IRIError(s, "IRI must not be empty"))
     if !occursin(_SCHEME_RE, s)
         throw(IRIError(s, "IRI must be absolute (must start with a scheme)"))
     end
-    # Spaces are never valid in IRIs without percent-encoding
-    if occursin(' ', s)
-        throw(IRIError(s, "IRI must not contain unencoded spaces"))
+    # One pass for the forbidden set; a space is the common case and keeps its
+    # own message. Parsers construct via the :_trusted bypass, so this scan is
+    # not on the read path.
+    for c in s
+        if c == ' '
+            throw(IRIError(s, "IRI must not contain unencoded spaces"))
+        elseif _iri_forbidden_char(c)
+            throw(IRIError(s, "IRI must not contain the unencoded character " *
+                              "$(repr(c)); percent-encode it"))
+        end
     end
     nothing
 end

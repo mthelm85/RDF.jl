@@ -513,4 +513,65 @@ using Test
         end
     end
 
+    # ── IRIREF character class (round-trip guarantee) ────────────────────────
+    #
+    # An IRI holding a character the IRIREF production excludes cannot be
+    # written out and read back, so it must not be constructible or parseable
+    # in the first place. _parse_nt_iri's no-backslash fast path uses the
+    # :_trusted bypass and so applies the class itself; the escaped path goes
+    # through IRI() and inherits it.
+
+    @testset "N-Triples/N-Quads parsing — raw forbidden character in an IRI" begin
+        # '>' terminates the token and '\' takes the escape path, so these are
+        # the forms that can reach the fast path raw.
+        for c in ('<', '"', '{', '}', '|', '^', '`')
+            doc = string("<http://example.org/a", c,
+                         "b> <http://example.org/p> ", '"', "v", '"', " .\n")
+            @test_throws ParseError read(IOBuffer(doc), :nt, Graph)
+            @test_throws ParseError read(IOBuffer(doc), :nq, Dataset)
+        end
+
+        # A control character from the #x00-#x20 range.
+        ctrl = string("<http://example.org/a", Char(0x09),
+                      "b> <http://example.org/p> ", '"', "v", '"', " .\n")
+        @test_throws ParseError read(IOBuffer(ctrl), :nt, Graph)
+    end
+
+    @testset "Parsing — UCHAR escape unescaping to a forbidden character" begin
+        # The escape is legal syntax; what it unescapes to is not.
+        doc = string("<http://example.org/a", Char(0x5c), "u003Cb> ",
+                     "<http://example.org/p> ", '"', "v", '"', " .\n")
+        @test_throws ParseError read(IOBuffer(doc), :nt, Graph)
+        @test_throws ParseError read(IOBuffer(doc), :ttl, Graph)
+    end
+
+    @testset "Round trip — legal-but-tricky IRIs survive every format" begin
+        # None of these is excluded by IRIREF, so each must keep working — the
+        # fix must not over-reject.
+        tricky = ["http://example.org/a[b]c",
+                  "http://example.org/a%20b",
+                  "http://example.org/a#frag",
+                  "http://example.org/a?q=1&r=2",
+                  "http://example.org/日本語",
+                  "http://example.org/a~b-c_d.e"]
+        g = Graph()
+        for (i, v) in enumerate(tricky)
+            push!(g, Triple(IRI(v), IRI("http://example.org/p$i"), IRI(v)))
+        end
+        for fmt in (:nt, :ttl)
+            io = IOBuffer(); write(io, fmt, g)
+            @test read(IOBuffer(String(take!(io))), fmt, Graph) ≅ g
+        end
+
+        # And with a tricky IRI as the graph name.
+        d = Dataset()
+        d[IRI(tricky[1])] = g
+        for fmt in (:nq, :trig)
+            io = IOBuffer(); write(io, fmt, d)
+            back = read(IOBuffer(String(take!(io))), fmt, Dataset)
+            @test haskey(back, IRI(tricky[1]))
+            @test back[IRI(tricky[1])] ≅ g
+        end
+    end
+
 end

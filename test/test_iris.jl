@@ -46,6 +46,47 @@ using Test
         @test_throws IRIError IRI("http://example.org/has space")
     end
 
+    @testset "Validation — characters forbidden in an IRIREF raise IRIError" begin
+        # RFC 3986 §2 admits only unreserved / gen-delims / sub-delims /
+        # pct-encoded, and RFC 3987 adds only the non-ASCII ucschar ranges, so
+        # none of these may appear in an IRI unencoded.  They are also exactly
+        # the characters the Turtle / N-Triples IRIREF production excludes, so
+        # rejecting them here is what makes every IRI a graph can hold both
+        # serialisable and re-parseable.
+        for c in ('<', '>', '"', '{', '}', '|', '^', '`', '\\')
+            @test_throws IRIError IRI(string("http://example.org/a", c, "b"))
+        end
+
+        # Control characters are excluded as the range #x00-#x20.
+        for c in ('\0', '\a', '\t', '\n', '\r', '\x1f')
+            @test_throws IRIError IRI(string("http://example.org/a", c, "b"))
+        end
+
+        # Anywhere in the IRI, not only mid-path.
+        @test_throws IRIError IRI("http://example.org/trailing>")
+        @test_throws IRIError IRI("http://exa|mple.org/")
+        @test_throws IRIError IRI("http://example.org/<")
+    end
+
+    @testset "Validation — legal IRI characters are still accepted" begin
+        # Guards against over-rejecting: each of these is inside the IRIREF
+        # production and must keep working.
+        for v in ("http://example.org/a[b]c",
+                  "http://example.org/a%20b",
+                  "http://example.org/a#frag",
+                  "http://example.org/a?q=1&r=2",
+                  "http://example.org/a!\$&'()*+,;=:@",
+                  "http://example.org/a~b-c_d.e",
+                  "http://example.org/日本語",
+                  "urn:uuid:0c2e5f7a-1f3c-4a1e-9b6d-2f1a3b4c5d6e")
+            @test IRI(v).value == v
+        end
+
+        # DEL is outside #x00-#x20 and the IRIREF production does not exclude
+        # it, so it stays constructible — and therefore round-trippable.
+        @test IRI("http://example.org/a\x7fb") isa IRI
+    end
+
     @testset "Equality — simple string comparison, no normalization (spec §3.2)" begin
         @test IRI("http://example.org/") == IRI("http://example.org/")
         @test IRI("http://example.org/alice") == IRI("http://example.org/alice")

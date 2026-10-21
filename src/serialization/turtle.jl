@@ -400,12 +400,10 @@ function _ttl_is_valid_pn_local(s::AbstractString)::Bool
     return true
 end
 
-# Characters forbidden in IRIREF (both literal and after \u/\U unescape)
-function _ttl_iriref_forbidden(c::AbstractChar)::Bool
-    cp = UInt32(c)
-    cp <= 0x20 || c == '<' || c == '>' || c == '"' ||
-    c == '{' || c == '}' || c == '|' || c == '^' || c == '`' || c == '\\'
-end
+# Characters forbidden in IRIREF (both literal and after \u/\U unescape).
+# One definition, shared with the data model's own IRI validation, so the
+# grammar and `IRI()` cannot drift apart — see `_iri_forbidden_char` in terms.jl.
+_ttl_iriref_forbidden(c::AbstractChar)::Bool = _iri_forbidden_char(c)
 
 # ── Hex escape ────────────────────────────────────────────────────────────────
 
