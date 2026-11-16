@@ -283,6 +283,27 @@ end
         @test_throws ParseError parse_jsonld_graph(json)
     end
 
+    # ── 14b. Non-string language values are rejected with ParseError ─────────
+    # These must be explicit type checks: relying on `String(x)` throwing a
+    # MethodError broke on Julia 1.15, where `String(true)` returns "\x01"
+    # through the generic iterable constructor (W3C ter22/ter30/ter35).
+    @testset "Non-string @language rejected" begin
+        for bad in ("true", "1", "{}", "[\"en\"]")
+            @test_throws ParseError parse_jsonld_graph("""{
+                "@context": {"term": {"@id": "http://example/term", "@language": $bad}},
+                "@id": "http://example/s", "term": "x"}""")
+            @test_throws ParseError parse_jsonld_graph("""{
+                "@id": "http://example/s",
+                "http://example/p": {"@value": "foo", "@language": $bad}}""")
+        end
+        # A language map value may be a string or an array of strings.
+        for bad in ("true", "1", "{}", "[true]", "[[\"en\"]]")
+            @test_throws ParseError parse_jsonld_graph("""{
+                "@context": {"label": {"@id": "http://example/label", "@container": "@language"}},
+                "@id": "http://example/s", "label": {"en": $bad}}""")
+        end
+    end
+
     # ── 15. Dataset round-trip ────────────────────────────────────────────────
     @testset "Dataset round-trip" begin
         ex = "http://example.org/"
