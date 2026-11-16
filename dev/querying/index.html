@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Querying — RDF.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=507649e8">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c364134a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Querying — RDF.jl">
   <meta property="og:title" content="Querying — RDF.jl">
@@ -90,12 +90,13 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.sparql">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql.jl#L163-L193" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql.jl#L163-L208" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">sparql(g, query; base=nothing) → SolutionSet | Graph | Bool</code></pre>
+<pre><code class="language-julia">sparql(g, query; base=nothing, load_datasets=false, service_options=nothing)
+    → SolutionSet | Graph | Bool</code></pre>
 </div>
 <p>Execute a SPARQL 1.1 query against a <code class="md-code-inline">Graph</code> or <code class="md-code-inline">Dataset</code>.</p>
 <div class="md-table-wrap">
@@ -128,6 +129,8 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 </div>
 <p><code class="md-code-inline">base</code> is an optional absolute IRI used to resolve relative IRIs in the query (e.g. <code class="md-code-inline">FROM &lt;relative.ttl&gt;</code>). When <code class="md-code-inline">nothing</code>, relative IRIs in the query that lack a <code class="md-code-inline">BASE</code> declaration are resolved against an implementation-defined default.</p>
 <p><code class="md-code-inline">load_datasets</code> (default <code class="md-code-inline">false</code>) controls whether a <code class="md-code-inline">FROM</code> / <code class="md-code-inline">FROM NAMED</code> clause may load a graph the caller did not supply. When <code class="md-code-inline">false</code>, a dataset clause can only select among the graphs already in <code class="md-code-inline">g</code>; an IRI naming anything else contributes nothing, per SPARQL 1.1 §13.2. When <code class="md-code-inline">true</code>, a clause whose IRI is a <code class="md-code-inline">file:</code> IRI (or a relative IRI resolved against <code class="md-code-inline">base</code> to one) is also read from disk, with the format taken from the file extension.</p>
+<p><code class="md-code-inline">service_options</code> (default <code class="md-code-inline">nothing</code>) supplies per-query options for <code class="md-code-inline">SERVICE</code> endpoints: a <code class="md-code-inline">Dict</code> mapping endpoint IRI (string or <code class="md-code-inline">IRI</code>) to a <code class="md-code-inline">NamedTuple</code> such as <code class="md-code-inline">(; headers = [&quot;X-API-Key&quot; =&gt; key], timeout = 60, batch_size = 50)</code>. Each entry is merged over the options registered with <a href="../querying/#RDF.service_options!"><code class="md-code-inline">service_options!</code></a>. HTTP keys are forwarded like <a href="../querying/#RDF.RemoteGraph"><code class="md-code-inline">RemoteGraph</code></a>&#39;s; <code class="md-code-inline">batch_size</code> (default 200) and <code class="md-code-inline">bind_join</code> (default <code class="md-code-inline">true</code>) tune evaluation.</p>
+<p><code class="md-code-inline">SERVICE</code> uses a bind join: when the local solutions bind variables of the <code class="md-code-inline">SERVICE</code> pattern, their distinct values are sent to the endpoint as a <code class="md-code-inline">VALUES</code> block, <code class="md-code-inline">batch_size</code> per request, and the answers are hash-joined back. Results are identical to joining the endpoint&#39;s full answer. Blank nodes are never sent. <code class="md-code-inline">SERVICE SILENT</code> failures leave only the affected batch&#39;s rows unjoined (service variables unbound). Requires HTTP.jl (<code class="md-code-inline">using HTTP</code>).</p>
 <div class="md-admonition md-admonition-warning">
 <p class="md-admonition-title">load_datasets reads local files</p>
 <div class="md-admonition-body">
@@ -147,7 +150,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.sparql_parse">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql_parse</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql/parser.jl#L2899-L2905" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql/parser.jl#L2899-L2905" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -160,7 +163,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.SolutionSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.SolutionSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql.jl#L16-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql.jl#L16-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -177,7 +180,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.SolutionRow">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.SolutionRow</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql.jl#L39-L48" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql.jl#L39-L48" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -199,7 +202,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.read_sparql_json">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.read_sparql_json</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql/results.jl#L326-L336" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql/results.jl#L326-L336" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -213,7 +216,7 @@ df = DataFrame(match(g; predicate=rdf.type))</code></pre>
 <div class="md-docstring" id="RDF.write_sparql_results">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.write_sparql_results</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql/results.jl#L404-L437" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql/results.jl#L404-L437" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -326,7 +329,7 @@ sparql(ds, &quot;&quot;&quot;
 <div class="md-docstring" id="RDF.sparql_update!">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.sparql_update!</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/sparql.jl#L207-L221" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/sparql.jl#L225-L239" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -537,11 +540,84 @@ result = sparql(local_graph, &quot;&quot;&quot;
 &quot;&quot;&quot;)</code></pre>
 </div>
 <p><code class="md-code-inline">SERVICE SILENT</code> tolerates failures: if the endpoint is unreachable (or HTTP.jl is not loaded), the outer solutions pass through unchanged with the service variables left unbound. Without <code class="md-code-inline">SILENT</code>, failures raise an error — never silently empty results.</p>
+<p><strong>Bind join.</strong> When the local solutions already bind variables used in the <code class="md-code-inline">SERVICE</code> pattern, those bindings are pushed to the endpoint as a <code class="md-code-inline">VALUES</code> block, so the endpoint only computes the solutions you can actually join — there is no need to hand-write <code class="md-code-inline">VALUES</code> inside <code class="md-code-inline">SERVICE</code>. Distinct bindings are sent in batches (200 per request by default) and the answers are hash-joined back onto the local rows. Blank nodes are never sent (their labels mean nothing to the endpoint); rows where a shared variable is unbound or a blank node are sent without that column and filtered locally, so results are identical to joining the full remote answer. With <code class="md-code-inline">SERVICE SILENT</code>, a failed batch only affects the rows in that batch. With no shared bound variables, the bare pattern is sent once.</p>
+<p><strong>Credentials and per-endpoint options.</strong> A <code class="md-code-inline">SERVICE</code> clause names only an IRI, so headers, auth, and timeouts are registered per endpoint — or passed for a single query, overriding the registry key by key:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
+
+service_options!(&quot;https://sparql.onetcenter.org&quot;;
+                 headers = [&quot;X-API-Key&quot; =&gt; ENV[&quot;ONET_KEY&quot;]], timeout = 60)
+
+sparql(local_graph, query)                     # SERVICE &lt;https://sparql.onetcenter.org&gt; is authenticated
+
+# Query-scoped override (merged over the registry), incl. bind-join tuning
+sparql(local_graph, query; service_options = Dict(
+    &quot;https://query.wikidata.org/sparql&quot; =&gt; (; batch_size = 50)))
+
+service_options(&quot;https://sparql.onetcenter.org&quot;)   # inspect
+clear_service_options!()                           # forget all endpoints</code></pre>
+</div>
+<p>HTTP options are forwarded exactly like <a href="../querying/#RDF.RemoteGraph"><code class="md-code-inline">RemoteGraph</code></a>&#39;s keyword arguments; <code class="md-code-inline">batch_size</code> and <code class="md-code-inline">bind_join = false</code> (send the bare pattern) are handled by the <code class="md-code-inline">SERVICE</code> evaluator. Options are never rendered into error messages.</p>
+<div class="md-docstring" id="RDF.service_options!">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.service_options!</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/remote.jl#L53-L81" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">service_options!(endpoint; kwargs...) → nothing</code></pre>
+</div>
+<p>Register options used whenever a SPARQL <code class="md-code-inline">SERVICE &lt;endpoint&gt; { … }</code> clause is evaluated by the local <a href="../querying/#RDF.sparql"><code class="md-code-inline">sparql</code></a>.  <code class="md-code-inline">endpoint</code> is a string or <a href="../terms/#RDF.IRI"><code class="md-code-inline">IRI</code></a> and must match the IRI written in the query exactly.  Calling it again replaces the endpoint&#39;s previous options.</p>
+<p>HTTP keyword arguments (<code class="md-code-inline">headers</code>, <code class="md-code-inline">auth</code>, <code class="md-code-inline">timeout</code>, <code class="md-code-inline">retries</code>, …) are forwarded to the transport exactly as <a href="../querying/#RDF.RemoteGraph"><code class="md-code-inline">RemoteGraph</code></a> forwards its keyword arguments — see the remote <code class="md-code-inline">sparql</code> documentation for the full list. Two keys are consumed by the <code class="md-code-inline">SERVICE</code> evaluator itself:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">batch_size::Int</code> (default 200) — number of distinct input bindings sent per request when bind-joining (see <a href="../querying/#RDF.sparql"><code class="md-code-inline">sparql</code></a>).</p>
+</li>
+<li><p><code class="md-code-inline">bind_join::Bool</code> (default <code class="md-code-inline">true</code>) — set <code class="md-code-inline">false</code> to send the bare pattern and join locally (one request, every remote solution of the pattern).</p>
+</li>
+</ul>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using RDF, HTTP
+service_options!(&quot;https://sparql.onetcenter.org&quot;;
+                 headers = [&quot;X-API-Key&quot; =&gt; ENV[&quot;ONET_KEY&quot;]], timeout = 60)</code></pre>
+</div>
+<p>Returns <code class="md-code-inline">nothing</code> so credentials are not echoed in a REPL or notebook.  Options are never rendered into error messages.  Inspect with <a href="../querying/#RDF.service_options"><code class="md-code-inline">service_options</code></a>, remove with <a href="../querying/#RDF.clear_service_options!"><code class="md-code-inline">clear_service_options!</code></a>; per-query overrides go through <code class="md-code-inline">sparql(g, q; service_options = …)</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.service_options">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.service_options</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/remote.jl#L90-L95" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">service_options(endpoint) → NamedTuple</code></pre>
+</div>
+<p>The options registered for <code class="md-code-inline">endpoint</code> with <a href="../querying/#RDF.service_options!"><code class="md-code-inline">service_options!</code></a>, or an empty <code class="md-code-inline">NamedTuple</code> when none are set.</p>
+</div>
+</div>
+<div class="md-docstring" id="RDF.clear_service_options!">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>RDF.clear_service_options!</code></h4>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/remote.jl#L101-L106" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">clear_service_options!(endpoint) → nothing
+clear_service_options!()         → nothing</code></pre>
+</div>
+<p>Remove the options registered for one endpoint, or for every endpoint.</p>
+</div>
+</div>
 <h3 id="RemoteGraph-—-endpoint-backed-graph-view" class="md-heading">RemoteGraph — endpoint-backed graph view<a href="#RemoteGraph-—-endpoint-backed-graph-view" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <div class="md-docstring" id="RDF.RemoteGraph">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.RemoteGraph</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/remote.jl#L22-L54" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/remote.jl#L140-L172" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -574,7 +650,7 @@ sparql(wikidata, &quot;SELECT ?s WHERE { ?s ?p ?o } LIMIT 10&quot;)</code></pre>
 <div class="md-docstring" id="RDF.RemoteEndpointError">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>RDF.RemoteEndpointError</code></h4>
-<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/f3e67e1644c4e4fb312fea34b3ed5443e7eb6231/src/errors.jl#L25-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/mthelm85/RDF.jl/blob/ea3db42b7c7426bbc05d9e50288a266f3d0117bb/src/errors.jl#L25-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -785,6 +861,6 @@ write_sparql_results(io, :json, result)    # SELECT and ASK both work</code></pr
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=507649e8"></script>
+  <script src="../assets/materialdocs.js?v=c364134a"></script>
 </body>
 </html>
