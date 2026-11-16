@@ -19,6 +19,124 @@ function _remote_sparql(endpoint::AbstractString, query::AbstractString; kwargs.
     f(endpoint, query; kwargs...)
 end
 
+# ── Per-endpoint options for federated SERVICE calls ──────────────────────────
+#
+# SERVICE clauses name only an endpoint IRI, so anything else a request needs
+# (credentials, headers, timeouts) is registered out-of-band, per endpoint.
+
+const _SERVICE_OPTIONS      = Dict{String, NamedTuple}()
+const _SERVICE_OPTIONS_LOCK = ReentrantLock()
+
+# Default number of distinct input bindings sent per bind-join request.
+const SERVICE_DEFAULT_BATCH_SIZE = 200
+
+# Keys consumed by the SERVICE evaluator itself; everything else is forwarded
+# to the HTTP transport.
+const _SERVICE_CONTROL_KEYS = (:batch_size, :bind_join)
+
+_service_key(endpoint::AbstractString) = String(endpoint)
+_service_key(endpoint::IRI)            = endpoint.value
+
+function _validate_service_options(opts::NamedTuple)
+    if haskey(opts, :batch_size)
+        bs = opts.batch_size
+        (bs isa Integer && bs > 0) ||
+            throw(ArgumentError("SERVICE batch_size must be a positive integer"))
+    end
+    if haskey(opts, :bind_join)
+        opts.bind_join isa Bool ||
+            throw(ArgumentError("SERVICE bind_join must be true or false"))
+    end
+    opts
+end
+
+"""
+    service_options!(endpoint; kwargs...) → nothing
+
+Register options used whenever a SPARQL `SERVICE <endpoint> { … }` clause is
+evaluated by the local [`sparql`](@ref).  `endpoint` is a string or [`IRI`](@ref)
+and must match the IRI written in the query exactly.  Calling it again replaces
+the endpoint's previous options.
+
+HTTP keyword arguments (`headers`, `auth`, `timeout`, `retries`, …) are
+forwarded to the transport exactly as [`RemoteGraph`](@ref) forwards its
+keyword arguments — see the remote `sparql` documentation for the full list.
+Two keys are consumed by the `SERVICE` evaluator itself:
+
+- `batch_size::Int` (default $(SERVICE_DEFAULT_BATCH_SIZE)) — number of distinct
+  input bindings sent per request when bind-joining (see [`sparql`](@ref)).
+- `bind_join::Bool` (default `true`) — set `false` to send the bare pattern
+  and join locally (one request, every remote solution of the pattern).
+
+```julia
+using RDF, HTTP
+service_options!("https://sparql.onetcenter.org";
+                 headers = ["X-API-Key" => ENV["ONET_KEY"]], timeout = 60)
+```
+
+Returns `nothing` so credentials are not echoed in a REPL or notebook.  Options
+are never rendered into error messages.  Inspect with [`service_options`](@ref),
+remove with [`clear_service_options!`](@ref); per-query overrides go through
+`sparql(g, q; service_options = …)`.
+"""
+function service_options!(endpoint::Union{AbstractString, IRI}; kwargs...)
+    opts = _validate_service_options(NamedTuple(kwargs))
+    lock(_SERVICE_OPTIONS_LOCK) do
+        _SERVICE_OPTIONS[_service_key(endpoint)] = opts
+    end
+    nothing
+end
+
+"""
+    service_options(endpoint) → NamedTuple
+
+The options registered for `endpoint` with [`service_options!`](@ref), or an
+empty `NamedTuple` when none are set.
+"""
+service_options(endpoint::Union{AbstractString, IRI}) =
+    lock(_SERVICE_OPTIONS_LOCK) do
+        get(_SERVICE_OPTIONS, _service_key(endpoint), NamedTuple())
+    end
+
+"""
+    clear_service_options!(endpoint) → nothing
+    clear_service_options!()         → nothing
+
+Remove the options registered for one endpoint, or for every endpoint.
+"""
+function clear_service_options!(endpoint::Union{AbstractString, IRI})
+    lock(_SERVICE_OPTIONS_LOCK) do
+        delete!(_SERVICE_OPTIONS, _service_key(endpoint))
+    end
+    nothing
+end
+
+function clear_service_options!()
+    lock(_SERVICE_OPTIONS_LOCK) do
+        empty!(_SERVICE_OPTIONS)
+    end
+    nothing
+end
+
+# Normalise the query-scoped `service_options` keyword of `sparql(g, q)`.
+_normalize_service_options(::Nothing) = Dict{String, NamedTuple}()
+function _normalize_service_options(d::AbstractDict)
+    out = Dict{String, NamedTuple}()
+    for (k, v) in d
+        (k isa AbstractString || k isa IRI) || throw(ArgumentError(
+            "service_options keys must be endpoint strings or IRIs"))
+        nt = v isa NamedTuple ? v : NamedTuple(Symbol(first(p)) => last(p) for p in pairs(v))
+        out[_service_key(k)] = _validate_service_options(nt)
+    end
+    out
+end
+_normalize_service_options(x) = throw(ArgumentError(
+    "service_options must be a Dict mapping endpoint => NamedTuple of options"))
+
+# Effective options for one endpoint: registry, overridden by query scope.
+_service_effective_options(endpoint::String, scoped::Dict{String, NamedTuple}) =
+    merge(service_options(endpoint), get(scoped, endpoint, NamedTuple()))
+
 """
     RemoteGraph(endpoint::AbstractString; kwargs...)
 

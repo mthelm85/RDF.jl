@@ -301,6 +301,49 @@ HTTP.jl is not loaded), the outer solutions pass through unchanged with the
 service variables left unbound. Without `SILENT`, failures raise an error —
 never silently empty results.
 
+**Bind join.** When the local solutions already bind variables used in the
+`SERVICE` pattern, those bindings are pushed to the endpoint as a `VALUES`
+block, so the endpoint only computes the solutions you can actually join —
+there is no need to hand-write `VALUES` inside `SERVICE`. Distinct bindings
+are sent in batches (200 per request by default) and the answers are
+hash-joined back onto the local rows. Blank nodes are never sent (their labels
+mean nothing to the endpoint); rows where a shared variable is unbound or a
+blank node are sent without that column and filtered locally, so results are
+identical to joining the full remote answer. With `SERVICE SILENT`, a failed
+batch only affects the rows in that batch. With no shared bound variables,
+the bare pattern is sent once.
+
+**Credentials and per-endpoint options.** A `SERVICE` clause names only an
+IRI, so headers, auth, and timeouts are registered per endpoint — or passed
+for a single query, overriding the registry key by key:
+
+```julia
+using RDF, HTTP
+
+service_options!("https://sparql.onetcenter.org";
+                 headers = ["X-API-Key" => ENV["ONET_KEY"]], timeout = 60)
+
+sparql(local_graph, query)                     # SERVICE <https://sparql.onetcenter.org> is authenticated
+
+# Query-scoped override (merged over the registry), incl. bind-join tuning
+sparql(local_graph, query; service_options = Dict(
+    "https://query.wikidata.org/sparql" => (; batch_size = 50)))
+
+service_options("https://sparql.onetcenter.org")   # inspect
+clear_service_options!()                           # forget all endpoints
+```
+
+HTTP options are forwarded exactly like [`RemoteGraph`](@ref)'s keyword
+arguments; `batch_size` and `bind_join = false` (send the bare pattern) are
+handled by the `SERVICE` evaluator. Options are never rendered into error
+messages.
+
+```@docs
+service_options!
+service_options
+clear_service_options!
+```
+
 ### RemoteGraph — endpoint-backed graph view
 
 ```@docs

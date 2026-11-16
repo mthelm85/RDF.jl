@@ -196,6 +196,13 @@ result = sparql(local_graph, """
     }
   }
 """)
+# Local bindings for ?city are pushed to Wikidata as VALUES (bind join, in
+# batches of 200), so the endpoint never has to return every population.
+
+# Endpoints that need credentials: register headers/auth/timeout per endpoint
+# (or pass `service_options = Dict(endpoint => (; headers = …))` per query)
+service_options!("https://sparql.onetcenter.org";
+                 headers = ["X-API-Key" => ENV["ONET_KEY"]], timeout = 60)
 
 # RemoteGraph: match / in / length / sparql against a remote endpoint
 wd = RemoteGraph("https://query.wikidata.org/sparql")

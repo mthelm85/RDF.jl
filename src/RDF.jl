@@ -121,6 +121,7 @@ export read_sparql_json, write_sparql_results
 
 # Remote SPARQL endpoints (transport provided by the HTTP.jl extension)
 export RemoteGraph
+export service_options!, service_options, clear_service_options!
 
 # RDF-star annotations + GraphRAG context extraction
 export annotate!, annotations, anno
