@@ -40,7 +40,16 @@ jobs:
         # break here — path and file: URI handling, and line-ending translation
         # of the vendored W3C fixtures, which silently changed what several of
         # them assert until .gitattributes marked that tree -text.
+        #
+        # Julia 1.9's bundled libopenlibm requests an executable stack, which
+        # the glibc on ubuntu-latest (26.04) refuses to load, so `julia` cannot
+        # start there. Run 1.9 on the last Ubuntu image that still allows it.
+        exclude:
+          - version: '1.9'
+            os: ubuntu-latest
         include:
+          - version: '1.9'
+            os: ubuntu-24.04
           - version: '1.10'
             os: windows-latest
           - version: '1.12'

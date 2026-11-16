@@ -771,6 +771,11 @@ function _process_context(ctx::_JsonLDContext, raw_ctx;
             end
             if haskey(v, "@language")
                 lv = v["@language"]
+                # Must be a string or null. Check the type explicitly rather
+                # than relying on String(lv) to throw: on Julia ≥1.15
+                # String(true) succeeds via the generic iterable constructor.
+                (lv === nothing || lv isa AbstractString) ||
+                    throw(ParseError("invalid language mapping", 0, 0, _MIME_JSONLD()))
                 td["@language"] = lv === nothing ? nothing : lowercase(String(lv))
             end
             # @nest in a term definition must be exactly "@nest", and cannot be
@@ -1027,6 +1032,8 @@ function _expand_value_object(d::Dict{String,Any}, ctx::_JsonLDContext)
     elseif haskey(d, "@language")
         lv = d["@language"]
         if lv !== nothing
+            lv isa AbstractString ||
+                throw(ParseError("invalid language-tagged string", 0, 0, _MIME_JSONLD()))
             ls = String(lv)
             # A malformed language tag causes the value to be dropped (rejected),
             # not a hard error.
@@ -1320,6 +1327,8 @@ function _expand_node(d::Dict{String,Any}, ctx::_JsonLDContext; nested_base=noth
                 isnone = _is_none_key(ctx, String(lang))
                 for item in (lv isa AbstractArray ? collect(lv) : Any[lv])
                     item === nothing && continue
+                    item isa AbstractString ||
+                        throw(ParseError("invalid language map value", 0, 0, _MIME_JSONLD()))
                     vo = Dict{String,Any}("@value" => String(item))
                     isnone || (vo["@language"] = ls)
                     push!(out, vo)
