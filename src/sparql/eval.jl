@@ -50,23 +50,32 @@ mutable struct _SpEvalCtx
     # and this lets it read any file the process can reach. Never fetches over
     # the network, whatever the IRI scheme.
     load_datasets::Bool
+    # Query-scoped SERVICE options (endpoint => options), merged over the
+    # service_options! registry when a SERVICE clause is evaluated.
+    service_options::Dict{String, NamedTuple}
 end
 
-function _SpEvalCtx(ds::Dataset, base::Union{String,Nothing}; load_datasets::Bool=false)
+_SpEvalCtx(ds, active, base, bscope, bsolscope, load_datasets::Bool) =
+    _SpEvalCtx(ds, active, base, bscope, bsolscope, load_datasets,
+               Dict{String, NamedTuple}())
+
+function _SpEvalCtx(ds::Dataset, base::Union{String,Nothing}; load_datasets::Bool=false,
+                    service_options::Dict{String, NamedTuple}=Dict{String, NamedTuple}())
     _SpEvalCtx(ds, ds.default_graph, base, Dict{String, BlankNode}(),
-               Dict{String, BlankNode}(), load_datasets)
+               Dict{String, BlankNode}(), load_datasets, service_options)
 end
 
-function _SpEvalCtx(g::Graph, base::Union{String,Nothing}; load_datasets::Bool=false)
+function _SpEvalCtx(g::Graph, base::Union{String,Nothing}; load_datasets::Bool=false,
+                    service_options::Dict{String, NamedTuple}=Dict{String, NamedTuple}())
     ds = Dataset(default_graph=g)
     _SpEvalCtx(ds, g, base, Dict{String, BlankNode}(), Dict{String, BlankNode}(),
-               load_datasets)
+               load_datasets, service_options)
 end
 
 # Create a derived context with a different active graph
 function _sp_with_graph(ctx::_SpEvalCtx, g::Graph)
     _SpEvalCtx(ctx.dataset, g, ctx.base, Dict{String, BlankNode}(),
-               ctx.bnode_solution_scope, ctx.load_datasets)
+               ctx.bnode_solution_scope, ctx.load_datasets, ctx.service_options)
 end
 
 # ── Columnar BindingTable for zero-copy BGP evaluation ────────────────────────
@@ -1551,14 +1560,35 @@ end
 # ── SERVICE evaluation (SPARQL 1.1 Federated Query) ───────────────────────────
 #
 # The inner pattern is rendered back to SPARQL text (all IRIs absolute, no
-# prologue needed), wrapped in `SELECT * WHERE { … }`, and sent to the remote
-# endpoint through the _remote_sparql transport hook (installed by the
-# RDFHTTPExt extension when HTTP.jl is loaded).  The returned solutions are
-# joined with the current solutions on their shared variables.
+# prologue needed) and sent to the remote endpoint through the _remote_sparql
+# transport hook (installed by the RDFHTTPExt extension when HTTP.jl is
+# loaded), with the endpoint's options (service_options! registry merged with
+# the query-scoped `service_options`) forwarded as HTTP kwargs.
+#
+# Bind join.  When the input solutions bind variables that are in scope in the
+# SERVICE pattern, their distinct projections onto those variables ("keys")
+# are shipped as inline data, `batch_size` keys per request:
+#
+#     SELECT * WHERE { VALUES (?__rdfjl_bj ?v1 …) { (1 t1 …) … } { P } }
+#
+# The pattern stays a nested group, so the request evaluates Join(VALUES, P):
+# filters inside P keep their original scope.  ?__rdfjl_bj numbers the keys,
+# which lets each remote row be routed back to exactly the input rows sharing
+# its key (a hash join) — no remote row is ever joined against another key, so
+# the multiset of results equals Join(input, P).  Terms that cannot be sent
+# (blank nodes, whose labels are scoped to the local data; triple terms) and
+# unbound values are left out of the key's VALUES row — keys are grouped into
+# requests by which variables they bind, so no UNDEF is ever sent — and the
+# local compatibility check then enforces them.  Without shared bound variables the bare pattern is sent once and
+# hash-joined locally.
 #
 # SERVICE SILENT: any failure (no transport, network error, non-SELECT result,
-# variable endpoint) degrades to the join identity — input solutions pass
-# through unchanged with the service variables left unbound.
+# variable endpoint) degrades to the join identity for the affected input
+# rows — with bind join, per batch — which pass through with the service
+# variables left unbound.
+
+const _SP_BJ_VAR = "__rdfjl_bj"
+
 function _sp_eval_service(svc::SpService, ctx::_SpEvalCtx,
                           input::Vector{_SpSolution})::Vector{_SpSolution}
     if !(svc.endpoint isa SpIRI)
@@ -1567,35 +1597,184 @@ function _sp_eval_service(svc::SpService, ctx::_SpEvalCtx,
             "SERVICE with a variable endpoint is not supported; " *
             "use an explicit IRI (or SERVICE SILENT to tolerate it)"))
     end
-    endpoint = (svc.endpoint::SpIRI).value
-    query    = "SELECT * WHERE " * _sp_render_pattern(svc.pattern)
+    isempty(input) && return _SpSolution[]   # Join(∅, P) = ∅: no request
 
+    endpoint   = (svc.endpoint::SpIRI).value
+    opts       = _service_effective_options(endpoint, ctx.service_options)
+    batch_size = Int(get(opts, :batch_size, SERVICE_DEFAULT_BATCH_SIZE))
+    bind_join  = get(opts, :bind_join, true)::Bool
+    http       = Base.structdiff(opts, NamedTuple{_SERVICE_CONTROL_KEYS})
+    pattern    = _sp_render_pattern(svc.pattern)
+
+    in_scope = Set{Symbol}()
+    _sp_collect_bind_vars!(svc.pattern, in_scope)
+    input_vars = Set{Symbol}()
+    for μ in input, k in keys(μ)
+        push!(input_vars, k)
+    end
+    shared = sort!([v for v in in_scope if v in input_vars])
+
+    if bind_join && !isempty(shared)
+        return _sp_service_bind_join(svc, endpoint, http, batch_size, pattern,
+                                     shared, input)
+    end
+
+    result = _sp_service_request(endpoint, "SELECT * WHERE " * pattern, http,
+                                 svc.silent)
+    result === nothing && return input       # SILENT failure → identity
+    remote = _sp_service_solutions(result)
+
+    join_vars = _sp_shared_vars(input_vars, remote)
+    index, unindexed = _sp_index_solutions(remote, join_vars)
+    out = _SpSolution[]
+    for μ in input
+        for ν in _sp_join_candidates(μ, remote, index, unindexed, join_vars)
+            _sp_compatible(μ, ν) && push!(out, _sp_merge_sol(μ, ν))
+        end
+    end
+    out
+end
+
+# One request to a SERVICE endpoint.  Returns the SolutionSet, or `nothing`
+# when the request failed and the clause is SILENT.
+#
+# Credentials must never reach an error message.  Transport errors that are not
+# our own RemoteEndpointError (e.g. HTTP.jl's RequestError, which prints the
+# request's headers) are therefore replaced by a generic RemoteEndpointError
+# whenever the request carried headers or auth — and thrown *outside* the
+# catch block, so the original does not appear as "caused by" either.
+function _sp_service_request(endpoint::String, query::String, http::NamedTuple,
+                             silent::Bool)
+    redacted = nothing
     result = try
-        _remote_sparql(endpoint, query)
-    catch
-        svc.silent && return input
-        rethrow()
+        _remote_sparql(endpoint, query; http...)
+    catch e
+        silent && return nothing
+        (e isa RDFError || !(haskey(http, :headers) || haskey(http, :auth))) && rethrow()
+        redacted = nameof(typeof(e))
+        nothing
+    end
+    if redacted !== nothing
+        throw(RemoteEndpointError(endpoint,
+            "SERVICE request failed ($redacted); details withheld because the " *
+            "request carried credentials (headers/auth)"))
     end
     if !(result isa SolutionSet)
-        svc.silent && return input
+        silent && return nothing
         throw(RemoteEndpointError(endpoint,
             "SERVICE endpoint returned $(typeof(result)); expected SELECT solutions"))
     end
+    result
+end
 
+function _sp_service_solutions(result)::Vector{_SpSolution}   # ::SolutionSet (defined later)
     remote = _SpSolution[]
     sizehint!(remote, length(result))
     for row in result
         μ = _SpSolution()
-        for v in (result::SolutionSet).variables
+        for v in result.variables
             t = row[v]
             t === nothing || (μ[v] = t)
         end
         push!(remote, μ)
     end
+    remote
+end
+
+# A bound term that can be shipped in VALUES, or `nothing` (left unconstrained).
+_sp_bj_sendable(t) = (t isa IRI || t isa Literal) ? t : nothing
+
+function _sp_service_bind_join(svc::SpService, endpoint::String, http::NamedTuple,
+                               batch_size::Int, pattern::String,
+                               shared::Vector{Symbol},
+                               input::Vector{_SpSolution})::Vector{_SpSolution}
+    # Distinct keys, in first-seen order; row_key[i] is input[i]'s key number.
+    key_ids = Dict{Vector{Union{IRI, Literal, Nothing}}, Int}()
+    keylist = Vector{Vector{Union{IRI, Literal, Nothing}}}()
+    row_key = Vector{Int}(undef, length(input))
+    for (i, μ) in enumerate(input)
+        key = Union{IRI, Literal, Nothing}[_sp_bj_sendable(get(μ, v, nothing)) for v in shared]
+        row_key[i] = get!(key_ids, key) do
+            push!(keylist, key)
+            length(keylist)
+        end
+    end
+
+    # Index variable: a name the pattern does not mention.
+    idx_name = _SP_BJ_VAR
+    while occursin("?" * idx_name, pattern) || occursin("\$" * idx_name, pattern)
+        idx_name *= "_"
+    end
+    idx_var = Symbol(idx_name)
+
+    # Group keys by which shared variables they bind, so every VALUES block
+    # lists only bound columns: no UNDEF is ever sent (endpoints — including
+    # this package's own engine — disagree on UNDEF handling in joins).
+    groups = Dict{BitVector, Vector{Int}}()
+    masks  = BitVector[]
+    for (k, key) in enumerate(keylist)
+        mask = BitVector([t !== nothing for t in key])
+        push!(get!(() -> (push!(masks, mask); Int[]), groups, mask), k)
+    end
+    batches = Tuple{BitVector, Vector{Int}}[]
+    for mask in masks, b in Iterators.partition(groups[mask], batch_size)
+        push!(batches, (mask, collect(b)))
+    end
+
+    remote_by_key = [_SpSolution[] for _ in keylist]
+    failed = falses(length(keylist))
+    for (mask, batch) in batches
+        io = IOBuffer()
+        print(io, "SELECT * WHERE { VALUES (?", idx_name)
+        for (j, v) in enumerate(shared)
+            mask[j] && print(io, " ?", v)
+        end
+        print(io, ") { ")
+        for k in batch
+            print(io, '(', k)
+            for (j, t) in enumerate(keylist[k])
+                mask[j] || continue
+                print(io, ' ')
+                _sp_render_rdfterm(io, t)
+            end
+            print(io, ") ")
+        end
+        print(io, "} ", pattern, " }")
+
+        result = _sp_service_request(endpoint, String(take!(io)), http, svc.silent)
+        if result === nothing                     # SILENT failure of this batch
+            failed[batch] .= true
+            continue
+        end
+        in_batch = Set(batch)
+        for ν in _sp_service_solutions(result)
+            tag = pop!(ν, idx_var, nothing)
+            k = tag isa Literal ? tryparse(Int, tag.lexical_form) : nothing
+            if k === nothing || !(k in in_batch)
+                if svc.silent                     # unusable answer → SILENT failure
+                    failed[batch] .= true
+                    foreach(empty!, @view remote_by_key[batch])
+                    break
+                end
+                throw(RemoteEndpointError(endpoint,
+                    "SERVICE endpoint returned a solution without a valid " *
+                    "?$idx_name binding; it does not appear to honour VALUES " *
+                    "(use service_options!(endpoint; bind_join=false))"))
+            end
+            push!(remote_by_key[k], ν)
+        end
+    end
 
     out = _SpSolution[]
-    for μ1 in input, μ2 in remote
-        _sp_compatible(μ1, μ2) && push!(out, _sp_merge_sol(μ1, μ2))
+    for (i, μ) in enumerate(input)
+        k = row_key[i]
+        if failed[k]
+            push!(out, μ)
+            continue
+        end
+        for ν in remote_by_key[k]
+            _sp_compatible(μ, ν) && push!(out, _sp_merge_sol(μ, ν))
+        end
     end
     out
 end
@@ -2944,7 +3123,8 @@ function _sp_dataset_context(datasets::Vector{SpDatasetClause}, ctx::_SpEvalCtx)
     for (k, g) in new_named
         tmp_ds[k] = g
     end
-    _SpEvalCtx(tmp_ds, ctx.base; load_datasets=ctx.load_datasets)
+    _SpEvalCtx(tmp_ds, ctx.base; load_datasets=ctx.load_datasets,
+               service_options=ctx.service_options)
 end
 
 # ── CONSTRUCT execution ───────────────────────────────────────────────────────

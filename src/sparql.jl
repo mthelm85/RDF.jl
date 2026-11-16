@@ -161,7 +161,8 @@ Useful for query validation without executing against a dataset.
 # sparql_parse is defined in sparql/parser.jl
 
 """
-    sparql(g, query; base=nothing) → SolutionSet | Graph | Bool
+    sparql(g, query; base=nothing, load_datasets=false, service_options=nothing)
+        → SolutionSet | Graph | Bool
 
 Execute a SPARQL 1.1 query against a `Graph` or `Dataset`.
 
@@ -183,6 +184,20 @@ contributes nothing, per SPARQL 1.1 §13.2. When `true`, a clause whose IRI is a
 `file:` IRI (or a relative IRI resolved against `base` to one) is also read from
 disk, with the format taken from the file extension.
 
+`service_options` (default `nothing`) supplies per-query options for
+`SERVICE` endpoints: a `Dict` mapping endpoint IRI (string or `IRI`) to a
+`NamedTuple` such as `(; headers = ["X-API-Key" => key], timeout = 60,
+batch_size = 50)`. Each entry is merged over the options registered with
+[`service_options!`](@ref). HTTP keys are forwarded like [`RemoteGraph`](@ref)'s;
+`batch_size` (default 200) and `bind_join` (default `true`) tune evaluation.
+
+`SERVICE` uses a bind join: when the local solutions bind variables of the
+`SERVICE` pattern, their distinct values are sent to the endpoint as a
+`VALUES` block, `batch_size` per request, and the answers are hash-joined back.
+Results are identical to joining the endpoint's full answer. Blank nodes are
+never sent. `SERVICE SILENT` failures leave only the affected batch's rows
+unjoined (service variables unbound). Requires HTTP.jl (`using HTTP`).
+
 !!! warning "load_datasets reads local files"
     Enable it only for queries you trust. A query string is otherwise untrusted
     input, and this lets it read any file the process can open. It never
@@ -193,14 +208,17 @@ evaluation errors (e.g. an undeclared prefix).
 """
 function sparql(g::Union{Graph, Dataset}, query::AbstractString;
                 base::Union{AbstractString, Nothing} = nothing,
-                load_datasets::Bool = false)
+                load_datasets::Bool = false,
+                service_options::Union{AbstractDict, Nothing} = nothing)
+    svc_opts = _normalize_service_options(service_options)
     unit = sparql_parse(query)
     unit isa SpQueryUnit ||
         throw(ArgumentError("expected a SPARQL query, got an update — use sparql_update!"))
     base_str = base === nothing ? nothing : String(base)
     # Prefer BASE declaration from query over external base
     effective_base = unit.base !== nothing ? unit.base : base_str
-    ctx = _SpEvalCtx(g, effective_base; load_datasets=load_datasets)
+    ctx = _SpEvalCtx(g, effective_base; load_datasets=load_datasets,
+                     service_options=svc_opts)
     _sp_execute_query(unit, ctx)
 end
 
