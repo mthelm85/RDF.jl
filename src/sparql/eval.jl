@@ -225,6 +225,18 @@ end
 # Extend bt by joining with one triple pattern.
 # SpPathIRI and SpPathA predicates are treated as plain IRI constants.
 # Complex property paths must be caught by the caller before calling this.
+# After a row has been emitted (its existing columns copied), overwrite the
+# just-pushed value of any existing column that was unbound (0) in the input
+# row with the term the pattern matched there.  Columns are 0 when the
+# position is a constant or a new variable, so those are skipped.
+@inline function _bt_fill_unbound!(out_cols, s_col, s_rid, t_s, p_col, p_rid, t_p,
+                                   o_col, o_rid, t_o)
+    s_col != 0 && s_rid == 0 && (@inbounds out_cols[s_col][end] = t_s)
+    p_col != 0 && p_rid == 0 && (@inbounds out_cols[p_col][end] = t_p)
+    o_col != 0 && o_rid == 0 && (@inbounds out_cols[o_col][end] = t_o)
+    nothing
+end
+
 function _bt_extend_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
     n = _bt_nrows(bt)
     n == 0 && return bt
@@ -309,6 +321,10 @@ function _bt_extend_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
             s_wrt && push!(@inbounds(out_cols[out_idx[s_var]]), t_s)
             p_wrt && push!(@inbounds(out_cols[out_idx[p_var]]), t_p)
             o_wrt && push!(@inbounds(out_cols[out_idx[o_var]]), t_o)
+            # A variable whose column exists but is unbound (0) in this row
+            # matched as a wildcard: bind it to the matched term.
+            _bt_fill_unbound!(out_cols, s_col, s_rid, t_s, p_col, p_rid, t_p,
+                              o_col, o_rid, t_o)
             out_nrows += 1
         end
     end
@@ -400,6 +416,10 @@ function _bt_left_join_tp(bt::_BT, tp::SpTriple, ctx::_SpEvalCtx)::_BT
             s_wrt && push!(@inbounds(out_cols[out_idx[s_var]]), t_s)
             p_wrt && push!(@inbounds(out_cols[out_idx[p_var]]), t_p)
             o_wrt && push!(@inbounds(out_cols[out_idx[o_var]]), t_o)
+            # A variable whose column exists but is unbound (0) in this row
+            # matched as a wildcard: bind it to the matched term.
+            _bt_fill_unbound!(out_cols, s_col, s_rid, t_s, p_col, p_rid, t_p,
+                              o_col, o_rid, t_o)
             out_nrows += 1
             matched = true
         end
